@@ -1,0 +1,31 @@
+// Root build — shared conventions only; no sources live at the root.
+plugins {
+    alias(libs.plugins.spring.boot) apply false
+}
+
+subprojects {
+    apply plugin: 'java'
+
+    group = 'com.theinfectedhour'
+    version = '0.1.0-SNAPSHOT'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+    }
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        testImplementation platform('org.junit:junit-bom:5.11.4')
+        testImplementation 'org.junit.jupiter:junit-jupiter'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    }
+
+    tasks.withType(Test).configureEach {
+        useJUnitPlatform()
+    }
+}

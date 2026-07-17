@@ -1,0 +1,36 @@
+@startuml sequence-networking
+title Host-authoritative tick — Player 1 (Host) & Player 2 (Client)
+
+participant "Player 2\nClient" as P2
+participant "SocketClient" as SC
+participant "SocketServer\n(Host)" as SS
+participant "GameManager\n(Host)" as GM
+participant "Player 1\nHost" as P1
+
+P2 -> SC : local input (move, action)
+SC -> SS : PlayerInputPacket(tick, moveVector, action)
+SS -> GM : apply input for tick
+
+GM -> GM : simulate world\n(movement, collisions,\ncontamination, missions)
+
+GM -> SS : updated world state
+SS -> SC : EntitySyncPacket (20Hz)
+SS -> P1 : render authoritative state
+SC -> P2 : render reconciled state
+
+alt state changed (mission / contamination / boss phase)
+  GM -> SS : state delta
+  SS -> SC : GameStatePacket
+end
+
+loop every tick
+  SC -> SS : Heartbeat
+  SS -> SC : Heartbeat ack
+end
+
+alt N heartbeats missed
+  SS -> SS : mark client disconnected
+  SS -> P1 : pause session, show reconnect UI
+end
+
+@enduml

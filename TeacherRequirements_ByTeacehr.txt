@@ -1,0 +1,3 @@
+immunity system bar- drops to zero and we die
+level progress bar- finishing a map saves the progress( unlocked)
+achievement (my proposal)

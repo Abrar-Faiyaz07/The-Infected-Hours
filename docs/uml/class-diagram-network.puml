@@ -1,0 +1,70 @@
+@startuml class-diagram-network
+title The Infected Hour — network package
+
+interface SerializablePacket {
+  +serialize(): byte[]
+  +deserialize(data: byte[])
+}
+
+abstract class Packet implements SerializablePacket {
+  #senderId: String
+  #tick: long
+}
+
+class PlayerInputPacket extends Packet {
+  -moveVector: Vector2
+  -actionPressed: boolean
+}
+class EntitySyncPacket extends Packet {
+  -entityStates: List<EntityState>
+}
+class GameStatePacket extends Packet {
+  -contaminationPercent: float
+  -missionProgress: Map<String, float>
+  -bossPhase: String
+}
+class MissionUpdatePacket extends Packet
+class ChatPacket extends Packet
+class DisconnectPacket extends Packet
+
+class PacketManager {
+  +register(type: Class, handler: PacketHandler)
+  +dispatch(packet: Packet)
+}
+class PacketSerializer {
+  +encode(packet: Packet): byte[]
+  +decode(data: byte[]): Packet
+}
+class ConnectionManager {
+  -connections: List<Socket>
+  +broadcast(packet: Packet)
+}
+class Heartbeat {
+  -intervalMs: int
+  +tick()
+  +onTimeout(listener: Runnable)
+}
+
+class SocketServer {
+  +start(port: int)
+  +onClientConnected(session: ClientHandle)
+}
+class SocketClient {
+  +connect(host: String, port: int)
+  +send(packet: Packet)
+}
+
+SocketServer *-- ConnectionManager
+SocketServer *-- PacketManager
+SocketClient *-- PacketManager
+PacketManager ..> PacketSerializer : uses
+ConnectionManager *-- Heartbeat
+
+note bottom of PacketManager
+  network module never imports
+  com.theinfectedhour.entities directly.
+  Translation happens in
+  multiplayer.NetworkManager (client-side).
+end note
+
+@enduml

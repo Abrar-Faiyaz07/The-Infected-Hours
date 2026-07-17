@@ -1,0 +1,16 @@
+# Shared version catalog — single source of truth for dependency/plugin versions.
+[versions]
+gdx = "1.13.1"
+springBoot = "3.5.6"          # Gradle 9 requires Boot plugin >= 3.5.x
+junit = "5.11.4"
+mysqlConnector = "9.1.0"
+
+[libraries]
+gdx-core = { module = "com.badlogicgames.gdx:gdx", version.ref = "gdx" }
+gdx-backend-lwjgl3 = { module = "com.badlogicgames.gdx:gdx-backend-lwjgl3", version.ref = "gdx" }
+spring-boot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "springBoot" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+mysql-connector-j = { module = "com.mysql:mysql-connector-j", version.ref = "mysqlConnector" }
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "springBoot" }

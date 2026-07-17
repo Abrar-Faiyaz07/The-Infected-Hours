@@ -1,0 +1,78 @@
+@startuml class-diagram-entities
+title The Infected Hour — entities package
+
+interface Renderable {
+  +render(batch: SpriteBatch)
+}
+interface Updatable {
+  +update(deltaTime: float)
+}
+interface Damageable {
+  +takeDamage(amount: int)
+  +isDead(): boolean
+}
+interface Interactable {
+  +interact(source: Player)
+}
+
+abstract class Entity implements Renderable, Updatable {
+  #id: String
+  #position: Vector2
+}
+
+abstract class Character extends Entity implements Damageable {
+  #health: int
+  #abilitySet: AbilitySet
+  +useAbility()
+}
+
+class Player extends Character {
+  -role: PlayerRole
+  -inventory: Inventory
+}
+
+enum PlayerRole {
+  FIELD_MEDIC
+  LOCAL_SCOUT
+}
+
+class FieldMedic extends Player
+class LocalScout extends Player
+
+abstract class Enemy extends Character {
+  #ai: EnemyAI
+}
+
+interface EnemyAI {
+  +decideAction(context: WorldContext): Action
+}
+class SwarmBehavior implements EnemyAI
+class GuardBehavior implements EnemyAI
+
+class MutatedCell extends Enemy
+
+class VirusHeart extends Character {
+  -currentPhase: BossPhase
+  +advancePhase()
+}
+
+interface BossPhase {
+  +onEnter(boss: VirusHeart)
+  +update(deltaTime: float)
+  +onExit()
+}
+class ShieldPhase implements BossPhase
+class ExposurePhase implements BossPhase
+class CoreDestructionPhase implements BossPhase
+
+Character *-- "1" AbilitySet : composes
+Enemy *-- "1" EnemyAI : strategy
+VirusHeart *-- "1" BossPhase : current state
+
+note right of Character
+  Composition over inheritance:
+  abilities and AI are injected,
+  not subclassed.
+end note
+
+@enduml

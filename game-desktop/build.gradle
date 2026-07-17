@@ -1,0 +1,16 @@
+// game-desktop — libGDX launcher: rendering, audio, UI. Depends on game-core + network.
+plugins {
+    id 'application'
+}
+
+dependencies {
+    implementation project(':game-core')
+    implementation project(':network')
+    implementation libs.gdx.core
+    implementation libs.gdx.backend.lwjgl3
+    runtimeOnly "com.badlogicgames.gdx:gdx-platform:${libs.versions.gdx.get()}:natives-desktop"
+}
+
+application {
+    mainClass = 'com.theinfectedhour.desktop.DesktopLauncher'
+}
