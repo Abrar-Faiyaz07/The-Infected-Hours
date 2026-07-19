@@ -1,8 +1,0 @@
-// The Infected Hour — Gradle multi-module wiring (Architecture.md §3)
-rootProject.name = 'the-infected-hour'
-
-include 'game-core'
-include 'game-desktop'
-include 'network'
-include 'shared'
-include 'backend'

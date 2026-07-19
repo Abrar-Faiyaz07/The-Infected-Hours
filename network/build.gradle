@@ -1,9 +1,0 @@
-// network — socket layer + packet definitions.
-// HARD CONSTRAINT (Architecture.md §3): zero libGDX, zero Spring Boot imports.
-plugins {
-    id 'java-library'
-}
-
-dependencies {
-    api project(':shared')   // packets expose shared DTO types (Vector2, EntityState)
-}

@@ -1,0 +1,52 @@
+/* launcher.css — palette tokens from UI/UX doc §1 / §7 */
+
+.root {
+    -bg-night: #0E1420;
+    -panel-dark: #1C2536;
+    -accent-gold: #E8B02A;
+    -accent-red: #E85A4F;
+    -safe-green: #4CAF6D;
+    -toxic-purple: #7B4FA6;
+    -text-primary: #F2F0E9;
+    -text-muted: #8A93A6;
+
+    -fx-background-color: -bg-night;
+    -fx-font-family: "Jost", sans-serif;
+}
+
+.bg-night {
+    -fx-background-color: -bg-night;
+}
+
+.title-gold {
+    -fx-text-fill: -accent-gold;
+    -fx-font-size: 28px;
+    -fx-font-weight: bold;
+    -fx-underline: true; /* "gold underline motif on headings" per doc §7 */
+}
+
+.error-text {
+    -fx-text-fill: -accent-red;
+}
+
+.button {
+    -fx-background-color: -panel-dark;
+    -fx-text-fill: -text-primary;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+}
+
+.button:hover {
+    -fx-border-color: -accent-gold;
+    -fx-border-width: 1.5px;
+}
+
+.text-field, .password-field {
+    -fx-background-color: -panel-dark;
+    -fx-text-fill: -text-primary;
+}
+
+/* Connection status chip states (UI/UX doc §7) */
+.chip-searching { -fx-text-fill: -text-muted; }
+.chip-connected { -fx-text-fill: -safe-green; }
+.chip-lost { -fx-text-fill: -accent-red; }

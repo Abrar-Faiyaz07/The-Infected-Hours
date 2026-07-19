@@ -1,4 +1,0 @@
-// shared — DTOs used by client and backend. Pure Java, no dependencies by design.
-plugins {
-    id 'java-library'
-}
