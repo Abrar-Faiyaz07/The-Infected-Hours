@@ -1,8 +1,9 @@
 package com.infectedhour.core.screens;
 
-import com.badlogic.gdx.Game;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
+import com.infectedhour.core.InfectedHourGame;
 import com.infectedhour.core.bridge.GameBridge;
 import com.infectedhour.core.net.GameClient;
 import com.infectedhour.core.systems.BossPhaseSystem;
@@ -16,7 +17,7 @@ import com.infectedhour.core.ui.Hud;
  */
 public class BossScreen implements Screen {
 
-    private final Game game;
+    private final InfectedHourGame game;
     private final GameClient client;
     private final GameBridge bridge;
 
@@ -24,7 +25,7 @@ public class BossScreen implements Screen {
     private final Hud hud = new Hud();
     private boolean titleCardDismissed = false;
 
-    public BossScreen(Game game, GameClient client, GameBridge bridge) {
+    public BossScreen(InfectedHourGame game, GameClient client, GameBridge bridge) {
         this.game = game;
         this.client = client;
         this.bridge = bridge;
@@ -43,13 +44,20 @@ public class BossScreen implements Screen {
 
     @Override
     public void render(float delta) {
-        com.badlogic.gdx.Gdx.gl.glClearColor(0.05f, 0.02f, 0.03f, 1);
-        com.badlogic.gdx.Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+        // The boss arena is still host-authoritative — keep the sim stepping.
+        game.stepSimulation(delta);
+
+        Gdx.gl.glClearColor(0.05f, 0.02f, 0.03f, 1);
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         if (!titleCardDismissed) {
-            // TODO(boss): on E / any key -> titleCardDismissed = true, start
-            // the arena music stem. Keep the ready-gate: BOTH players must
-            // dismiss (same EventMessage pattern as LevelBriefingScreen).
+            if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.E)
+                    || Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.SPACE)) {
+                titleCardDismissed = true;
+            }
+            // TODO(boss): draw the title card and start the arena music stem.
+            // Keep the ready-gate: BOTH players must dismiss (same EventMessage
+            // pattern as LevelBriefingScreen).
             return;
         }
 

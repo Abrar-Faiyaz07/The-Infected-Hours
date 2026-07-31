@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<!--
+    Screen 3 — Main Menu (UI/UX doc §2).
+
+    LAYOUT CONTRACT (why it is built this way):
+
+    * Root StackPane carries NO prefWidth/prefHeight. A fixed 1920x1080 pref
+      size made the root larger than the real window, so everything below the
+      fold (About / Quit / player footer) was clipped. The root now fills
+      whatever Scene it is put in.
+
+    * The background is a CSS background-image on .menu-root with
+      -fx-background-size: cover, NOT an ImageView with hardcoded
+      fitWidth/fitHeight. "cover" rescales on every resize; a fixed-size
+      ImageView does not.
+
+    * styleClass lists are COMMA-separated. FXMLLoader splits list-valued
+      attributes on ",", so styleClass="menu-btn menu-btn-primary" was parsed
+      as ONE class literally named "menu-btn menu-btn-primary" — matching no
+      CSS rule at all, which is why the two primary buttons and the gold
+      "HOUR" title rendered completely unstyled.
+
+    * The column lives in a ScrollPane with fitToHeight="true". That single
+      flag does both jobs: when the menu is shorter than the window the VBox
+      is stretched to the viewport so the vgrow spacers can centre it, and
+      when the window is too short (or the OS runs at 125% display scaling,
+      which shrinks the logical viewport by a fifth) it scrolls instead of
+      silently clipping Quit off the bottom edge.
+-->
+<StackPane
+    fx:id="rootPane"
+    xmlns="http://javafx.com/javafx"
+    xmlns:fx="http://javafx.com/fxml"
+    fx:controller="com.infectedhour.fxlauncher.views.MainMenuController"
+    styleClass="menu-root"
+    minWidth="900" minHeight="560">
+
+    <!-- Layer 0: left-to-transparent gradient vignette over the CSS background. -->
+    <Region styleClass="menu-overlay"/>
+
+    <!-- Layer 1: content.
+         StackPane stretches the AnchorPane to fill; the AnchorPane pins the
+         menu column to the LEFT wall only (no right anchor), so the column
+         keeps its own width instead of stretching across the whole window. -->
+    <AnchorPane>
+
+        <!-- bottomAnchor clears the pinned footer below, so the two never fight
+             over the same pixels no matter how short the window gets. -->
+        <ScrollPane fx:id="menuScroller"
+                    AnchorPane.leftAnchor="72"
+                    AnchorPane.topAnchor="0"
+                    AnchorPane.bottomAnchor="64"
+                    prefWidth="440" minWidth="440" maxWidth="440"
+                    fitToWidth="true" fitToHeight="true"
+                    hbarPolicy="NEVER" vbarPolicy="AS_NEEDED"
+                    styleClass="menu-scroll">
+
+            <VBox fx:id="menuColumn" spacing="0">
+                <padding><Insets top="24" right="0" bottom="20" left="0"/></padding>
+
+                <!-- Flexible top spacer -->
+                <Region VBox.vgrow="ALWAYS" minHeight="8"/>
+
+                <!-- Brand block -->
+                <Label text="THE INFECTED" styleClass="brand-title"/>
+                <Label text="HOUR" styleClass="brand-title, brand-title-accent"/>
+
+                <Region prefHeight="8" minHeight="8"/>
+                <Label text="Cooperative Survival Horror" styleClass="brand-subtitle"/>
+
+                <Region prefHeight="28" minHeight="20"/>
+
+                <!-- Primary actions -->
+                <VBox spacing="8">
+                    <Button fx:id="singlePlayerBtn" text="1 Player Story Mode"
+                            maxWidth="Infinity" styleClass="menu-btn, menu-btn-primary"
+                            onAction="#onSinglePlayer"/>
+                    <Button fx:id="coopBtn" text="2 Player Co-op Mode"
+                            maxWidth="Infinity" styleClass="menu-btn, menu-btn-primary"
+                            onAction="#onCoopMode"/>
+                </VBox>
+
+                <Region prefHeight="16" minHeight="12"/>
+
+                <!-- Secondary actions -->
+                <VBox spacing="8">
+                    <Button fx:id="loadGameBtn" text="Load Game"
+                            maxWidth="Infinity" styleClass="menu-btn"
+                            onAction="#onLoadGame"/>
+                    <Button fx:id="settingsBtn" text="Settings"
+                            maxWidth="Infinity" styleClass="menu-btn"
+                            onAction="#onSettings"/>
+                    <Button fx:id="aboutBtn" text="About"
+                            maxWidth="Infinity" styleClass="menu-btn"
+                            onAction="#onAbout"/>
+                </VBox>
+
+                <Region prefHeight="16" minHeight="12"/>
+
+                <Button fx:id="quitBtn" text="Quit"
+                        maxWidth="Infinity" styleClass="menu-btn, menu-btn-danger"
+                        onAction="#onQuit"/>
+
+                <!-- Flexible bottom spacer -->
+                <Region VBox.vgrow="ALWAYS" minHeight="12"/>
+
+            </VBox>
+        </ScrollPane>
+
+        <!-- Player info footer — anchored to the window, NOT inside the scroll
+             column. Connection state is the one thing that must stay readable
+             at every window size (UI/UX doc §7), so it is never scrollable. -->
+        <VBox fx:id="footerBox" spacing="2"
+              AnchorPane.leftAnchor="72"
+              AnchorPane.bottomAnchor="16">
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <Label fx:id="statusChip" text="⬤  offline" styleClass="chip-searching"/>
+                <Label fx:id="usernameLabel" text="Guest" styleClass="player-name"/>
+            </HBox>
+            <Label fx:id="versionLabel" text="v0.1-alpha" styleClass="version-label"/>
+        </VBox>
+    </AnchorPane>
+
+</StackPane>

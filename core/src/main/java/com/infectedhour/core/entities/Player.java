@@ -54,6 +54,11 @@ public class Player implements Entity {
         return downed;
     }
 
+    /** Whole seconds left in the 30s revive window; mirrored into WorldSnapshot.PlayerState. */
+    public int getReviveSecondsRemaining() {
+        return reviveSecondsRemaining;
+    }
+
     public void applyDamage(float amount) {
         hp = Math.max(0, hp - amount);
         if (hp <= 0 && !downed) {
@@ -87,6 +92,12 @@ public class Player implements Entity {
         this.y += dy;
     }
 
+    /** Absolute placement — used by the host when seating a player at a spawn point. */
+    public void setPosition(float x, float y) {
+        this.x = x;
+        this.y = y;
+    }
+
     @Override
     public float getX() {
         return x;
@@ -100,16 +111,23 @@ public class Player implements Entity {
     @Override
     public void update(float delta) {
         if (abilityCooldownRemaining > 0) abilityCooldownRemaining -= delta;
+
+        // Revive window: the host counts it down and ships whole seconds in the
+        // snapshot, so both HUDs show the same number without either side
+        // running its own clock.
         if (downed && reviveSecondsRemaining > 0) {
-            // ================ TEAMMATE TASK: REVIVE TIMER ================
-            // TODO(player): count down the 30s revive window properly.
-            //  - Accumulate delta into a float field; every full 1.0s,
-            //    decrement reviveSecondsRemaining by 1.
-            //  - Reaches 0 while still downed -> level fails (GameServer's
-            //    win/lose check reads this).
-            // =============================================================
+            reviveCountdownAccumulator += delta;
+            while (reviveCountdownAccumulator >= 1f && reviveSecondsRemaining > 0) {
+                reviveCountdownAccumulator -= 1f;
+                reviveSecondsRemaining--;
+            }
+        } else {
+            reviveCountdownAccumulator = 0f;
         }
         // TODO(player, optional): slow contamination decay while standing in
         // a cleansed safe zone — nice touch, not demo-critical.
     }
+
+    /** Bled off in whole seconds so the networked value never jitters. */
+    private float reviveCountdownAccumulator = 0f;
 }

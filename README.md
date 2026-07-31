@@ -23,10 +23,15 @@ infected-hour/
   start, `GameLauncherBridge` hides the FX stage and boots a libGDX `Lwjgl3Application`
   on its own dedicated thread. Never touch Gdx from the FX thread or vice versa —
   everything crosses through `core.bridge.GameBridge`.
-- **Networking (TRD §5):** host-authoritative. Laptop A (Elric) runs `core.net.GameServer`
-  (KryoNet, TCP 54555 + UDP 54777, 60Hz sim, 20Hz snapshot broadcast). Laptop B (Jane)
-  runs `core.net.GameClient` — sends input at 30Hz, renders via snapshot interpolation
-  (`SnapshotInterpolator`, 100ms buffer). **No client-side prediction** in this build.
+- **Networking (TRD §5) — implemented and tested:** host-authoritative. Laptop A (Elric)
+  runs `core.net.GameServer` (KryoNet, TCP 54555 + UDP 54777, 60Hz sim, 20Hz snapshot
+  broadcast). Laptop B (Jane) runs `core.net.GameClient` — sends input at 30Hz, renders
+  via snapshot interpolation (`SnapshotInterpolator`, 100ms buffer). **No client-side
+  prediction** in this build. Lobby discovery is a UDP broadcast on **54778**
+  (`shared.net.LanDiscovery`) — *not* 54777, which KryoNet already owns; see
+  `docs/07_CHANGE_LOG_LAN_AND_MENU.md` §2.
+  The host also runs a client against its own loopback, so both players are created by
+  the same join handshake and there is no "local player" special case.
 - **Backend (Backend Schema doc):** single Spring Boot instance, run on the host laptop,
   both laptops call the same `http://<host-ip>:8080`. H2 file DB only. JWT auth (HS256,
   12h). `POST /matches/{id}/complete` is the single-transaction source of truth for
@@ -41,23 +46,54 @@ infected-hour/
 ./gradlew test                   # all unit + MockMvc/integration tests
 ```
 
-## Status — this is a skeleton
+### Testing co-op without a second laptop
 
-Every module compiles-shaped and matches the module/package layout in the TRD exactly,
-so file paths line up with what the docs describe. Business-critical logic is real
-(ImmunityBar-equivalent contamination math, objective state machine, boss phase state
-machine, JWT auth, match-complete transaction) and unit/integration tested. Rendering,
-input wiring, actual KryoNet payload population, Tiled map loading, and most Scene2D/JavaFX
-widget construction are marked `// TODO` — these are the next things to build.
+Two windows on one machine exercise the entire networking path — discovery aside:
+
+```bash
+./gradlew :lwjgl3:run
+```
+
+```bash
+./gradlew :lwjgl3:run --args="join"
+```
+
+Press `E` in both to clear the ready gate, then move with `WASD` in either window;
+both windows render both players from the host's snapshots. `--args="join <ip>"`
+targets a real host on the LAN.
+
+> The network tests bind the real ports. Close any running copy of the game before
+> `./gradlew test`, or `bind()` fails with "Address already in use".
+
+### Two-laptop checklist
+
+Allow inbound **TCP 54555** and **UDP 54777/54778** for Java on the host — a
+firewall prompt nobody clicked is the usual reason "no host answered". Full run
+book in `docs/07_CHANGE_LOG_LAN_AND_MENU.md` §6.
+
+## Status
+
+**Done and verified:** the backend, the critical game logic (contamination math,
+objective state machine, boss phase machine), the JavaFX main menu, and the whole
+LAN networking layer — discovery, join handshake, authoritative 60Hz sim, 20Hz
+snapshot broadcast with cloud deltas, snapshot interpolation, disconnect/reconnect,
+and the READY sync gates. Two instances connect and share one simulation; see
+`Images/verification/` for screenshots and `docs/07_CHANGE_LOG_LAN_AND_MENU.md`
+for what changed and why.
+
+**Not done:** everything that draws or simulates the actual level — Tiled map
+loading, collision, enemy AI, cloud BFS expansion, sprites, audio, and the Scene2D
+HUD. In-game entities are currently coloured quads. These are marked with
+`TEAMMATE TASK` blocks.
 
 ### Course / PRD Definition of Done checklist (PRD §13)
 
-- [ ] Two laptops host/join and complete all 3 levels co-op on LAN
+- [x] Two laptops host/join on LAN (**networking done**; completing all 3 levels needs the level content below)
 - [ ] All 6 mission types implemented (`core.systems.ObjectiveSystem` types)
 - [ ] 3-phase boss fight functional (`core.systems.BossPhaseSystem` — logic done, rendering TODO)
 - [ ] HUD: health, contamination, global meter, inventory, minimap (`core.ui` — structure done, rendering TODO)
-- [ ] 4 story panel sequences (`core.screens.StoryPanelScreen` — structure done, content TODO)
-- [ ] Backend live: login, save sync, leaderboard, match history (**done** — `backend` module)
+- [ ] 4 story panel sequences (`core.screens.StoryPanelScreen` — sync + typewriter done, art/copy TODO)
+- [x] Backend live: login, save sync, leaderboard, match history (`backend` module)
 - [ ] Stable 60 FPS, no crashes across a full playthrough
 
 ### Finding your tasks — the TEAMMATE TASK convention
@@ -86,11 +122,20 @@ grep -rn "TODO(story)" --include="*.java" .      # story panels
 Tags also make ownership easy: assign each teammate one or two tags and they can
 grep exactly their own work.
 
-### Suggested build order for Claude Code
+### Suggested build order
 
-1. `core/level/LevelLoader` — real Tiled `.tmx` loading + collision extraction
-2. `core/screens/GameScreen` — wire real input → `GameServer.fixedTimestepUpdate` → rendering from snapshot
-3. `core/net/GameServer` / `GameClient` — populate `WorldSnapshot` fully, real `SnapshotInterpolator` lerp
-4. `core/ui/Hud` — actual Scene2D widgets per UI/UX doc §3 layout
-5. `fx-launcher` lobby discovery (UDP broadcast) to make Host/Join Lobby actually find each other
-6. `backend.service.MatchService.upsertLeaderboardEntries` — currently a TODO stub
+Steps 3 and 5 of the original list (KryoNet payloads + interpolation, and lobby
+UDP discovery) are **done**. What is left, in dependency order:
+
+1. `core/level/LevelLoader` — real Tiled `.tmx` loading + collision extraction.
+   Everything below needs the tile grid this produces.
+2. `core/systems/MovementSystem` — normalise diagonal input and check the collision
+   grid before moving (diagonal movement is currently ~41% faster than orthogonal).
+3. `core/systems/ContaminationSystem.computeFrontierExpansion` — BFS cloud growth.
+   Returns an empty set today, so clouds never expand; the snapshot delta pipeline
+   around it is finished and tested.
+4. `core/systems/AISystem` — enemy chase and attack.
+5. `core/screens/GameScreen.drawWorld` — sprites + a camera following
+   `client.findLocalPlayer(snapshot)`, replacing the placeholder quads.
+6. `core/ui/Hud` — actual Scene2D widgets per UI/UX doc §3 layout.
+7. `backend.service.MatchService.upsertLeaderboardEntries` — currently a TODO stub.

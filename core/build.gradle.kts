@@ -10,4 +10,7 @@ dependencies {
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testImplementation("org.mockito:mockito-core:5.11.0")
+    // Required from Gradle 8+: without it the test task fails to boot with
+    // "Failed to load JUnit Platform".
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

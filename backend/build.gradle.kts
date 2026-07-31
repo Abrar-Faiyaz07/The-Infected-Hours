@@ -1,7 +1,12 @@
 // backend: Spring Boot 3.x, Spring Data JPA, Spring Security (JWT), MySQL
+// Spring Boot 3.5.x, not 3.3.0: the 3.3 Gradle plugin mutates runtimeOnly while
+// building bootJar, which Gradle 9 rejects with "Cannot mutate the dependency
+// attributes of configuration ':backend:runtimeOnly' after ... runtimeClasspath
+// was resolved". The wrapper here is Gradle 9.6.1, so the plugin has to be a
+// version that supports it.
 plugins {
-    id("org.springframework.boot") version "3.3.0"
-    id("io.spring.dependency-management") version "1.1.5"
+    id("org.springframework.boot") version "3.5.4"
+    id("io.spring.dependency-management") version "1.1.7"
 }
 
 dependencies {
@@ -22,4 +27,7 @@ dependencies {
     testImplementation("org.springframework.security:spring-security-test")
     // H2 kept for tests only so integration tests don't need a running MySQL
     testRuntimeOnly("com.h2database:h2:2.2.224")
+    // Required from Gradle 8+: without it the test task fails to boot with
+    // "Failed to load JUnit Platform".
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

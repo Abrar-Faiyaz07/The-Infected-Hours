@@ -11,7 +11,7 @@ allprojects {
 subprojects {
     apply(plugin = "java")
 
-    java {
+    extensions.configure<JavaPluginExtension> {
         toolchain {
             languageVersion.set(JavaLanguageVersion.of(21))
         }
@@ -19,5 +19,15 @@ subprojects {
 
     tasks.withType<Test> {
         useJUnitPlatform()
+        testLogging {
+            events("passed", "skipped", "failed")
+            showStandardStreams = false
+        }
     }
 }
+
+// NOTE: junit-platform-launcher is declared per-module, not here. Adding it from
+// a root `subprojects { dependencies { ... } }` block mutates testRuntimeOnly
+// (and therefore runtimeOnly) after Spring Boot's plugin has already resolved
+// :backend:runtimeClasspath, which fails bootJar with "Cannot mutate the
+// dependency attributes of configuration ':backend:runtimeOnly'".
