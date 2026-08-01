@@ -5,41 +5,27 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.infectedhour.core.InfectedHourGame;
 import com.infectedhour.core.bridge.GameBridge;
+import com.infectedhour.core.level.LevelDefinition;
+import com.infectedhour.core.level.LevelLoader;
 import com.infectedhour.core.net.GameClient;
 import com.infectedhour.shared.constants.GameConstants;
 import com.infectedhour.shared.network.CharacterType;
 import com.infectedhour.shared.network.InputCommand;
 import com.infectedhour.shared.network.WorldSnapshot;
 
-/**
- * Core gameplay loop screen (App Flow §2): explore -> objectives -> manage
- * contamination -> clear/fail.
- *
- * <p>This screen is the clearest statement of the networking model. It does
- * exactly three things per frame, in this order:
- * <ol>
- *   <li><b>Step the simulation</b> — host only, via the fixed-timestep
- *       accumulator. A joining machine skips this entirely; it owns no world.</li>
- *   <li><b>Send intent</b> — the local keyboard becomes an
- *       {@link InputCommand}, rate-limited to 30 Hz. It is never applied
- *       locally; the host decides what it means.</li>
- *   <li><b>Draw the interpolated snapshot</b> — including this machine's own
- *       player. There is no local-vs-remote rendering split, which is what
- *       "no client-side prediction" actually buys: one code path, and the two
- *       laptops cannot disagree about what the world looks like.</li>
- * </ol>
- *
- * <p>Placeholder art: entities are drawn as coloured quads. Swapping in the
- * texture atlas changes only {@link #drawWorld}, nothing about the networking.
- */
+import java.util.HashMap;
+import java.util.Map;
+
 public class GameScreen implements Screen {
 
-    /** World units are tiles; this many screen pixels per tile. */
     private static final float PIXELS_PER_TILE = 48f;
 
     private final InfectedHourGame game;
@@ -50,6 +36,32 @@ public class GameScreen implements Screen {
     private SpriteBatch batch;
     private ShapeRenderer shapes;
     private BitmapFont font;
+
+    // Map & Camera
+    private OrthographicCamera camera;
+    private Texture mapTexture;
+
+    // Walk Sprites
+    private Texture playerTexture;
+    private TextureRegion[][] playerFrames;
+    private int frameWidth;
+    private int frameHeight;
+
+    // Idle Sprites
+    private Texture idleTexture;
+    private TextureRegion[][] idleFrames;
+    private int idleFrameWidth;
+    private int idleFrameHeight;
+
+    // Animation State Tracker
+    private final Map<String, PlayerAnimState> animStates = new HashMap<>();
+
+    private static class PlayerAnimState {
+        float lastX = -1f, lastY = -1f;
+        int currentRow = 0; // 0: Down, 1: Left, 2: Right, 3: Up
+        int currentColumn = 0;
+        float stateTime = 0f;
+    }
 
     private boolean paused = false;
     private String partnerBanner = null;
@@ -68,21 +80,39 @@ public class GameScreen implements Screen {
         shapes = new ShapeRenderer();
         font = new BitmapFont();
 
-        // ================ TEAMMATE TASK: LEVEL SETUP ================
-        // TODO(screens): load the level and create the world:
-        //  1. var def = new LevelLoader().loadDefinition(levelNumber);
-        //     levelLoader.loadMap(def);   // implement core/level first!
-        //  2. Register objectives on the HOST's ObjectiveSystem:
-        //     game.getServer().getObjectiveSystem().register(...)
-        //     — clients receive them in WorldSnapshot.objectives, they never
-        //     register their own.
-        //  3. OrthogonalTiledMapRenderer for the map + the texture atlas.
-        // ============================================================
+        camera = new OrthographicCamera();
+        camera.setToOrtho(false, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+
+        // Setup fake level data for the server
+        LevelLoader levelLoader = new LevelLoader();
+        LevelDefinition def = levelLoader.loadDefinition(levelNumber);
+        levelLoader.loadMap(def);
+
+        if (game.isHost()) {
+            game.getServer().setMapWidthInTiles(levelLoader.getMapWidthInTiles());
+        }
+
+        // Load your map.png directly
+        mapTexture = new Texture(Gdx.files.internal("map.png"));
+
+        // Setup player WALKING sprites (8 columns, 4 rows)
+        playerTexture = new Texture(Gdx.files.internal("player.png"));
+        int walkCols = 8;
+        int walkRows = 4;
+        frameWidth = playerTexture.getWidth() / walkCols;
+        frameHeight = playerTexture.getHeight() / walkRows;
+        playerFrames = TextureRegion.split(playerTexture, frameWidth, frameHeight);
+
+        // Setup player IDLE sprites (Assuming 8 columns, 4 rows just like walking)
+        idleTexture = new Texture(Gdx.files.internal("player_idle.png"));
+        int idleCols = 8;
+        int idleRows = 4;
+        idleFrameWidth = idleTexture.getWidth() / idleCols;
+        idleFrameHeight = idleTexture.getHeight() / idleRows;
+        idleFrames = TextureRegion.split(idleTexture, idleFrameWidth, idleFrameHeight);
 
         client.setOnEvent(event -> {
-            if (event.type == null) {
-                return;
-            }
+            if (event.type == null) return;
             switch (event.type) {
                 case GameConstants.EVENT_PARTNER_DISCONNECTED -> showBanner("Partner disconnected — waiting…");
                 case GameConstants.EVENT_PARTNER_RECONNECTED -> showBanner("Partner reconnected");
@@ -99,72 +129,115 @@ public class GameScreen implements Screen {
             client.sendEvent(paused ? GameConstants.EVENT_PAUSE : GameConstants.EVENT_RESUME, "");
         }
 
-        // 1. Authoritative step (host only). Runs even while this machine shows
-        //    its pause overlay — only the HOST truly pauses the sim, and it does
-        //    that inside GameServer, not here.
         game.stepSimulation(delta);
 
         Gdx.gl.glClearColor(0.055f, 0.078f, 0.125f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        // 2. Intent out.
         if (!paused) {
             client.sendInputIfDue(readLocalInput(), delta);
         }
 
-        // 3. World in. Null until the first snapshot lands — always guard it.
         WorldSnapshot snapshot = client.getInterpolatedSnapshot(System.currentTimeMillis());
+
         if (snapshot != null) {
-            drawWorld(snapshot);
+            WorldSnapshot.PlayerState me = client.findLocalPlayer(snapshot);
+            if (me != null) {
+                camera.position.set(me.x * PIXELS_PER_TILE, me.y * PIXELS_PER_TILE, 0);
+                camera.update();
+            }
+
+            batch.setProjectionMatrix(camera.combined);
+            batch.begin();
+
+            // 1. Draw the map background starting at coordinates 0,0
+            batch.draw(mapTexture, 0, 0);
+
+            // 2. Draw Entities with Delta
+            drawWorld(snapshot, delta);
+
+            batch.end();
+
+            // 3. Draw enemies (shapes need to be drawn outside of batch)
+            shapes.setProjectionMatrix(camera.combined);
+            shapes.begin(ShapeRenderer.ShapeType.Filled);
+            if (snapshot.enemies != null) {
+                shapes.setColor(0.482f, 0.310f, 0.651f, 1f);
+                for (WorldSnapshot.EnemyState enemy : snapshot.enemies) {
+                    shapes.rect(enemy.x * PIXELS_PER_TILE, enemy.y * PIXELS_PER_TILE,
+                            PIXELS_PER_TILE * 0.8f, PIXELS_PER_TILE * 0.8f);
+                }
+            }
+            shapes.end();
         }
+
         drawHud(snapshot, delta);
 
-        if (paused) {
-            drawPauseOverlay();
-        }
+        if (paused) drawPauseOverlay();
     }
 
-    /**
-     * Camera-less flat draw of the interpolated snapshot.
-     *
-     * <p>TEAMMATE TASK (screens): replace the quads with sprites and add a
-     * camera that follows {@code client.findLocalPlayer(snapshot)}. Read
-     * positions from the snapshot only — never from a local entity — or the
-     * two laptops will drift apart.
-     */
-    private void drawWorld(WorldSnapshot snapshot) {
-        shapes.begin(ShapeRenderer.ShapeType.Filled);
-
-        if (snapshot.enemies != null) {
-            shapes.setColor(0.482f, 0.310f, 0.651f, 1f); // toxic-purple #7B4FA6
-            for (WorldSnapshot.EnemyState enemy : snapshot.enemies) {
-                shapes.rect(enemy.x * PIXELS_PER_TILE, enemy.y * PIXELS_PER_TILE,
-                        PIXELS_PER_TILE * 0.8f, PIXELS_PER_TILE * 0.8f);
-            }
-        }
-
+    private void drawWorld(WorldSnapshot snapshot, float delta) {
         if (snapshot.players != null) {
             for (WorldSnapshot.PlayerState player : snapshot.players) {
-                if (player.downed) {
-                    shapes.setColor(0.4f, 0.4f, 0.4f, 1f);
-                } else if (player.character == CharacterType.ELRIC) {
-                    shapes.setColor(0.298f, 0.686f, 0.427f, 1f); // safe-green
-                } else {
-                    shapes.setColor(0.910f, 0.690f, 0.165f, 1f); // accent-gold
+
+                PlayerAnimState anim = animStates.computeIfAbsent(player.playerId, k -> new PlayerAnimState());
+
+                if (anim.lastX == -1f) {
+                    anim.lastX = player.x;
+                    anim.lastY = player.y;
                 }
-                shapes.rect(player.x * PIXELS_PER_TILE, player.y * PIXELS_PER_TILE,
-                        PIXELS_PER_TILE, PIXELS_PER_TILE);
+
+                float dx = player.x - anim.lastX;
+                float dy = player.y - anim.lastY;
+
+                boolean moving = Math.abs(dx) > 0.001f || Math.abs(dy) > 0.001f;
+                TextureRegion currentFrame;
+
+                // Determine which half of the sprite sheet to use (Elric vs Jane)
+                int characterOffset = (player.character == CharacterType.ELRIC) ? 0 : 4;
+
+                if (moving) {
+                    // Determine facing direction (Row)
+                    // If moving horizontally AT ALL, prioritize Left/Right to prevent diagonal flickering
+                    if (Math.abs(dx) > 0.005f) {
+                        anim.currentRow = dx > 0 ? 2 : 1; // 2: Right, 1: Left
+                    } else {
+                        anim.currentRow = dy > 0 ? 3 : 0; // 3: Up, 0: Down
+                    }
+
+                    // Advance WALKING animation frame every 150ms
+                    anim.stateTime += delta;
+                    if (anim.stateTime > 0.15f) {
+                        anim.currentColumn = (anim.currentColumn + 1) % 4;
+                        anim.stateTime = 0f;
+                    }
+
+                    currentFrame = playerFrames[anim.currentRow][anim.currentColumn + characterOffset];
+                } else {
+                    // ANIMATED IDLE: Slowly bounce between frame 0 and frame 1 every 500ms
+                    anim.stateTime += delta;
+                    if (anim.stateTime > 0.5f) {
+                        anim.currentColumn = (anim.currentColumn == 0) ? 1 : 0;
+                        anim.stateTime = 0f;
+                    }
+
+                    currentFrame = idleFrames[anim.currentRow][anim.currentColumn + characterOffset];
+                }
+
+                anim.lastX = player.x;
+                anim.lastY = player.y;
+
+                float drawX = (player.x * PIXELS_PER_TILE) - (frameWidth / 2f);
+                float drawY = (player.y * PIXELS_PER_TILE) - (frameHeight / 2f);
+
+                batch.draw(currentFrame, drawX, drawY);
             }
         }
-        shapes.end();
     }
 
     private void drawHud(WorldSnapshot snapshot, float delta) {
         float top = Gdx.graphics.getHeight() - 20f;
-
-        if (partnerBannerSecondsLeft > 0f) {
-            partnerBannerSecondsLeft -= delta;
-        }
+        if (partnerBannerSecondsLeft > 0f) partnerBannerSecondsLeft -= delta;
 
         batch.begin();
         font.setColor(Color.WHITE);
@@ -190,20 +263,13 @@ public class GameScreen implements Screen {
         }
 
         if (partnerBannerSecondsLeft > 0f && partnerBanner != null) {
-            font.setColor(0.910f, 0.353f, 0.310f, 1f); // accent-red
+            font.setColor(0.910f, 0.353f, 0.310f, 1f);
             font.draw(batch, partnerBanner, 20f, top - 80f);
         }
 
         font.setColor(Color.GRAY);
         font.draw(batch, "WASD move   E interact   SPACE attack   SHIFT ability   ESC pause", 20f, 30f);
         batch.end();
-
-        // ============== TEAMMATE TASK: REAL HUD ==============
-        // TODO(ui): replace this debug text with the Scene2D widgets from
-        // UI/UX doc §3 — health bar, contamination bar, global meter,
-        // 4-slot hotbar, minimap. Feed them from the same snapshot fields
-        // used above; do not add a second source of truth.
-        // =====================================================
     }
 
     private void drawPauseOverlay() {
@@ -219,12 +285,6 @@ public class GameScreen implements Screen {
         font.draw(batch, "PAUSED — ESC to resume",
                 Gdx.graphics.getWidth() / 2f - 90f, Gdx.graphics.getHeight() / 2f);
         batch.end();
-
-        // ============== TEAMMATE TASK: PAUSE PANEL ==============
-        // TODO(screens): UI/UX doc §2 screen 12 — Resume, Settings (volume),
-        // Abandon Match (host) / Leave (client). The PAUSE/RESUME event is
-        // already sent above so the partner sees "Host paused".
-        // ========================================================
     }
 
     private InputCommand readLocalInput() {
@@ -258,5 +318,8 @@ public class GameScreen implements Screen {
         if (batch != null) batch.dispose();
         if (shapes != null) shapes.dispose();
         if (font != null) font.dispose();
+        if (mapTexture != null) mapTexture.dispose();
+        if (playerTexture != null) playerTexture.dispose();
+        if (idleTexture != null) idleTexture.dispose();
     }
 }

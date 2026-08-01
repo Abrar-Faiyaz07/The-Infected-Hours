@@ -1,10 +1,11 @@
 package com.infectedhour.core.level;
 
-/**
- * Wraps libGDX's TmxMapLoader to load a level's .tmx and populate the
- * screen's entities/collision from it (TRD §1 Maps row, §4 Collision row).
- */
 public class LevelLoader {
+
+    private boolean[][] walkableGrid;
+    // Faking a 60x40 tile grid for your server to use temporarily
+    private int mapWidthInTiles = 60;
+    private int mapHeightInTiles = 40;
 
     public LevelDefinition loadDefinition(int levelNumber) {
         return switch (levelNumber) {
@@ -15,25 +16,25 @@ public class LevelLoader {
         };
     }
 
-    /**
-     * TEAMMATE TASK: TILED MAP LOADING — this is build-order step #1;
-     * MovementSystem collision and ContaminationSystem BFS both depend on it.
-     * See docs/02_TRD1.md par.1 (Maps row) and par.4 (collision).
-     */
     public void loadMap(LevelDefinition definition) {
-        // ==================== TEAMMATE TASK: MAP LOADING ====================
-        // TODO(level): implement real .tmx loading. Suggested steps:
-        //  1. TiledMap map = new TmxMapLoader().load(definition.tmxPath());
-        //     (put .tmx + tileset images under assets/maps/, licenses in
-        //      ASSETS_CREDITS.md)
-        //  2. Read the layer named "collision" -> build boolean[][] walkable;
-        //     expose it via a getter — MovementSystem + ContaminationSystem
-        //     BFS both consume this exact grid.
-        //  3. Read an object layer named "spawns" for: player1_spawn,
-        //     player2_spawn, enemy spawns, villager positions, sample nodes,
-        //     sanitation stations, barricade slots, safe-zone rectangle.
-        //  4. Store all of it so GameScreen.show() can create the entities.
-        //  5. GameScreen renders the map with OrthogonalTiledMapRenderer.
-        // ====================================================================
+        // FAKE COLLISION GRID: Since we only have a PNG, we tell the game everything is walkable.
+        walkableGrid = new boolean[mapWidthInTiles][mapHeightInTiles];
+        for (int x = 0; x < mapWidthInTiles; x++) {
+            for (int y = 0; y < mapHeightInTiles; y++) {
+                walkableGrid[x][y] = true;
+            }
+        }
+    }
+
+    public boolean[][] getWalkableGrid() {
+        return walkableGrid;
+    }
+
+    public int getMapWidthInTiles() {
+        return mapWidthInTiles;
+    }
+
+    public int getMapHeightInTiles() {
+        return mapHeightInTiles;
     }
 }
