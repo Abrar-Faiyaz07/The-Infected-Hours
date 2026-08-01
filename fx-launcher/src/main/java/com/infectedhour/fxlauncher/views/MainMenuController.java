@@ -8,9 +8,9 @@ import javafx.fxml.FXML;
 import javafx.scene.Parent;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
+import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 
-/** Controller for MainMenu.fxml (Screen 3, UI/UX doc §2). */
 public class MainMenuController {
 
     private static final String VERSION = "v0.1-alpha";
@@ -18,11 +18,11 @@ public class MainMenuController {
     @FXML private Label usernameLabel;
     @FXML private Label statusChip;
     @FXML private Label versionLabel;
+    @FXML private StackPane rootPane;
 
     private Stage stage;
     private BackendClient backendClient;
 
-    /** Called by MainMenuView after FXMLLoader so the controller has its dependencies. */
     public void init(Stage stage, BackendClient backendClient) {
         this.stage = stage;
         this.backendClient = backendClient;
@@ -43,13 +43,11 @@ public class MainMenuController {
         }
     }
 
-    /** Solo play: this laptop hosts its own session with no second player (MatchMode.SOLO). */
     @FXML
     private void onSinglePlayer() {
         new GameLauncherBridge(stage, backendClient).startAsHost(() -> { });
     }
 
-    /** Co-op: choose whether this laptop hosts the LAN session or joins another one. */
     @FXML
     private void onCoopMode() {
         navigate(new CoopModeView(stage, backendClient).getRoot());

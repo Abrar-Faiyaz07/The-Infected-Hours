@@ -10,53 +10,19 @@
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
 
-<!--
-    Screen 3 — Main Menu (UI/UX doc §2).
-
-    LAYOUT CONTRACT (why it is built this way):
-
-    * Root StackPane carries NO prefWidth/prefHeight. A fixed 1920x1080 pref
-      size made the root larger than the real window, so everything below the
-      fold (About / Quit / player footer) was clipped. The root now fills
-      whatever Scene it is put in.
-
-    * The background is a CSS background-image on .menu-root with
-      -fx-background-size: cover, NOT an ImageView with hardcoded
-      fitWidth/fitHeight. "cover" rescales on every resize; a fixed-size
-      ImageView does not.
-
-    * styleClass lists are COMMA-separated. FXMLLoader splits list-valued
-      attributes on ",", so styleClass="menu-btn menu-btn-primary" was parsed
-      as ONE class literally named "menu-btn menu-btn-primary" — matching no
-      CSS rule at all, which is why the two primary buttons and the gold
-      "HOUR" title rendered completely unstyled.
-
-    * The column lives in a ScrollPane with fitToHeight="true". That single
-      flag does both jobs: when the menu is shorter than the window the VBox
-      is stretched to the viewport so the vgrow spacers can centre it, and
-      when the window is too short (or the OS runs at 125% display scaling,
-      which shrinks the logical viewport by a fifth) it scrolls instead of
-      silently clipping Quit off the bottom edge.
--->
 <StackPane
-    fx:id="rootPane"
-    xmlns="http://javafx.com/javafx"
-    xmlns:fx="http://javafx.com/fxml"
-    fx:controller="com.infectedhour.fxlauncher.views.MainMenuController"
-    styleClass="menu-root"
-    minWidth="900" minHeight="560">
+        fx:id="rootPane"
+        xmlns="http://javafx.com/javafx"
+        xmlns:fx="http://javafx.com/fxml"
+        fx:controller="com.infectedhour.fxlauncher.views.MainMenuController"
+        styleClass="menu-root"
+        minWidth="900" minHeight="560">
 
-    <!-- Layer 0: left-to-transparent gradient vignette over the CSS background. -->
+    <!-- Layer 0: background overlay vignette. -->
     <Region styleClass="menu-overlay"/>
 
-    <!-- Layer 1: content.
-         StackPane stretches the AnchorPane to fill; the AnchorPane pins the
-         menu column to the LEFT wall only (no right anchor), so the column
-         keeps its own width instead of stretching across the whole window. -->
+    <!-- Layer 1: content. -->
     <AnchorPane>
-
-        <!-- bottomAnchor clears the pinned footer below, so the two never fight
-             over the same pixels no matter how short the window gets. -->
         <ScrollPane fx:id="menuScroller"
                     AnchorPane.leftAnchor="72"
                     AnchorPane.topAnchor="0"
@@ -118,9 +84,7 @@
             </VBox>
         </ScrollPane>
 
-        <!-- Player info footer — anchored to the window, NOT inside the scroll
-             column. Connection state is the one thing that must stay readable
-             at every window size (UI/UX doc §7), so it is never scrollable. -->
+        <!-- Player info footer -->
         <VBox fx:id="footerBox" spacing="2"
               AnchorPane.leftAnchor="72"
               AnchorPane.bottomAnchor="16">
@@ -131,5 +95,4 @@
             <Label fx:id="versionLabel" text="v0.1-alpha" styleClass="version-label"/>
         </VBox>
     </AnchorPane>
-
 </StackPane>

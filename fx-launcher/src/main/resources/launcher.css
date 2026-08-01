@@ -1,85 +1,66 @@
-/* launcher.css — palette tokens from UI/UX doc §1 / §7 */
+/* launcher.css — palette tokens and UI styles */
 
 .root {
-    -bg-night: #0E1420;
-    -panel-dark: #1C2536;
-    -accent-gold: #E8B02A;
-    -accent-red: #E85A4F;
-    -safe-green: #4CAF6D;
-    -toxic-purple: #7B4FA6;
-    -text-primary: #F2F0E9;
-    -text-muted: #8A93A6;
-
-    -fx-background-color: -bg-night;
+    -fx-background-color: #0E1420;
     -fx-font-family: "Jost", sans-serif;
 }
 
 .bg-night {
-    -fx-background-color: -bg-night;
+    -fx-background-color: #0E1420;
 }
 
 .title-gold {
-    -fx-text-fill: -accent-gold;
+    -fx-text-fill: #E8B02A;
     -fx-font-size: 28px;
     -fx-font-weight: bold;
-    -fx-underline: true; /* "gold underline motif on headings" per doc §7 */
+    -fx-underline: true;
 }
 
 .error-text {
-    -fx-text-fill: -accent-red;
+    -fx-text-fill: #E85A4F;
 }
 
 .button {
-    -fx-background-color: -panel-dark;
-    -fx-text-fill: -text-primary;
+    -fx-background-color: #1C2536;
+    -fx-text-fill: #F2F0E9;
     -fx-background-radius: 8px;
     -fx-border-radius: 8px;
 }
 
 .button:hover {
-    -fx-border-color: -accent-gold;
+    -fx-border-color: #E8B02A;
     -fx-border-width: 1.5px;
 }
 
 .text-field, .password-field {
-    -fx-background-color: -panel-dark;
-    -fx-text-fill: -text-primary;
+    -fx-background-color: #1C2536;
+    -fx-text-fill: #F2F0E9;
 }
 
-/* Connection status chip states (UI/UX doc §7) */
-.chip-searching { -fx-text-fill: -text-muted; }
-.chip-connected { -fx-text-fill: -safe-green; }
-.chip-lost { -fx-text-fill: -accent-red; }
+/* Connection status chip states */
+.chip-searching { -fx-text-fill: #8A93A6; }
+.chip-connected { -fx-text-fill: #4CAF6D; }
+.chip-lost { -fx-text-fill: #E85A4F; }
 
-/* ── Main menu background ───────────────────────────────────────────
-   Drawn as a CSS background-image instead of an ImageView so it rescales
-   with the window. "cover" keeps the aspect ratio and crops the overflow,
-   which is what a fixed fitWidth/fitHeight ImageView could not do.        */
+/* ── Main menu background ─────────────────────────────────────────── */
 .menu-root {
-    -fx-background-color: -bg-night;
+    -fx-background-color: #0E1420;
     -fx-background-image: url("assets/bg_home.png");
     -fx-background-size: cover;
     -fx-background-position: center center;
     -fx-background-repeat: no-repeat;
 }
 
-/* ── Main menu background overlay ──────────────────────────────────── */
+/* ── Main menu background overlay (Darkens the image) ─────────────── */
 .menu-overlay {
     -fx-background-color: linear-gradient(
-        to right,
-        rgba(14, 20, 32, 0.94) 0%,
-        rgba(14, 20, 32, 0.88) 38%,
-        rgba(14, 20, 32, 0.55) 62%,
-        rgba(14, 20, 32, 0.0)  100%
+            to bottom right,
+            rgba(14, 20, 32, 0.4),
+            rgba(3, 0, 5, 0.9)
     );
 }
 
-/* ── Main menu branding ─────────────────────────────────────────────── */
-/* ── Main menu scroll container ─────────────────────────────────────
-   The ScrollPane exists only as an overflow safety net, so every one of its
-   own surfaces has to be transparent — ScrollPane needs BOTH -fx-background
-   (the control) and -fx-background-color (the viewport), or a grey slab
-   appears over the artwork.                                              */
+/* ── Main menu scroll container ───────────────────────────────────── */
 .menu-scroll,
 .menu-scroll > .viewport {
     -fx-background: transparent;
@@ -105,43 +86,43 @@
     -fx-pref-height: 0;
 }
 
-/* 44px, not 58px. Two reasons: at 58px "THE INFECTED" measured ~490px and
-   overflowed the menu column, and the whole column has to survive a 125%
-   display-scaled desktop, where the logical viewport is only ~690px tall. */
+/* ── Left-aligned Brand Text ──────────────────────────────────────── */
 .brand-title {
-    -fx-text-fill: -text-primary;
+    -fx-text-fill: #F2F0E9;
     -fx-font-size: 44px;
     -fx-font-weight: bold;
     -fx-font-family: "Jost", sans-serif;
     -fx-alignment: CENTER_LEFT;
     -fx-text-alignment: left;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.75), 12, 0.3, 0, 3);
+    -fx-effect: dropshadow(three-pass-box, rgba(183, 9, 76, 0.8), 20, 0.5, 0, 0);
 }
 
 .brand-title-accent {
-    -fx-text-fill: -accent-gold;
+    -fx-text-fill: #ff2a5f;
+    -fx-effect: dropshadow(three-pass-box, rgba(255, 42, 95, 0.9), 25, 0.6, 0, 0);
 }
 
 .brand-subtitle {
-    -fx-text-fill: -text-muted;
+    -fx-text-fill: #8A93A6;
     -fx-font-size: 16px;
     -fx-font-style: italic;
 }
 
+/* ── Footer ───────────────────────────────────────────────────────── */
 .player-name {
-    -fx-text-fill: -text-primary;
+    -fx-text-fill: #F2F0E9;
     -fx-font-size: 15px;
     -fx-font-weight: bold;
 }
 
 .version-label {
-    -fx-text-fill: -text-muted;
+    -fx-text-fill: #8A93A6;
     -fx-font-size: 12px;
 }
 
 .panel-divider {
-    -fx-background-color: -panel-dark;
-    -fx-border-color: -panel-dark;
+    -fx-background-color: #1C2536;
+    -fx-border-color: #1C2536;
 }
 
 /* ── Main menu buttons ──────────────────────────────────────────────── */
@@ -161,9 +142,9 @@
 
 .menu-btn:hover {
     -fx-background-color: #243048;
-    -fx-border-color: -accent-gold;
+    -fx-border-color: #E8B02A;
     -fx-border-width: 2;
-    -fx-text-fill: -accent-gold;
+    -fx-text-fill: #E8B02A;
 }
 
 .menu-btn-primary {
@@ -176,18 +157,17 @@
 
 .menu-btn-primary:hover {
     -fx-background-color: #3A4520;
-    -fx-border-color: -accent-gold;
+    -fx-border-color: #E8B02A;
     -fx-border-width: 2;
-    -fx-text-fill: -accent-gold;
+    -fx-text-fill: #E8B02A;
 }
 
 .menu-btn-danger {
-    -fx-text-fill: -accent-red;
+    -fx-text-fill: #E85A4F;
     -fx-border-color: #4A2020;
 }
 
 .menu-btn-danger:hover {
-    -fx-border-color: -accent-red;
+    -fx-border-color: #E85A4F;
     -fx-border-width: 2;
 }
-

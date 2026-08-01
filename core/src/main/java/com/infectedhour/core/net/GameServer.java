@@ -34,49 +34,10 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
-/**
- * The authoritative half of the session (TRD §5). Runs on the host laptop
- * (Laptop A / Elric) and owns the only copy of the world that matters:
- *
- * <ul>
- *   <li>simulates at {@code SIMULATION_TICK_HZ} (60)</li>
- *   <li>broadcasts {@link WorldSnapshot} over UDP at {@code SNAPSHOT_BROADCAST_HZ} (20)</li>
- *   <li>receives {@link InputCommand} over UDP at {@code CLIENT_INPUT_SEND_HZ} (30)</li>
- *   <li>carries joins, events and results over TCP, where ordering and delivery matter</li>
- * </ul>
- *
- * <h2>Both players go through the same door</h2>
- * The host runs a {@link GameClient} against its own loopback, so the host's
- * own player is created by exactly the same {@link JoinRequest} handshake as
- * the remote player. There is no "local player" special case anywhere in this
- * class — the first connection to hand in a valid JoinRequest becomes ELRIC,
- * the second becomes JANE.
- *
- * <h2>Threading</h2>
- * KryoNet delivers callbacks on its own update thread; the simulation runs on
- * the libGDX render thread via {@link #fixedTimestepUpdate(float)}. The two
- * meet at exactly three places, and each is handled explicitly:
- * <ol>
- *   <li>joins/disconnects mutate the roster — guarded by {@link #rosterLock},
- *       so "is there room?" and "take the slot" cannot interleave;</li>
- *   <li>the roster map is a {@link ConcurrentHashMap}, so the sim thread can
- *       iterate it while a join is in flight;</li>
- *   <li>each connection's latest input is a single volatile reference — a
- *       torn read is impossible and a dropped input is simply last-writer-wins,
- *       which is the correct behaviour for a 30Hz input stream anyway.</li>
- * </ol>
- * World state (enemies, clouds, objectives) is touched only by the sim thread.
- */
 public class GameServer {
 
     private static final Logger LOG = Logger.getLogger(GameServer.class.getName());
 
-    /**
-     * KryoNet's no-arg {@code Server()} allocates a 2048-byte object buffer.
-     * A snapshot carrying two players, a dozen enemies and a cloud delta blows
-     * straight past that and dies with "Buffer overflow", so the buffers are
-     * sized against the TRD §8 budget (snapshot ≤ 8 KB) with headroom.
-     */
     private static final int WRITE_BUFFER_BYTES = 65536;
     private static final int OBJECT_BUFFER_BYTES = 16384;
 
@@ -90,12 +51,10 @@ public class GameServer {
     private final ObjectiveSystem objectiveSystem = new ObjectiveSystem();
     private final AISystem aiSystem = new AISystem();
 
-    // --- world state: sim thread only ---
     private final List<Enemy> enemies = new ArrayList<>();
     private final List<ContaminationZone> zones = new ArrayList<>();
     private int mapWidthInTiles = 64;
 
-    /** Cloud tiles already sent, per cloud, so snapshots can carry deltas instead of whole tile sets. */
     private final Map<String, Set<Integer>> sentCloudTiles = new LinkedHashMap<>();
 
     private String hostDisplayName = "Host";
@@ -105,7 +64,6 @@ public class GameServer {
     private float snapshotAccumulator = 0f;
     private volatile boolean running = false;
 
-    /** Set when a player drops mid-match; the sim is frozen until it expires or they return. */
     private float reconnectWaitRemainingSeconds = 0f;
     private volatile boolean paused = false;
 
@@ -118,7 +76,6 @@ public class GameServer {
         this.server = new Server(WRITE_BUFFER_BYTES, OBJECT_BUFFER_BYTES);
     }
 
-    /** Lets the Host Lobby react to roster changes. Called from KryoNet's thread — marshal before touching UI. */
     public interface SessionListener {
         SessionListener NO_OP = new SessionListener() {
         };
@@ -133,7 +90,6 @@ public class GameServer {
         }
     }
 
-    /** One connected participant: their identity, their entity, and their most recent input. */
     private static final class ConnectedPlayer {
         final int connectionId;
         final String playerId;
@@ -149,20 +105,6 @@ public class GameServer {
         }
     }
 
-    // ------------------------------------------------------------------
-    // Lifecycle
-    // ------------------------------------------------------------------
-
-    /**
-     * Binds TCP 54555 + UDP 54777 and starts accepting joins.
-     *
-     * @param hostDisplayName name shown to the joining player
-     * @param backendUrl      absolute URL of the Spring Boot instance; handed to the
-     *                        client in {@link JoinAccept} so BOTH laptops write saves
-     *                        to the same backend (TRD §6)
-     * @throws IOException if the ports are taken — the caller shows this in the
-     *                     lobby rather than crashing (TRD §9)
-     */
     public void start(String hostDisplayName, String backendUrl) throws IOException {
         if (running) {
             return;
@@ -200,7 +142,6 @@ public class GameServer {
                 + " / UDP " + GameConstants.KRYONET_UDP_PORT + " as \"" + this.hostDisplayName + "\"");
     }
 
-    /** Convenience overload for the dev shortcut ({@code ./gradlew lwjgl3:run}). */
     public void start() throws IOException {
         start(hostDisplayName, backendUrl);
     }
@@ -220,13 +161,7 @@ public class GameServer {
         this.sessionListener = listener != null ? listener : SessionListener.NO_OP;
     }
 
-    // ------------------------------------------------------------------
-    // Handshake
-    // ------------------------------------------------------------------
-
     private void onJoinRequest(Connection connection, JoinRequest joinRequest) {
-        // Version first: a client built against a different message layout would
-        // otherwise fail later with an unreadable Kryo error.
         if (joinRequest.protocolVersion != GameConstants.PROTOCOL_VERSION) {
             LOG.warning(() -> "Rejecting " + joinRequest.displayName + ": protocol "
                     + joinRequest.protocolVersion + " != " + GameConstants.PROTOCOL_VERSION);
@@ -238,7 +173,7 @@ public class GameServer {
         MatchMode mode;
         synchronized (rosterLock) {
             if (playersByConnectionId.containsKey(connection.getID())) {
-                return; // duplicate JoinRequest — ignore, already seated
+                return;
             }
             if (playersByConnectionId.size() >= GameConstants.MAX_PLAYERS) {
                 LOG.warning(() -> "Rejecting " + joinRequest.displayName + ": lobby full");
@@ -246,7 +181,6 @@ public class GameServer {
                 return;
             }
 
-            // First seat is the host's own loopback client (Elric), second is the partner (Jane).
             CharacterType character = playersByConnectionId.isEmpty() ? CharacterType.ELRIC : CharacterType.JANE;
             String playerId = joinRequest.playerId != null && !joinRequest.playerId.isBlank()
                     ? joinRequest.playerId
@@ -257,8 +191,6 @@ public class GameServer {
             playersByConnectionId.put(connection.getID(), joined);
             mode = currentMatchMode();
 
-            // A newcomer has none of the cloud history, so force the next snapshot
-            // to resend every tile instead of only the newest frontier.
             sentCloudTiles.clear();
         }
 
@@ -270,7 +202,6 @@ public class GameServer {
         LOG.info(() -> "Accepted " + joined.displayName + " as " + joined.entity.getCharacter()
                 + " (" + playersByConnectionId.size() + "/" + GameConstants.MAX_PLAYERS + ")");
 
-        // Someone came back inside the 60s window: unfreeze instead of going solo.
         if (paused && reconnectWaitRemainingSeconds > 0f) {
             paused = false;
             reconnectWaitRemainingSeconds = 0f;
@@ -285,7 +216,7 @@ public class GameServer {
     private void onInput(Connection connection, InputCommand input) {
         ConnectedPlayer player = playersByConnectionId.get(connection.getID());
         if (player != null) {
-            player.latestInput = input; // last-writer-wins is correct for a 30Hz stream
+            player.latestInput = input;
         }
     }
 
@@ -294,8 +225,20 @@ public class GameServer {
         if (sender == null || event.type == null) {
             return;
         }
-        // Reliable client->host events are relayed to everyone else so both
-        // screens agree (READY gate, pause overlay, objective toasts).
+
+        // Handle zombie bite damage only if the player is still alive & not downed
+        if ("ZOMBIE_BITE_DAMAGE".equals(event.type)) {
+            if (sender.entity.getHp() > 0f && !sender.entity.isDowned()) {
+                try {
+                    float damage = Float.parseFloat(event.payload);
+                    sender.entity.applyDamage(damage);
+                } catch (NumberFormatException e) {
+                    LOG.warning("Invalid zombie bite damage payload: " + event.payload);
+                }
+            }
+            return;
+        }
+
         for (Connection other : server.getConnections()) {
             if (other.getID() != connection.getID()) {
                 other.sendTCP(event);
@@ -316,42 +259,21 @@ public class GameServer {
 
         sessionListener.onPlayerLeft(gone.playerId, gone.displayName);
 
-        // Nobody left means the host itself is shutting down — nothing to wait for.
         if (playersByConnectionId.isEmpty()) {
             paused = false;
             reconnectWaitRemainingSeconds = 0f;
             return;
         }
 
-        // App Flow §3: freeze, show "waiting for player", count down 60s, then go solo.
         paused = true;
         reconnectWaitRemainingSeconds = GameConstants.RECONNECT_WAIT_SECONDS;
         broadcastEvent(GameConstants.EVENT_PARTNER_DISCONNECTED, gone.displayName);
     }
 
-    // ------------------------------------------------------------------
-    // Simulation
-    // ------------------------------------------------------------------
-
-    /**
-     * One authoritative step. Drive it from the render loop's accumulator so
-     * there is exactly one clock and one owner — never from its own thread:
-     *
-     * <pre>
-     *   accumulator += delta;
-     *   while (accumulator &gt;= GameServer.SIM_STEP_SECONDS) {
-     *       server.fixedTimestepUpdate(GameServer.SIM_STEP_SECONDS);
-     *       accumulator -= GameServer.SIM_STEP_SECONDS;
-     *   }
-     * </pre>
-     */
     public void fixedTimestepUpdate(float delta) {
         serverTick++;
 
         if (paused) {
-            // Frozen for a reconnect: keep broadcasting so the surviving client
-            // still renders (and still sees its "waiting for player" overlay),
-            // but advance no game state.
             reconnectWaitRemainingSeconds -= delta;
             if (reconnectWaitRemainingSeconds <= 0f) {
                 paused = false;
@@ -366,9 +288,23 @@ public class GameServer {
 
         List<Player> players = livePlayerEntities();
 
+        // Halt simulation ticks if player is dead/downed to prevent loop and terminal spam
+        boolean allPlayersDead = !players.isEmpty();
+        for (Player p : players) {
+            if (p.getHp() > 0f && !p.isDowned()) {
+                allPlayersDead = false;
+                break;
+            }
+        }
+
+        if (allPlayersDead && !players.isEmpty()) {
+            broadcastSnapshotIfDue(delta);
+            return;
+        }
+
         for (ConnectedPlayer connected : playersByConnectionId.values()) {
             InputCommand input = connected.latestInput;
-            if (input != null && !connected.entity.isDowned()) {
+            if (input != null && !connected.entity.isDowned() && connected.entity.getHp() > 0f) {
                 movementSystem.apply(connected.entity, input, delta);
             }
             connected.entity.update(delta);
@@ -395,7 +331,6 @@ public class GameServer {
         broadcastSnapshotIfDue(delta);
     }
 
-    /** Seconds per authoritative step — use this for the accumulator in the render loop. */
     public static final float SIM_STEP_SECONDS = SIM_STEP;
 
     private void broadcastSnapshotIfDue(float delta) {
@@ -406,18 +341,6 @@ public class GameServer {
         }
     }
 
-    // ------------------------------------------------------------------
-    // Snapshot
-    // ------------------------------------------------------------------
-
-    /**
-     * Builds and broadcasts the world state over UDP.
-     *
-     * <p>Every list here is an {@link ArrayList} on purpose: Kryo serializes the
-     * concrete runtime class, and only {@code ArrayList} is registered in
-     * {@code NetworkMessages}. {@code List.of(...)} would throw
-     * "Class is not registered: ImmutableCollections$ListN".
-     */
     private void broadcastSnapshot() {
         WorldSnapshot snapshot = new WorldSnapshot();
         snapshot.serverTick = serverTick;
@@ -454,7 +377,7 @@ public class GameServer {
             Set<Integer> alreadySent = sentCloudTiles.computeIfAbsent(zone.getCloudId(), id -> new HashSet<>());
             Set<Integer> current = zone.getOccupiedTileIndices();
             if (alreadySent.size() == current.size() && alreadySent.containsAll(current)) {
-                continue; // nothing new this tick — the whole point of the delta
+                continue;
             }
             List<Integer> added = new ArrayList<>();
             for (Integer tile : current) {
@@ -489,10 +412,6 @@ public class GameServer {
         server.sendToAllUDP(snapshot);
     }
 
-    // ------------------------------------------------------------------
-    // Reliable broadcasts (TCP)
-    // ------------------------------------------------------------------
-
     public void broadcastEvent(String type, String payload) {
         server.sendToAllTCP(new EventMessage(type, payload));
     }
@@ -505,10 +424,6 @@ public class GameServer {
     public void broadcastMatchResult(String result, int finalLevelReached) {
         server.sendToAllTCP(new MatchResultMessage(result, finalLevelReached));
     }
-
-    // ------------------------------------------------------------------
-    // World setup + queries
-    // ------------------------------------------------------------------
 
     public void addEnemy(Enemy enemy) {
         enemies.add(enemy);
