@@ -12,6 +12,8 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.utils.viewport.Viewport;
 import com.infectedhour.core.InfectedHourGame;
 import com.infectedhour.core.bridge.GameBridge;
 import com.infectedhour.core.level.LevelDefinition;
@@ -29,6 +31,10 @@ public class GameScreen implements Screen {
 
     private static final float PIXELS_PER_TILE = 48f;
 
+    // Virtual resolution for crisp pixel-art scaling
+    private static final float VIRTUAL_WIDTH = 1280f;
+    private static final float VIRTUAL_HEIGHT = 720f;
+
     private final InfectedHourGame game;
     private final GameClient client;
     private final GameBridge bridge;
@@ -39,6 +45,7 @@ public class GameScreen implements Screen {
     private BitmapFont font;
 
     private OrthographicCamera camera;
+    private Viewport viewport;
     private Texture mapTexture;
 
     private Texture playerTexture;
@@ -66,7 +73,7 @@ public class GameScreen implements Screen {
     private float biteCooldown = 1.0f;
     private boolean isBeingBitten = false;
 
-    // ── INVENTORY VARIABLES (Background Only) ──
+    // ── INVENTORY VARIABLES ──
     private Texture inventoryTexture;
     private boolean isInventoryOpen = false;
     private final int INVENTORY_COLS = 4;
@@ -108,7 +115,9 @@ public class GameScreen implements Screen {
         font = new BitmapFont();
 
         camera = new OrthographicCamera();
-        camera.setToOrtho(false, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        // Use FitViewport to maintain crisp pixel art scaling across all resolutions and fullscreen
+        viewport = new FitViewport(VIRTUAL_WIDTH, VIRTUAL_HEIGHT, camera);
+        viewport.apply();
 
         LevelLoader levelLoader = new LevelLoader();
         LevelDefinition def = levelLoader.loadDefinition(levelNumber);
@@ -119,24 +128,29 @@ public class GameScreen implements Screen {
         }
 
         mapTexture = new Texture(Gdx.files.internal("map.png"));
+        mapTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
 
         playerTexture = new Texture(Gdx.files.internal("player.png"));
+        playerTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         frameWidth = playerTexture.getWidth() / 8;
         frameHeight = playerTexture.getHeight() / 4;
         playerFrames = TextureRegion.split(playerTexture, frameWidth, frameHeight);
 
         idleTexture = new Texture(Gdx.files.internal("player_idle.png"));
+        idleTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         idleFrameWidth = idleTexture.getWidth() / 8;
         idleFrameHeight = idleTexture.getHeight() / 4;
         idleFrames = TextureRegion.split(idleTexture, idleFrameWidth, idleFrameHeight);
 
         zombieTexture = new Texture(Gdx.files.internal("zombie.png"));
+        zombieTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         zombieFrameWidth = zombieTexture.getWidth() / 8;
         zombieFrameHeight = zombieTexture.getHeight() / 4;
         zombieFrames = TextureRegion.split(zombieTexture, zombieFrameWidth, zombieFrameHeight);
 
-        // ── LOAD ONLY THE INVENTORY BACKGROUND TEXTURE ──
+        // ── LOAD & FILTER INVENTORY BACKGROUND TEXTURE ──
         inventoryTexture = new Texture(Gdx.files.internal("inventory.png"));
+        inventoryTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         mockSlots = new boolean[INVENTORY_COLS * INVENTORY_ROWS];
 
         client.setOnEvent(event -> {
@@ -160,14 +174,14 @@ public class GameScreen implements Screen {
                 Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
                 Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-                Matrix4 hudMatrix = new Matrix4().setToOrtho2D(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+                Matrix4 hudMatrix = new Matrix4().setToOrtho2D(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
                 batch.setProjectionMatrix(hudMatrix);
                 batch.begin();
                 font.setColor(Color.WHITE);
                 font.draw(batch, "You are dead",
-                        Gdx.graphics.getWidth() / 2f - 40f, Gdx.graphics.getHeight() / 2f);
+                        VIRTUAL_WIDTH / 2f - 40f, VIRTUAL_HEIGHT / 2f);
                 font.draw(batch, "Press any key to return to Main Menu",
-                        Gdx.graphics.getWidth() / 2f - 115f, Gdx.graphics.getHeight() / 2f - 30f);
+                        VIRTUAL_WIDTH / 2f - 115f, VIRTUAL_HEIGHT / 2f - 30f);
                 batch.end();
 
                 if (Gdx.input.isKeyJustPressed(Input.Keys.ANY_KEY) || Gdx.input.isButtonPressed(Input.Keys.LEFT)) {
@@ -190,13 +204,17 @@ public class GameScreen implements Screen {
             isInventoryOpen = !isInventoryOpen;
         }
 
-        // ── HANDLE MOUSE CLICKS INSIDE INVENTORY SLOTS ──
+        // ── HANDLE MOUSE CLICKS INSIDE INVENTORY SLOTS (Scaled to Virtual Viewport) ──
         if (isInventoryOpen && Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
-            float mouseX = Gdx.input.getX();
-            float mouseY = Gdx.graphics.getHeight() - Gdx.input.getY();
+            // Translate physical mouse screen coordinates into virtual world/viewport coordinates
+            com.badlogic.gdx.math.Vector3 mouseCoords = new com.badlogic.gdx.math.Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
+            viewport.unproject(mouseCoords);
 
-            float invX = (Gdx.graphics.getWidth() - inventoryTexture.getWidth()) / 2f;
-            float invY = (Gdx.graphics.getHeight() - inventoryTexture.getHeight()) / 2f;
+            float mouseX = mouseCoords.x;
+            float mouseY = mouseCoords.y;
+
+            float invX = Math.round((VIRTUAL_WIDTH - inventoryTexture.getWidth()) / 2f);
+            float invY = Math.round((VIRTUAL_HEIGHT - inventoryTexture.getHeight()) / 2f);
 
             for (int i = 0; i < mockSlots.length; i++) {
                 int col = i % INVENTORY_COLS;
@@ -233,7 +251,11 @@ public class GameScreen implements Screen {
         if (snapshot != null) {
             WorldSnapshot.PlayerState me = client.findLocalPlayer(snapshot);
             if (me != null) {
-                camera.position.set(me.x * PIXELS_PER_TILE, me.y * PIXELS_PER_TILE, 0);
+                camera.position.set(
+                        Math.round(me.x * PIXELS_PER_TILE),
+                        Math.round(me.y * PIXELS_PER_TILE),
+                        0
+                );
                 camera.update();
             }
 
@@ -302,18 +324,18 @@ public class GameScreen implements Screen {
                     zombieFrame = zombieFrames[zombieAnim.currentRow][zombieAnim.currentColumn];
                 }
 
-                float midDrawX = (middleZombieX * PIXELS_PER_TILE) - (zombieFrameWidth / 2f);
-                float midDrawY = (middleZombieY * PIXELS_PER_TILE) - (zombieFrameHeight / 2f);
+                float midDrawX = Math.round((middleZombieX * PIXELS_PER_TILE) - (zombieFrameWidth / 2f));
+                float midDrawY = Math.round((middleZombieY * PIXELS_PER_TILE) - (zombieFrameHeight / 2f));
                 batch.draw(zombieFrame, midDrawX, midDrawY);
             }
 
-            // ── DRAW ONLY THE INVENTORY BACKGROUND PNG ──
+            // ── DRAW INVENTORY OVERLAY ON TOP ──
             if (isInventoryOpen) {
-                Matrix4 hudMatrix = new Matrix4().setToOrtho2D(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+                Matrix4 hudMatrix = new Matrix4().setToOrtho2D(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
                 batch.setProjectionMatrix(hudMatrix);
 
-                float invX = (Gdx.graphics.getWidth() - inventoryTexture.getWidth()) / 2f;
-                float invY = (Gdx.graphics.getHeight() - inventoryTexture.getHeight()) / 2f;
+                int invX = Math.round((VIRTUAL_WIDTH - inventoryTexture.getWidth()) / 2f);
+                int invY = Math.round((VIRTUAL_HEIGHT - inventoryTexture.getHeight()) / 2f);
 
                 batch.draw(inventoryTexture, invX, invY);
             }
@@ -369,8 +391,8 @@ public class GameScreen implements Screen {
                 anim.lastX = player.x;
                 anim.lastY = player.y;
 
-                float drawX = (player.x * PIXELS_PER_TILE) - (frameWidth / 2f);
-                float drawY = (player.y * PIXELS_PER_TILE) - (frameHeight / 2f);
+                float drawX = Math.round((player.x * PIXELS_PER_TILE) - (frameWidth / 2f));
+                float drawY = Math.round((player.y * PIXELS_PER_TILE) - (frameHeight / 2f));
 
                 batch.draw(currentFrame, drawX, drawY);
             }
@@ -380,8 +402,8 @@ public class GameScreen implements Screen {
     private void drawHud(WorldSnapshot snapshot, float delta) {
         if (partnerBannerSecondsLeft > 0f) partnerBannerSecondsLeft -= delta;
 
-        Matrix4 hudMatrix = new Matrix4().setToOrtho2D(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-        float top = Gdx.graphics.getHeight() - 20f;
+        Matrix4 hudMatrix = new Matrix4().setToOrtho2D(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+        float top = VIRTUAL_HEIGHT - 20f;
 
         batch.setProjectionMatrix(hudMatrix);
         batch.begin();
@@ -414,7 +436,7 @@ public class GameScreen implements Screen {
 
         if (isBeingBitten) {
             font.setColor(Color.RED);
-            font.draw(batch, "BEING BITTEN!", Gdx.graphics.getWidth() / 2f - 60f, Gdx.graphics.getHeight() / 2f + 60f);
+            font.draw(batch, "BEING BITTEN!", VIRTUAL_WIDTH / 2f - 60f, VIRTUAL_HEIGHT / 2f + 60f);
         }
 
         font.setColor(Color.GRAY);
@@ -468,14 +490,14 @@ public class GameScreen implements Screen {
         Gdx.gl.glEnable(GL20.GL_BLEND);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         shapes.setColor(0f, 0f, 0f, 0.6f);
-        shapes.rect(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        shapes.rect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
         shapes.end();
         Gdx.gl.glDisable(GL20.GL_BLEND);
 
         batch.begin();
         font.setColor(Color.WHITE);
         font.draw(batch, "PAUSED — ESC to resume",
-                Gdx.graphics.getWidth() / 2f - 90f, Gdx.graphics.getHeight() / 2f);
+                VIRTUAL_WIDTH / 2f - 90f, VIRTUAL_HEIGHT / 2f);
         batch.end();
     }
 
@@ -497,7 +519,12 @@ public class GameScreen implements Screen {
         partnerBannerSecondsLeft = 5f;
     }
 
-    @Override public void resize(int width, int height) { }
+    @Override
+    public void resize(int width, int height) {
+        // Crucial: Update the viewport whenever the window changes size or enters fullscreen
+        viewport.update(width, height, true);
+    }
+
     @Override public void pause() { }
     @Override public void resume() { }
     @Override public void hide() { client.setOnEvent(null); }
