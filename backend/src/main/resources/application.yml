@@ -1,0 +1,32 @@
+# MySQL — teacher requirement. Run on the host laptop for demos.
+# Client laptop reaches the same instance via http://<host-ip>:8080
+server:
+  address: 0.0.0.0
+  port: 8080
+
+spring:
+  application:
+    name: infected-hour-backend
+  datasource:
+    url: jdbc:mysql://localhost:3306/infected_hour?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+  jpa:
+    hibernate:
+      ddl-auto: update   # auto-creates/updates tables from JPA entities — no manual migrations needed
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+
+app:
+  jwt:
+    # Override before demo day via env var: APP_JWT_SECRET
+    secret: ${APP_JWT_SECRET:dev-only-secret-change-me-before-demo-day-please-32bytes}
+    expiry-hours: 12
+
+logging:
+  level:
+    com.infectedhour: INFO
