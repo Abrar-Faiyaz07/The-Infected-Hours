@@ -6,7 +6,7 @@ package com.infectedhour.core.entities;
  * entity/combat plumbing as regular enemies (TRD risk mitigation: "Boss
  * fight complexity — boss built on the same objective/enemy systems").
  */
-public class Enemy implements Entity {
+public class Enemy implements Collidable {
 
     private final String enemyId;
     private final String type; // e.g. "basic_infected", "mutation_swarm"
@@ -37,6 +37,28 @@ public class Enemy implements Entity {
 
     public void takeDamage(float amount) {
         hp = Math.max(0, hp - amount);
+    }
+
+    /**
+     * Raw displacement with no collision check — AISystem must route movement
+     * through {@code CollisionSystem.moveWithCollision} so enemies obey the same
+     * walls as players.
+     */
+    @Override
+    public void move(float dx, float dy) {
+        this.x += dx;
+        this.y += dy;
+    }
+
+    /** Absolute placement — used when spawning an enemy at a level's spawn point. */
+    public void setPosition(float x, float y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    @Override
+    public float getCollisionRadius() {
+        return com.infectedhour.shared.constants.GameConstants.ENEMY_COLLISION_RADIUS;
     }
 
     @Override

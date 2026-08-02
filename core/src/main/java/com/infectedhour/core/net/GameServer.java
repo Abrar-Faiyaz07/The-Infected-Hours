@@ -6,8 +6,10 @@ import com.esotericsoftware.kryonet.Server;
 import com.infectedhour.core.entities.ContaminationZone;
 import com.infectedhour.core.entities.Enemy;
 import com.infectedhour.core.entities.Player;
+import com.infectedhour.core.level.TileMap;
 import com.infectedhour.core.systems.AISystem;
 import com.infectedhour.core.systems.CheckpointSystem;
+import com.infectedhour.core.systems.CollisionSystem;
 import com.infectedhour.core.systems.CombatSystem;
 import com.infectedhour.core.systems.ContaminationSystem;
 import com.infectedhour.core.systems.MovementSystem;
@@ -50,11 +52,17 @@ public class GameServer {
     private final Map<Integer, ConnectedPlayer> playersByConnectionId = new ConcurrentHashMap<>();
     private final Object rosterLock = new Object();
 
-    private final MovementSystem movementSystem = new MovementSystem();
+    /**
+     * One collision system shared by movement and AI, so players and enemies
+     * obey exactly one set of rules. It starts with no grid — {@link #loadTileMap}
+     * supplies the level's once GameScreen has parsed it.
+     */
+    private final CollisionSystem collisionSystem = new CollisionSystem();
+    private final MovementSystem movementSystem = new MovementSystem(collisionSystem);
     private final CombatSystem combatSystem = new CombatSystem();
     private final ContaminationSystem contaminationSystem = new ContaminationSystem();
     private final ObjectiveSystem objectiveSystem = new ObjectiveSystem();
-    private final AISystem aiSystem = new AISystem();
+    private final AISystem aiSystem = new AISystem(collisionSystem);
     private final CheckpointSystem checkpointSystem = new CheckpointSystem();
 
     private final List<Enemy> enemies = new ArrayList<>();
@@ -451,6 +459,23 @@ public class GameServer {
         this.mapWidthInTiles = Math.max(1, mapWidthInTiles);
     }
 
+    /**
+     * Hands the level's collision grid to the simulation. Called by
+     * {@code GameScreen} once {@code LevelLoader} has parsed the {@code .map}
+     * resource — until it lands, movement is unblocked.
+     */
+    public void loadTileMap(TileMap tileMap) {
+        collisionSystem.setTileMap(tileMap);
+        if (tileMap != null) {
+            this.mapWidthInTiles = tileMap.getWidth();
+            LOG.info(() -> "Collision grid active: " + tileMap.getWidth() + "x" + tileMap.getHeight());
+        }
+    }
+
+    public CollisionSystem getCollisionSystem() {
+        return collisionSystem;
+    }
+
     // ------------------------------------------------------------------
     // Save / load
     // ------------------------------------------------------------------
@@ -628,12 +653,25 @@ public class GameServer {
         return tileY * mapWidthInTiles + tileX;
     }
 
+    /**
+     * Spawn points, validated against {@code maps/level1.map} by
+     * {@code CheckpointPlacementTest}.
+     *
+     * <p>These were originally (4,4) and (6,4). Tile (4,4) is <b>inside a wall</b>
+     * in the real hospital layout, so once collision was switched on the player
+     * spawned embedded in geometry and {@code moveWithCollision} correctly
+     * refused every step — the character simply would not move.
+     *
+     * <p>Coordinates are tile centres (x.5): an integer coordinate sits on the
+     * boundary between two tiles, so a 0.25-radius collider straddles both and
+     * can clip a wall that touches only one of them.
+     */
     private static float spawnX(CharacterType character) {
-        return character == CharacterType.ELRIC ? 4f : 6f;
+        return character == CharacterType.ELRIC ? 9.5f : 10.5f;
     }
 
     private static float spawnY(CharacterType character) {
-        return 4f;
+        return 8.5f;
     }
 
     private static String orDefault(String value, String fallback) {

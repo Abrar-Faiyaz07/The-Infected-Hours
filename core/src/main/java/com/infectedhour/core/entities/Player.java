@@ -8,7 +8,7 @@ import com.infectedhour.shared.network.CharacterType;
  * systems/CombatSystem and the ability hook below; prefer Strategy if
  * ability logic grows complex.
  */
-public class Player implements Entity {
+public class Player implements Collidable {
 
     private final String playerId;
     private final CharacterType character;
@@ -87,24 +87,13 @@ public class Player implements Entity {
         personalContaminationPct = 0f;
     }
 
-    public void move(float dx, float dy) {
-        this.x += dx;
-        this.y += dy;
-    }
-
-    /** Absolute placement — used by the host when seating a player at a spawn point. */
-    public void setPosition(float x, float y) {
-        this.x = x;
-        this.y = y;
-    }
-
     /**
      * Restore HP and contamination from a save slot.
      *
      * <p>Assigns directly rather than going through {@link #heal} or
      * {@link #addContamination}, because those apply game rules (clamping to the
-     * current value, resistance) that would distort a value the host already
-     * simulated and stored. Loading a save is not a gameplay event.
+     * current value, Elric's resistance) that would distort a value the host has
+     * already simulated and stored. Loading a save is not a gameplay event.
      */
     public void restoreVitals(float hp, float personalContaminationPct) {
         this.hp = Math.max(0f, Math.min(100f, hp));
@@ -115,6 +104,28 @@ public class Player implements Entity {
         this.reviveSecondsRemaining = this.downed
                 ? com.infectedhour.shared.constants.GameConstants.REVIVE_WINDOW_SECONDS
                 : 0;
+    }
+
+    /**
+     * Raw displacement with no collision check. Gameplay code must go through
+     * {@code CollisionSystem.moveWithCollision} instead — this exists for the
+     * collision system itself to call once a move has been validated.
+     */
+    @Override
+    public void move(float dx, float dy) {
+        this.x += dx;
+        this.y += dy;
+    }
+
+    @Override
+    public float getCollisionRadius() {
+        return com.infectedhour.shared.constants.GameConstants.PLAYER_COLLISION_RADIUS;
+    }
+
+    /** Absolute placement — used by the host when seating a player at a spawn point. */
+    public void setPosition(float x, float y) {
+        this.x = x;
+        this.y = y;
     }
 
     @Override

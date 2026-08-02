@@ -1,29 +1,66 @@
 package com.infectedhour.core.systems;
 
 import com.infectedhour.core.entities.Player;
+import com.infectedhour.shared.constants.GameConstants;
 import com.infectedhour.shared.network.InputCommand;
 
+import java.util.Objects;
+
+/**
+ * Turns per-player {@link InputCommand}s into collision-resolved movement.
+ * Runs on the HOST only, inside the authoritative simulation tick.
+ */
 public class MovementSystem {
 
-    private static final float BASE_SPEED = 4.0f;
-    private static final float SPRINT_MULTIPLIER = 1.6f;
+    private final CollisionSystem collisionSystem;
+
+    public MovementSystem(CollisionSystem collisionSystem) {
+        this.collisionSystem = Objects.requireNonNull(collisionSystem, "collisionSystem");
+    }
 
     /**
-     * Updates player position based on incoming network input commands and delta time.
+     * Applies one tick of movement for {@code player}.
+     *
+     * <p>The input vector is sanitised and normalised here rather than on the
+     * client: the host is authoritative and must not trust anything a client
+     * sends. A client could otherwise send {@code moveX = 1000} and teleport, and
+     * a client that forgets to normalise would move ~41% faster diagonally than
+     * orthogonally.
+     *
+     * <p>Vectors shorter than unit length are left alone, so partial/analog input
+     * still produces proportionally slower movement.
      */
     public void apply(Player player, InputCommand input, float delta) {
-        if (player.isDowned()) {
+        if (player.isDowned() || input == null || delta <= 0f) {
             return;
         }
 
-        float currentSpeed = BASE_SPEED;
-        if (input.abilityPressed) {
-            currentSpeed *= SPRINT_MULTIPLIER;
+        float moveX = sanitiseAxis(input.moveX);
+        float moveY = sanitiseAxis(input.moveY);
+
+        float magnitudeSq = moveX * moveX + moveY * moveY;
+        if (magnitudeSq <= 0f) {
+            return;
+        }
+        if (magnitudeSq > 1f) {
+            float magnitude = (float) Math.sqrt(magnitudeSq);
+            moveX /= magnitude;
+            moveY /= magnitude;
         }
 
-        float moveX = input.moveX * currentSpeed * delta;
-        float moveY = input.moveY * currentSpeed * delta;
+        float speed = GameConstants.PLAYER_WALK_SPEED;
+        if (input.abilityPressed) {
+            speed *= GameConstants.PLAYER_SPRINT_MULTIPLIER;
+        }
 
-        player.move(moveX, moveY);
+        collisionSystem.moveWithCollision(player, moveX * speed * delta, moveY * speed * delta);
+    }
+
+    /** Clamps to [-1, 1] and drops NaN/Infinity, so malformed input can never move a player. */
+    private static float sanitiseAxis(float axis) {
+        if (Float.isNaN(axis) || Float.isInfinite(axis)) {
+            return 0f;
+        }
+        return Math.max(-1f, Math.min(1f, axis));
     }
 }

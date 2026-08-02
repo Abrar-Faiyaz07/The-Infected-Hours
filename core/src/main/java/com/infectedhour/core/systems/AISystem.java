@@ -4,6 +4,7 @@ import com.infectedhour.core.entities.Enemy;
 import com.infectedhour.core.entities.Player;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Basic enemy AI (chase nearest player, attack in range). Runs on the HOST
@@ -13,6 +14,17 @@ public class AISystem {
 
     private static final float AGGRO_RANGE = 6f;
     private static final float ATTACK_RANGE = 1f;
+
+    /**
+     * Shared with MovementSystem so enemies and players obey one collision rule.
+     * Use {@code collisionSystem.moveWithCollision(enemy, dx, dy)} for every
+     * enemy step — never {@code enemy.move(...)} directly, which skips walls.
+     */
+    private final CollisionSystem collisionSystem;
+
+    public AISystem(CollisionSystem collisionSystem) {
+        this.collisionSystem = Objects.requireNonNull(collisionSystem, "collisionSystem");
+    }
 
     public void update(Enemy enemy, List<Player> players, float delta) {
         Player nearest = findNearestPlayer(enemy, players);
@@ -34,10 +46,16 @@ public class AISystem {
             // ============== TEAMMATE TASK: ENEMY CHASE ===============
             // TODO(ai): move toward the nearest player.
             //  1. Direction = (dx, dy) normalized by sqrt(distSq).
-            //  2. Move at an enemy-speed constant (~2f * delta) — slower
-            //     than Jane (4f) so she can always escape.
-            //  3. Check the walkable-tile grid before stepping (same
-            //     collision rule as MovementSystem).
+            //  2. Speed = GameConstants.ENEMY_WALK_SPEED (2 tiles/s) — slower
+            //     than Jane (4 tiles/s) so she can always escape.
+            //  3. Step with:
+            //       collisionSystem.moveWithCollision(enemy, dirX * speed * delta,
+            //                                                dirY * speed * delta);
+            //     Collision is DONE — do not re-implement wall checks here, and
+            //     never call enemy.move(...) directly (that skips walls).
+            //     moveWithCollision returns true when a wall absorbed the step;
+            //     that is your cue to add wall-following later if chasing looks
+            //     dumb around corners. There is no pathfinding in v1.
             // =========================================================
         }
     }

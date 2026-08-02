@@ -4,7 +4,7 @@ package com.infectedhour.core.entities;
  * NPC rescued via the "Rescue Villagers" objective (PRD §6). Has its own
  * infection timer independent of any player's contamination bar.
  */
-public class Villager implements Entity {
+public class Villager implements Collidable {
 
     private final String villagerId;
     private float x, y;
@@ -36,6 +36,28 @@ public class Villager implements Entity {
     public void markRescued() {
         rescued = true;
         beingEscorted = false;
+    }
+
+    /**
+     * Raw displacement with no collision check. The escort-follow logic below
+     * must go through {@code CollisionSystem.moveWithCollision}, or a villager
+     * being led to safety will walk through walls.
+     */
+    @Override
+    public void move(float dx, float dy) {
+        this.x += dx;
+        this.y += dy;
+    }
+
+    /** Absolute placement — used when seeding villagers at a level's spawn points. */
+    public void setPosition(float x, float y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    @Override
+    public float getCollisionRadius() {
+        return com.infectedhour.shared.constants.GameConstants.VILLAGER_COLLISION_RADIUS;
     }
 
     @Override

@@ -76,6 +76,30 @@ public final class GameConstants {
     public static final int REVIVE_WINDOW_SECONDS = 30;
     public static final int INVENTORY_SLOTS = 4;
 
+    // --- Movement & collision (TRD §4) ---
+    /** Walk speed in tiles/second. One tile is one world unit. */
+    public static final float PLAYER_WALK_SPEED = 4.0f;
+    /** Sprint multiplier applied while the ability key is held. */
+    public static final float PLAYER_SPRINT_MULTIPLIER = 1.6f;
+    /** Enemy chase speed — deliberately below {@link #PLAYER_WALK_SPEED} so players can always disengage. */
+    public static final float ENEMY_WALK_SPEED = 2.0f;
+
+    /**
+     * Collider radii in tiles. Colliders are circles centred on the entity
+     * position — a foot-print, not the sprite's outline. Sprites are roughly a
+     * tile wide, but a collider that wide cannot fit through a one-tile doorway
+     * with any margin: the player has to line up exactly, movement catches on
+     * door frames, and the level has to be carved open to compensate. A radius
+     * near a quarter-tile leaves half a tile of clearance in a normal doorway,
+     * which is what makes movement feel smooth.
+     *
+     * <p>Players and enemies share a radius on purpose, so anywhere a player can
+     * go an enemy can follow — otherwise chasing enemies wedge in doorways.
+     */
+    public static final float PLAYER_COLLISION_RADIUS = 0.25f;
+    public static final float ENEMY_COLLISION_RADIUS = 0.25f;
+    public static final float VILLAGER_COLLISION_RADIUS = 0.22f;
+
     /**
      * Manual save slots per player, Resident Evil style: the Load Game screen
      * always shows exactly this many cards, filled or empty, in a 3x3 grid.

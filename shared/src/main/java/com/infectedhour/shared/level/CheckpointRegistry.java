@@ -25,34 +25,48 @@ public final class CheckpointRegistry {
 
     public static final int TOTAL_CHECKPOINTS = 22;
 
+    /**
+     * Spawn coordinates are <b>tile centres</b> (x.5, y.5) and every one is
+     * validated against the collision grids in {@code core/resources/maps/} by
+     * {@code CheckpointPlacementTest}.
+     *
+     * <p>The first version used round numbers spread over an assumed 60x40 grid.
+     * Level 1 is actually 45x33, so two checkpoints sat outside the map and two
+     * inside walls. Nothing crashed — they simply never triggered, which is a
+     * far harder failure to notice than a crash.
+     *
+     * <p>Integer coordinates are avoided deliberately: an integer sits on the
+     * boundary between two tiles, so a 0.25-radius collider straddles both and
+     * can clip a wall that touches only one of them.
+     */
     private static final List<Checkpoint> ORDERED = List.of(
-            // ---- Level 1 — Village Outskirts (7) ----
-            new Checkpoint("l1_cp01_gate",        "Outskirts Gate",           1, 1,  4f,  4f),
-            new Checkpoint("l1_cp02_well",        "Village Well",             1, 2, 14f,  9f),
-            new Checkpoint("l1_cp03_barricade",   "First Barricade Line",     1, 3, 24f, 12f),
-            new Checkpoint("l1_cp04_farmhouse",   "Abandoned Farmhouse",      1, 4, 33f, 18f),
-            new Checkpoint("l1_cp05_sample",      "Sample Collection Point",  1, 5, 41f, 22f),
-            new Checkpoint("l1_cp06_chapel",      "Chapel Safe Zone",         1, 6, 48f, 28f),
-            new Checkpoint("l1_cp07_crossing",    "River Crossing",           1, 7, 55f, 34f),
+            // ---- Level 1 — Village Outskirts, 45x33 (7) ----
+            new Checkpoint("l1_cp01_gate",        "Outskirts Gate",           1, 1,  9.5f,  8.5f),
+            new Checkpoint("l1_cp02_well",        "Village Well",             1, 2,  1.5f, 19.5f),
+            new Checkpoint("l1_cp03_barricade",   "First Barricade Line",     1, 3, 15.5f, 22.5f),
+            new Checkpoint("l1_cp04_farmhouse",   "Abandoned Farmhouse",      1, 4, 20.5f,  5.5f),
+            new Checkpoint("l1_cp05_sample",      "Sample Collection Point",  1, 5, 25.5f, 23.5f),
+            new Checkpoint("l1_cp06_chapel",      "Chapel Safe Zone",         1, 6, 30.5f, 14.5f),
+            new Checkpoint("l1_cp07_crossing",    "River Crossing",           1, 7, 35.5f, 17.5f),
 
-            // ---- Level 2 — Market District (8) ----
-            new Checkpoint("l2_cp01_checkpoint",  "District Checkpoint",      2, 1,  5f,  5f),
-            new Checkpoint("l2_cp02_stalls",      "Market Stalls",            2, 2, 12f, 11f),
-            new Checkpoint("l2_cp03_clinic",      "Clinic Sanitation Post",   2, 3, 20f, 15f),
-            new Checkpoint("l2_cp04_pharmacy",    "Ransacked Pharmacy",       2, 4, 28f, 19f),
-            new Checkpoint("l2_cp05_shelter",     "Civilian Shelter",         2, 5, 35f, 23f),
-            new Checkpoint("l2_cp06_depot",       "Medicine Depot",           2, 6, 42f, 27f),
-            new Checkpoint("l2_cp07_rooftops",    "Rooftop Route",            2, 7, 49f, 31f),
-            new Checkpoint("l2_cp08_tunnel",      "Service Tunnel Mouth",     2, 8, 56f, 36f),
+            // ---- Level 2 — Market District, 60x40 (8) ----
+            new Checkpoint("l2_cp01_checkpoint",  "District Checkpoint",      2, 1,  1.5f,  1.5f),
+            new Checkpoint("l2_cp02_stalls",      "Market Stalls",            2, 2,  7.5f, 21.5f),
+            new Checkpoint("l2_cp03_clinic",      "Clinic Sanitation Post",   2, 3, 14.5f,  4.5f),
+            new Checkpoint("l2_cp04_pharmacy",    "Ransacked Pharmacy",       2, 4, 22.5f, 34.5f),
+            new Checkpoint("l2_cp05_shelter",     "Civilian Shelter",         2, 5, 31.5f, 27.5f),
+            new Checkpoint("l2_cp06_depot",       "Medicine Depot",           2, 6, 39.5f, 21.5f),
+            new Checkpoint("l2_cp07_rooftops",    "Rooftop Route",            2, 7, 46.5f,  4.5f),
+            new Checkpoint("l2_cp08_tunnel",      "Service Tunnel Mouth",     2, 8, 53.5f, 23.5f),
 
-            // ---- Level 3 — The Virus Heart (7) ----
-            new Checkpoint("l3_cp01_descent",     "The Descent",              3, 1,  6f,  6f),
-            new Checkpoint("l3_cp02_labs",        "Flooded Laboratories",     3, 2, 15f, 12f),
-            new Checkpoint("l3_cp03_containment", "Containment Ring",         3, 3, 25f, 17f),
-            new Checkpoint("l3_cp04_antechamber", "Heart Antechamber",        3, 4, 34f, 22f),
-            new Checkpoint("l3_cp05_shield",      "Shield Phase Arena",       3, 5, 42f, 26f),
-            new Checkpoint("l3_cp06_exposure",    "Exposure Window",          3, 6, 49f, 30f),
-            new Checkpoint("l3_cp07_core",        "The Core",                 3, 7, 55f, 34f)
+            // ---- Level 3 — The Virus Heart, 60x40 (7) ----
+            new Checkpoint("l3_cp01_descent",     "The Descent",              3, 1,  1.5f,  1.5f),
+            new Checkpoint("l3_cp02_labs",        "Flooded Laboratories",     3, 2,  8.5f, 26.5f),
+            new Checkpoint("l3_cp03_containment", "Containment Ring",         3, 3, 16.5f, 32.5f),
+            new Checkpoint("l3_cp04_antechamber", "Heart Antechamber",        3, 4, 25.5f, 10.5f),
+            new Checkpoint("l3_cp05_shield",      "Shield Phase Arena",       3, 5, 33.5f, 25.5f),
+            new Checkpoint("l3_cp06_exposure",    "Exposure Window",          3, 6, 42.5f,  3.5f),
+            new Checkpoint("l3_cp07_core",        "The Core",                 3, 7, 50.5f,  9.5f)
     );
 
     private static final Map<String, Checkpoint> BY_ID = buildIndex();

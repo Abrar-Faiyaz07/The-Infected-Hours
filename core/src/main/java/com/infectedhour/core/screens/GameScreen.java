@@ -15,10 +15,10 @@ import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.infectedhour.core.InfectedHourGame;
-import com.infectedhour.core.assets.GameAssets;
 import com.infectedhour.core.bridge.GameBridge;
 import com.infectedhour.core.level.LevelDefinition;
 import com.infectedhour.core.level.LevelLoader;
+import com.infectedhour.core.level.TileMap;
 import com.infectedhour.core.net.GameClient;
 import com.infectedhour.shared.constants.GameConstants;
 import com.infectedhour.shared.network.CharacterType;
@@ -32,6 +32,24 @@ public class GameScreen implements Screen {
 
     private static final float PIXELS_PER_TILE = 48f;
 
+    // --- map.png alignment (see core/src/main/resources/maps/level1.map) ---
+    // The map art is drawn on a 41 px grid whose origin sits at image pixel
+    // (14, 28). The world uses PIXELS_PER_TILE, so the texture is scaled and
+    // shifted to make one art tile land exactly on one collision tile.
+    // Without this the drawn walls and the collision grid drift apart, and
+    // players stop at walls that are not where they look.
+    private static final float MAP_ART_TILE_PX = 41.2667f;
+    private static final float MAP_ART_ORIGIN_X_PX = 32f;
+    private static final float MAP_ART_ORIGIN_Y_TOP_PX = 32f;
+    private static final int MAP_ART_ROWS = 33;
+
+    /**
+     * Transparent padding below the character's feet inside a sprite frame.
+     * Sprites are anchored by their feet because that is the entity's ground
+     * point — the spot collision actually tests.
+     */
+    private static final float SPRITE_FEET_INSET_PX = 13f;
+
     // Virtual resolution for crisp pixel-art scaling
     private static final float VIRTUAL_WIDTH = 1280f;
     private static final float VIRTUAL_HEIGHT = 720f;
@@ -40,6 +58,11 @@ public class GameScreen implements Screen {
     private final GameClient client;
     private final GameBridge bridge;
     private final int levelNumber;
+
+    /** Level collision grid, kept for the F1 debug overlay. */
+    private TileMap tileMap;
+    /** F1 draws the collision cells over the map, so misaligned geometry is visible rather than guessed at. */
+    private boolean showCollisionOverlay = false;
 
     private SpriteBatch batch;
     private ShapeRenderer shapes;
@@ -102,6 +125,71 @@ public class GameScreen implements Screen {
     private String partnerBanner = null;
     private float partnerBannerSecondsLeft = 0f;
 
+    /**
+     * Draws the level art so its tile grid coincides with the collision grid.
+     *
+     * <p>The texture is scaled by {@code PIXELS_PER_TILE / MAP_ART_TILE_PX} and
+     * shifted so that the art's grid origin lands on world (0, 0). Drawing it at
+     * plain (0, 0) unscaled would put a 41 px art tile under a 48 px world tile
+     * and the two would drift a whole tile apart within ~7 tiles.
+     */
+    /**
+     * Debug overlay (F1): fills every blocked collision cell in translucent red.
+     *
+     * <p>Worth keeping. Collision bugs in a traced map are nearly impossible to
+     * diagnose from behaviour alone — "I got stuck here" could be a misaligned
+     * grid, a misclassified tile, or a sprite drawn at the wrong offset. With
+     * this on, all three are obvious at a glance.
+     */
+    private void drawCollisionOverlay() {
+        if (tileMap == null) {
+            return;
+        }
+        float cell = PIXELS_PER_TILE * tileMap.getCellSize();
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shapes.setProjectionMatrix(camera.combined);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(1f, 0f, 0f, 0.35f);
+
+        // Only the cells on screen — the full grid is 135x99 and redrawing all
+        // of it every frame would cost more than the overlay is worth.
+        float halfW = camera.viewportWidth * 0.5f + cell;
+        float halfH = camera.viewportHeight * 0.5f + cell;
+        int minCellX = Math.max(0, tileMap.toCell((camera.position.x - halfW) / PIXELS_PER_TILE));
+        int maxCellX = Math.min(tileMap.getCollisionWidth() - 1,
+                tileMap.toCell((camera.position.x + halfW) / PIXELS_PER_TILE));
+        int minCellY = Math.max(0, tileMap.toCell((camera.position.y - halfH) / PIXELS_PER_TILE));
+        int maxCellY = Math.min(tileMap.getCollisionHeight() - 1,
+                tileMap.toCell((camera.position.y + halfH) / PIXELS_PER_TILE));
+
+        for (int cellY = minCellY; cellY <= maxCellY; cellY++) {
+            for (int cellX = minCellX; cellX <= maxCellX; cellX++) {
+                if (!tileMap.isCellWalkable(cellX, cellY)) {
+                    shapes.rect(cellX * cell, cellY * cell, cell, cell);
+                }
+            }
+        }
+        shapes.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+    }
+
+    private void drawMapAlignedToCollisionGrid() {
+        float scale = PIXELS_PER_TILE / MAP_ART_TILE_PX;
+
+        // World y is up, image rows count down, so the grid's bottom edge is
+        // measured from the bottom of the texture.
+        float gridBottomFromTexBottomPx =
+                mapTexture.getHeight() - (MAP_ART_ORIGIN_Y_TOP_PX + MAP_ART_ROWS * MAP_ART_TILE_PX);
+
+        batch.draw(mapTexture,
+                -MAP_ART_ORIGIN_X_PX * scale,
+                -gridBottomFromTexBottomPx * scale,
+                mapTexture.getWidth() * scale,
+                mapTexture.getHeight() * scale);
+    }
+
     public GameScreen(InfectedHourGame game, GameClient client, GameBridge bridge, int levelNumber) {
         this.game = game;
         this.client = client;
@@ -122,34 +210,38 @@ public class GameScreen implements Screen {
 
         LevelLoader levelLoader = new LevelLoader();
         LevelDefinition def = levelLoader.loadDefinition(levelNumber);
-        levelLoader.loadMap(def);
+        tileMap = levelLoader.loadMap(def);
 
+        // Only the host simulates, so only the host needs the collision grid —
+        // clients render interpolated snapshots and never resolve collision.
         if (game.isHost()) {
-            game.getServer().setMapWidthInTiles(levelLoader.getMapWidthInTiles());
+            game.getServer().loadTileMap(tileMap);
         }
 
-        // Loaded through GameAssets, not `new Texture(...)`: a missing PNG would
-        // otherwise throw out of show(), out of the render loop, and kill the
-        // whole game — including networking that has nothing to do with art.
-        // Sheets are 8 columns x 4 rows, so placeholders must divide evenly.
-        mapTexture = GameAssets.texture("map.png", 1024, 1024);
+        mapTexture = new Texture(Gdx.files.internal("map.png"));
+        mapTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
 
-        playerTexture = GameAssets.spriteSheet("player.png", 8, 4, 32);
+        playerTexture = new Texture(Gdx.files.internal("player.png"));
+        playerTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         frameWidth = playerTexture.getWidth() / 8;
         frameHeight = playerTexture.getHeight() / 4;
         playerFrames = TextureRegion.split(playerTexture, frameWidth, frameHeight);
 
-        idleTexture = GameAssets.spriteSheet("player_idle.png", 8, 4, 32);
+        idleTexture = new Texture(Gdx.files.internal("player_idle.png"));
+        idleTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         idleFrameWidth = idleTexture.getWidth() / 8;
         idleFrameHeight = idleTexture.getHeight() / 4;
         idleFrames = TextureRegion.split(idleTexture, idleFrameWidth, idleFrameHeight);
 
-        zombieTexture = GameAssets.spriteSheet("zombie.png", 8, 4, 32);
+        zombieTexture = new Texture(Gdx.files.internal("zombie.png"));
+        zombieTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         zombieFrameWidth = zombieTexture.getWidth() / 8;
         zombieFrameHeight = zombieTexture.getHeight() / 4;
         zombieFrames = TextureRegion.split(zombieTexture, zombieFrameWidth, zombieFrameHeight);
 
-        inventoryTexture = GameAssets.texture("inventory.png", 320, 240);
+        // ── LOAD & FILTER INVENTORY BACKGROUND TEXTURE ──
+        inventoryTexture = new Texture(Gdx.files.internal("inventory.png"));
+        inventoryTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         mockSlots = new boolean[INVENTORY_COLS * INVENTORY_ROWS];
 
         client.setOnEvent(event -> {
@@ -183,7 +275,7 @@ public class GameScreen implements Screen {
                         VIRTUAL_WIDTH / 2f - 115f, VIRTUAL_HEIGHT / 2f - 30f);
                 batch.end();
 
-                if (Gdx.input.isKeyJustPressed(Input.Keys.ANY_KEY) || Gdx.input.isButtonPressed(Input.Keys.LEFT)) {
+                if (Gdx.input.isKeyJustPressed(Input.Keys.ANY_KEY) || Gdx.input.isButtonPressed(Input.Buttons.LEFT)) {
                     if (game.isHost() && game.getServer() != null) {
                         game.getServer().stop();
                     }
@@ -196,6 +288,10 @@ public class GameScreen implements Screen {
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
             paused = !paused;
             client.sendEvent(paused ? GameConstants.EVENT_PAUSE : GameConstants.EVENT_RESUME, "");
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F1)) {
+            showCollisionOverlay = !showCollisionOverlay;
         }
 
         // ── TOGGLE INVENTORY WITH 'I' KEY ──
@@ -260,7 +356,7 @@ public class GameScreen implements Screen {
 
             batch.setProjectionMatrix(camera.combined);
             batch.begin();
-            batch.draw(mapTexture, 0, 0);
+            drawMapAlignedToCollisionGrid();
 
             drawWorld(snapshot, delta);
 
@@ -340,6 +436,12 @@ public class GameScreen implements Screen {
             }
 
             batch.end();
+
+            // After the world, before the HUD: the overlay belongs in world
+            // space so it lines up with the map, but must not tint the HUD.
+            if (showCollisionOverlay) {
+                drawCollisionOverlay();
+            }
         }
 
         drawHud(snapshot, delta);
@@ -390,8 +492,13 @@ public class GameScreen implements Screen {
                 anim.lastX = player.x;
                 anim.lastY = player.y;
 
+                // Anchor the sprite by its FEET, not its centre. An entity's
+                // position is its ground point and is what collision tests, so
+                // centring a 100px-tall sprite on a 48px tile drew the feet a
+                // whole tile below the collider: the player appeared to walk
+                // through low walls and to stop at invisible ones.
                 float drawX = Math.round((player.x * PIXELS_PER_TILE) - (frameWidth / 2f));
-                float drawY = Math.round((player.y * PIXELS_PER_TILE) - (frameHeight / 2f));
+                float drawY = Math.round((player.y * PIXELS_PER_TILE) - SPRITE_FEET_INSET_PX);
 
                 batch.draw(currentFrame, drawX, drawY);
             }
@@ -409,6 +516,25 @@ public class GameScreen implements Screen {
         font.setColor(Color.WHITE);
         font.draw(batch, "LEVEL " + levelNumber + "   |   " + client.getMatchMode()
                 + "   |   " + (game.isHost() ? "HOST" : "CLIENT"), 20f, top);
+
+        // With the collision overlay on, report exactly which grid cell the
+        // player occupies. Without this, "I am stuck here" can only be relayed
+        // as a screenshot someone then has to locate on the map by eye — with
+        // it, the cell can be read off and fixed directly in the .map file.
+        if (showCollisionOverlay && snapshot != null && tileMap != null) {
+            WorldSnapshot.PlayerState here = client.findLocalPlayer(snapshot);
+            if (here != null) {
+                int cellX = tileMap.toCell(here.x);
+                int cellYWorld = tileMap.toCell(here.y);
+                int cellYFile = tileMap.getCollisionHeight() - 1 - cellYWorld;
+                font.setColor(Color.YELLOW);
+                font.draw(batch, String.format(
+                                "F1 collision overlay   tile %.2f,%.2f   cell %d,%d   map-file row %d col %d",
+                                here.x, here.y, cellX, cellYWorld, cellYFile, cellX),
+                        20f, top - 48f);
+                font.setColor(Color.WHITE);
+            }
+        }
 
         if (snapshot == null) {
             font.setColor(Color.LIGHT_GRAY);
