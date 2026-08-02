@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<StackPane
+        fx:id="rootPane"
+        xmlns="http://javafx.com/javafx"
+        xmlns:fx="http://javafx.com/fxml"
+        fx:controller="com.infectedhour.fxlauncher.views.MainMenuController"
+        styleClass="menu-root"
+        minWidth="900" minHeight="560">
+
+    <!-- Layer 0: background overlay vignette. -->
+    <Region styleClass="menu-overlay"/>
+
+    <!-- Layer 1: content. -->
+    <AnchorPane>
+        <ScrollPane fx:id="menuScroller"
+                    AnchorPane.leftAnchor="72"
+                    AnchorPane.topAnchor="0"
+                    AnchorPane.bottomAnchor="64"
+                    prefWidth="440" minWidth="440" maxWidth="440"
+                    fitToWidth="true" fitToHeight="true"
+                    hbarPolicy="NEVER" vbarPolicy="AS_NEEDED"
+                    styleClass="menu-scroll">
+
+            <VBox fx:id="menuColumn" spacing="0">
+                <padding><Insets top="24" right="0" bottom="20" left="0"/></padding>
+
+                <!-- Flexible top spacer -->
+                <Region VBox.vgrow="ALWAYS" minHeight="8"/>
+
+                <!-- Brand block -->
+                <Label text="THE INFECTED" styleClass="brand-title"/>
+                <Label text="HOUR" styleClass="brand-title, brand-title-accent"/>
+
+                <Region prefHeight="8" minHeight="8"/>
+                <Label text="Cooperative Survival Horror" styleClass="brand-subtitle"/>
+
+                <Region prefHeight="28" minHeight="20"/>
+
+                <!-- Primary actions -->
+                <VBox spacing="8">
+                    <Button fx:id="singlePlayerBtn" text="1 Player Story Mode"
+                            maxWidth="Infinity" styleClass="menu-btn, menu-btn-primary"
+                            onAction="#onSinglePlayer"/>
+                    <Button fx:id="coopBtn" text="2 Player Co-op Mode"
+                            maxWidth="Infinity" styleClass="menu-btn, menu-btn-primary"
+                            onAction="#onCoopMode"/>
+                </VBox>
+
+                <Region prefHeight="16" minHeight="12"/>
+
+                <!-- Secondary actions -->
+                <VBox spacing="8">
+                    <Button fx:id="loadGameBtn" text="Load Game"
+                            maxWidth="Infinity" styleClass="menu-btn"
+                            onAction="#onLoadGame"/>
+                    <Button fx:id="settingsBtn" text="Settings"
+                            maxWidth="Infinity" styleClass="menu-btn"
+                            onAction="#onSettings"/>
+                    <Button fx:id="aboutBtn" text="About"
+                            maxWidth="Infinity" styleClass="menu-btn"
+                            onAction="#onAbout"/>
+                </VBox>
+
+                <Region prefHeight="16" minHeight="12"/>
+
+                <Button fx:id="quitBtn" text="Quit"
+                        maxWidth="Infinity" styleClass="menu-btn, menu-btn-danger"
+                        onAction="#onQuit"/>
+
+                <!-- Flexible bottom spacer -->
+                <Region VBox.vgrow="ALWAYS" minHeight="12"/>
+
+            </VBox>
+        </ScrollPane>
+
+        <!-- Player info footer -->
+        <VBox fx:id="footerBox" spacing="2"
+              AnchorPane.leftAnchor="72"
+              AnchorPane.bottomAnchor="16">
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <Label fx:id="statusChip" text="⬤  offline" styleClass="chip-searching"/>
+                <Label fx:id="usernameLabel" text="Guest" styleClass="player-name"/>
+            </HBox>
+            <Label fx:id="versionLabel" text="v0.1-alpha" styleClass="version-label"/>
+        </VBox>
+    </AnchorPane>
+</StackPane>

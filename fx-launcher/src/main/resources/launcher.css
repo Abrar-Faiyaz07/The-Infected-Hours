@@ -1,0 +1,173 @@
+/* launcher.css — palette tokens and UI styles */
+
+.root {
+    -fx-background-color: #0E1420;
+    -fx-font-family: "Jost", sans-serif;
+}
+
+.bg-night {
+    -fx-background-color: #0E1420;
+}
+
+.title-gold {
+    -fx-text-fill: #E8B02A;
+    -fx-font-size: 28px;
+    -fx-font-weight: bold;
+    -fx-underline: true;
+}
+
+.error-text {
+    -fx-text-fill: #E85A4F;
+}
+
+.button {
+    -fx-background-color: #1C2536;
+    -fx-text-fill: #F2F0E9;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+}
+
+.button:hover {
+    -fx-border-color: #E8B02A;
+    -fx-border-width: 1.5px;
+}
+
+.text-field, .password-field {
+    -fx-background-color: #1C2536;
+    -fx-text-fill: #F2F0E9;
+}
+
+/* Connection status chip states */
+.chip-searching { -fx-text-fill: #8A93A6; }
+.chip-connected { -fx-text-fill: #4CAF6D; }
+.chip-lost { -fx-text-fill: #E85A4F; }
+
+/* ── Main menu background ─────────────────────────────────────────── */
+.menu-root {
+    -fx-background-color: #0E1420;
+    -fx-background-image: url("assets/bg_home.png");
+    -fx-background-size: cover;
+    -fx-background-position: center center;
+    -fx-background-repeat: no-repeat;
+}
+
+/* ── Main menu background overlay (Darkens the image) ─────────────── */
+.menu-overlay {
+    -fx-background-color: linear-gradient(
+            to bottom right,
+            rgba(14, 20, 32, 0.4),
+            rgba(3, 0, 5, 0.9)
+    );
+}
+
+/* ── Main menu scroll container ───────────────────────────────────── */
+.menu-scroll,
+.menu-scroll > .viewport {
+    -fx-background: transparent;
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-border-width: 0;
+}
+
+.menu-scroll > .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 8;
+}
+
+.menu-scroll > .scroll-bar:vertical > .thumb {
+    -fx-background-color: rgba(242, 240, 233, 0.28);
+    -fx-background-radius: 4;
+}
+
+.menu-scroll > .scroll-bar > .increment-button,
+.menu-scroll > .scroll-bar > .decrement-button,
+.menu-scroll > .corner {
+    -fx-background-color: transparent;
+    -fx-pref-height: 0;
+}
+
+/* ── Left-aligned Brand Text ──────────────────────────────────────── */
+.brand-title {
+    -fx-text-fill: #F2F0E9;
+    -fx-font-size: 44px;
+    -fx-font-weight: bold;
+    -fx-font-family: "Jost", sans-serif;
+    -fx-alignment: CENTER_LEFT;
+    -fx-text-alignment: left;
+    -fx-effect: dropshadow(three-pass-box, rgba(183, 9, 76, 0.8), 20, 0.5, 0, 0);
+}
+
+.brand-title-accent {
+    -fx-text-fill: #ff2a5f;
+    -fx-effect: dropshadow(three-pass-box, rgba(255, 42, 95, 0.9), 25, 0.6, 0, 0);
+}
+
+.brand-subtitle {
+    -fx-text-fill: #8A93A6;
+    -fx-font-size: 16px;
+    -fx-font-style: italic;
+}
+
+/* ── Footer ───────────────────────────────────────────────────────── */
+.player-name {
+    -fx-text-fill: #F2F0E9;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+}
+
+.version-label {
+    -fx-text-fill: #8A93A6;
+    -fx-font-size: 12px;
+}
+
+.panel-divider {
+    -fx-background-color: #1C2536;
+    -fx-border-color: #1C2536;
+}
+
+/* ── Main menu buttons ──────────────────────────────────────────────── */
+.menu-btn {
+    -fx-background-color: #1C2536;
+    -fx-text-fill: #F2F0E9;
+    -fx-font-size: 17px;
+    -fx-font-family: "Jost", sans-serif;
+    -fx-padding: 11 22 11 22;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-color: #2E3A50;
+    -fx-border-width: 1;
+    -fx-cursor: hand;
+    -fx-alignment: CENTER_LEFT;
+}
+
+.menu-btn:hover {
+    -fx-background-color: #243048;
+    -fx-border-color: #E8B02A;
+    -fx-border-width: 2;
+    -fx-text-fill: #E8B02A;
+}
+
+.menu-btn-primary {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-background-color: #26301A;
+    -fx-border-color: #6B5A1A;
+    -fx-text-fill: #F2F0E9;
+}
+
+.menu-btn-primary:hover {
+    -fx-background-color: #3A4520;
+    -fx-border-color: #E8B02A;
+    -fx-border-width: 2;
+    -fx-text-fill: #E8B02A;
+}
+
+.menu-btn-danger {
+    -fx-text-fill: #E85A4F;
+    -fx-border-color: #4A2020;
+}
+
+.menu-btn-danger:hover {
+    -fx-border-color: #E85A4F;
+    -fx-border-width: 2;
+}
