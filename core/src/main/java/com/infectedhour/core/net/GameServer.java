@@ -7,11 +7,15 @@ import com.infectedhour.core.entities.ContaminationZone;
 import com.infectedhour.core.entities.Enemy;
 import com.infectedhour.core.entities.Player;
 import com.infectedhour.core.systems.AISystem;
+import com.infectedhour.core.systems.CheckpointSystem;
 import com.infectedhour.core.systems.CombatSystem;
 import com.infectedhour.core.systems.ContaminationSystem;
 import com.infectedhour.core.systems.MovementSystem;
 import com.infectedhour.core.systems.ObjectiveSystem;
 import com.infectedhour.shared.constants.GameConstants;
+import com.infectedhour.shared.dto.SaveSlotDto;
+import com.infectedhour.shared.level.Checkpoint;
+import com.infectedhour.shared.level.CheckpointRegistry;
 import com.infectedhour.shared.network.CharacterType;
 import com.infectedhour.shared.network.EventMessage;
 import com.infectedhour.shared.network.InputCommand;
@@ -30,6 +34,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
@@ -50,6 +55,7 @@ public class GameServer {
     private final ContaminationSystem contaminationSystem = new ContaminationSystem();
     private final ObjectiveSystem objectiveSystem = new ObjectiveSystem();
     private final AISystem aiSystem = new AISystem();
+    private final CheckpointSystem checkpointSystem = new CheckpointSystem();
 
     private final List<Enemy> enemies = new ArrayList<>();
     private final List<ContaminationZone> zones = new ArrayList<>();
@@ -328,6 +334,14 @@ public class GameServer {
             }
         }
 
+        // Only the host tracks checkpoints, for the same reason it owns everything
+        // else: two machines deciding independently when a checkpoint was reached
+        // would disagree, and the save would depend on who pressed the button.
+        checkpointSystem.updateAndDetectNew(players).ifPresent(reached -> {
+            LOG.info(() -> "Checkpoint reached: " + reached.qualifiedName());
+            broadcastEvent(GameConstants.EVENT_CHECKPOINT_REACHED, reached.id());
+        });
+
         broadcastSnapshotIfDue(delta);
     }
 
@@ -435,6 +449,136 @@ public class GameServer {
 
     public void setMapWidthInTiles(int mapWidthInTiles) {
         this.mapWidthInTiles = Math.max(1, mapWidthInTiles);
+    }
+
+    // ------------------------------------------------------------------
+    // Save / load
+    // ------------------------------------------------------------------
+
+    /**
+     * Freeze the current run into a save slot.
+     *
+     * <p>Only the host can do this, and that is the point: it owns the only
+     * authoritative copy of the world, so a save taken here is guaranteed
+     * consistent. Letting a client build its own save would capture an
+     * interpolated view that is ~100 ms stale and missing anything outside its
+     * snapshot.
+     *
+     * @param slotNumber 1..9
+     * @return the slot, ready to PUT to the backend, or null if the run has not
+     *         reached a checkpoint yet
+     */
+    public SaveSlotDto captureSave(int slotNumber) {
+        Checkpoint checkpoint = checkpointSystem.getLastReachedCheckpoint();
+        if (checkpoint == null) {
+            LOG.warning("Refusing to save: the run has not reached a checkpoint yet");
+            return null;
+        }
+
+        // Save the host's own player — in co-op each machine saves its own run.
+        Player player = playersByConnectionId.values().stream()
+                .map(connected -> connected.entity)
+                .findFirst()
+                .orElse(null);
+
+        float hp = player == null ? 100f : player.getHp();
+        float personalContamination = player == null ? 0f : player.getPersonalContaminationPct();
+        String character = player == null ? null : player.getCharacter().name();
+
+        return new SaveSlotDto(
+                slotNumber,
+                true,
+                checkpoint.levelNumber(),
+                levelNameFor(checkpoint.levelNumber()),
+                checkpoint.id(),
+                checkpoint.name(),
+                checkpointSystem.reachedCount(),
+                elapsedPlaytimeSeconds(),
+                character,
+                hp,
+                personalContamination,
+                contaminationSystem.getGlobalContaminationPct(),
+                serialiseInventory(player),
+                serialiseObjectives(),
+                java.time.Instant.now().toString());
+    }
+
+    /**
+     * Rebuild the run from a save slot. Applied before the first tick, so the
+     * first snapshot clients receive already reflects the restored state and
+     * nobody ever renders the pre-load world.
+     */
+    public void restoreFrom(SaveSlotDto slot) {
+        if (slot == null || !slot.occupied()) {
+            return;
+        }
+        Checkpoint checkpoint = CheckpointRegistry.byId(slot.checkpointId()).orElse(null);
+        if (checkpoint == null) {
+            // An unknown id means the save predates a checkpoint rename. Falling
+            // back to the level's start is far better than refusing to load.
+            LOG.warning(() -> "Save references unknown checkpoint '" + slot.checkpointId()
+                    + "'; starting the level from its first checkpoint instead");
+            checkpoint = CheckpointRegistry.firstOf(Math.max(1, slot.levelNumber()));
+        }
+        checkpointSystem.restoreTo(checkpoint.id());
+        contaminationSystem.setGlobalContaminationPct(slot.globalContaminationPct());
+
+        for (ConnectedPlayer connected : playersByConnectionId.values()) {
+            connected.entity.setPosition(checkpoint.spawnTileX(), checkpoint.spawnTileY());
+            connected.entity.restoreVitals(slot.playerHp(), slot.personalContaminationPct());
+        }
+        LOG.info(() -> "Restored save at " + slot.checkpointId());
+    }
+
+    public CheckpointSystem getCheckpointSystem() {
+        return checkpointSystem;
+    }
+
+    /** Whether any connected player is standing close enough to save right now. */
+    public Optional<Checkpoint> checkpointInRange() {
+        for (ConnectedPlayer connected : playersByConnectionId.values()) {
+            Optional<Checkpoint> found = checkpointSystem.checkpointInRange(connected.entity);
+            if (found.isPresent()) {
+                return found;
+            }
+        }
+        return Optional.empty();
+    }
+
+    private long elapsedPlaytimeSeconds() {
+        return (long) (serverTick / (float) GameConstants.SIMULATION_TICK_HZ);
+    }
+
+    private static String levelNameFor(int levelNumber) {
+        return switch (levelNumber) {
+            case 1 -> "Village Outskirts";
+            case 2 -> "Market District";
+            case 3 -> "The Virus Heart";
+            default -> "Level " + levelNumber;
+        };
+    }
+
+    /**
+     * TEAMMATE TASK (inventory): serialise the player's real carried items once
+     * {@code Player.inventory} holds a proper Item type. The save column and the
+     * whole round trip are already in place — only this method needs changing.
+     */
+    private static String serialiseInventory(Player player) {
+        return "[]";
+    }
+
+    /** Objective progress as a flat {@code {"id": progress}} map. */
+    private String serialiseObjectives() {
+        StringBuilder json = new StringBuilder("{");
+        boolean first = true;
+        for (ObjectiveSystem.ObjectiveState state : objectiveSystem.getObjectives().values()) {
+            if (!first) {
+                json.append(',');
+            }
+            json.append('"').append(state.id).append("\":").append(state.progress);
+            first = false;
+        }
+        return json.append('}').toString();
     }
 
     public ContaminationSystem getContaminationSystem() {

@@ -28,10 +28,22 @@ public class GameLauncherBridge {
         this.backendClient = backendClient;
     }
 
-    /** This laptop hosts the session (solo, or waiting for a partner to join). */
+    /**
+     * This laptop hosts the session (solo, or waiting for a partner to join).
+     * If the player picked a slot in Load Game, that run is resumed instead of
+     * starting a fresh one.
+     */
     public void startAsHost(Runnable onReturnToLauncher) {
-        startMatch(SessionConfig.hosting(playerId(), displayName(), SessionState.get().getBackendUrl()),
-                onReturnToLauncher);
+        var slot = SessionState.get().getLoadedSlot();
+        SessionConfig config = slot != null && slot.occupied()
+                ? SessionConfig.hostingFromSave(playerId(), displayName(),
+                        SessionState.get().getBackendUrl(), slot)
+                : SessionConfig.hosting(playerId(), displayName(),
+                        SessionState.get().getBackendUrl());
+        // Consumed once — returning to the menu must not silently reload the
+        // same save the next time the player presses Play.
+        SessionState.get().clearLoadedSlot();
+        startMatch(config, onReturnToLauncher);
     }
 
     /** This laptop joins a host already running on the LAN. */

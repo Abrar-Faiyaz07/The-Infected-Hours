@@ -15,6 +15,7 @@ import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.infectedhour.core.InfectedHourGame;
+import com.infectedhour.core.assets.GameAssets;
 import com.infectedhour.core.bridge.GameBridge;
 import com.infectedhour.core.level.LevelDefinition;
 import com.infectedhour.core.level.LevelLoader;
@@ -127,30 +128,28 @@ public class GameScreen implements Screen {
             game.getServer().setMapWidthInTiles(levelLoader.getMapWidthInTiles());
         }
 
-        mapTexture = new Texture(Gdx.files.internal("map.png"));
-        mapTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        // Loaded through GameAssets, not `new Texture(...)`: a missing PNG would
+        // otherwise throw out of show(), out of the render loop, and kill the
+        // whole game — including networking that has nothing to do with art.
+        // Sheets are 8 columns x 4 rows, so placeholders must divide evenly.
+        mapTexture = GameAssets.texture("map.png", 1024, 1024);
 
-        playerTexture = new Texture(Gdx.files.internal("player.png"));
-        playerTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        playerTexture = GameAssets.spriteSheet("player.png", 8, 4, 32);
         frameWidth = playerTexture.getWidth() / 8;
         frameHeight = playerTexture.getHeight() / 4;
         playerFrames = TextureRegion.split(playerTexture, frameWidth, frameHeight);
 
-        idleTexture = new Texture(Gdx.files.internal("player_idle.png"));
-        idleTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        idleTexture = GameAssets.spriteSheet("player_idle.png", 8, 4, 32);
         idleFrameWidth = idleTexture.getWidth() / 8;
         idleFrameHeight = idleTexture.getHeight() / 4;
         idleFrames = TextureRegion.split(idleTexture, idleFrameWidth, idleFrameHeight);
 
-        zombieTexture = new Texture(Gdx.files.internal("zombie.png"));
-        zombieTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        zombieTexture = GameAssets.spriteSheet("zombie.png", 8, 4, 32);
         zombieFrameWidth = zombieTexture.getWidth() / 8;
         zombieFrameHeight = zombieTexture.getHeight() / 4;
         zombieFrames = TextureRegion.split(zombieTexture, zombieFrameWidth, zombieFrameHeight);
 
-        // ── LOAD & FILTER INVENTORY BACKGROUND TEXTURE ──
-        inventoryTexture = new Texture(Gdx.files.internal("inventory.png"));
-        inventoryTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        inventoryTexture = GameAssets.texture("inventory.png", 320, 240);
         mockSlots = new boolean[INVENTORY_COLS * INVENTORY_ROWS];
 
         client.setOnEvent(event -> {

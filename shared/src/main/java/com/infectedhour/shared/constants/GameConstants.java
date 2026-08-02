@@ -57,6 +57,10 @@ public final class GameConstants {
     public static final String EVENT_OBJECTIVE_COMPLETE = "OBJECTIVE_COMPLETE";
     public static final String EVENT_PAUSE = "PAUSE";
     public static final String EVENT_RESUME = "RESUME";
+    /** Host → clients when the run reaches a new checkpoint; payload is the checkpoint id. */
+    public static final String EVENT_CHECKPOINT_REACHED = "CHECKPOINT_REACHED";
+    /** Host → clients when a slot has been written; payload is the slot number. */
+    public static final String EVENT_GAME_SAVED = "GAME_SAVED";
 
     // --- Join rejection reasons ---
     public static final String REJECT_LOBBY_FULL = "LOBBY_FULL";
@@ -71,6 +75,16 @@ public final class GameConstants {
     public static final float PERSONAL_CONTAMINATION_MAX = 100f;
     public static final int REVIVE_WINDOW_SECONDS = 30;
     public static final int INVENTORY_SLOTS = 4;
+
+    /**
+     * Manual save slots per player, Resident Evil style: the Load Game screen
+     * always shows exactly this many cards, filled or empty, in a 3x3 grid.
+     */
+    public static final int SAVE_SLOT_COUNT = 9;
+
+    public static boolean isValidSaveSlot(int slotNumber) {
+        return slotNumber >= 1 && slotNumber <= SAVE_SLOT_COUNT;
+    }
 
     // --- Backend (TRD §6, Backend Schema §6) ---
     public static final int DEFAULT_BACKEND_PORT = 8080;
