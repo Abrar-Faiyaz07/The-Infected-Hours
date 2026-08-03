@@ -21,11 +21,13 @@ import com.infectedhour.core.level.LevelLoader;
 import com.infectedhour.core.level.TileMap;
 import com.infectedhour.core.net.GameClient;
 import com.infectedhour.shared.constants.GameConstants;
+import com.infectedhour.shared.dto.SaveSlotDto;
 import com.infectedhour.shared.network.CharacterType;
 import com.infectedhour.shared.network.InputCommand;
 import com.infectedhour.shared.network.WorldSnapshot;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class GameScreen implements Screen {
@@ -107,6 +109,10 @@ public class GameScreen implements Screen {
     private final float GRID_OFFSET_X = 60f;
     private final float GRID_OFFSET_Y = 80f;
     private boolean[] mockSlots;
+
+    // ── SAVE OVERLAY (CTRL+S) VARIABLES ──
+    private boolean isSaveOverlayOpen = false;
+    private List<SaveSlotDto> overlaySlots = null;
 
     private static class PlayerAnimState {
         float lastX = -1f, lastY = -1f;
@@ -250,6 +256,7 @@ public class GameScreen implements Screen {
                 case GameConstants.EVENT_PARTNER_DISCONNECTED -> showBanner("Partner disconnected — waiting…");
                 case GameConstants.EVENT_PARTNER_RECONNECTED -> showBanner("Partner reconnected");
                 case GameConstants.EVENT_CONVERTED_TO_SOLO -> showBanner("Continuing solo");
+                case GameConstants.EVENT_GAME_SAVED -> showBanner("Game Saved to Slot " + event.payload + "!");
                 default -> { }
             }
         });
@@ -276,22 +283,34 @@ public class GameScreen implements Screen {
                 batch.end();
 
                 if (Gdx.input.isKeyJustPressed(Input.Keys.ANY_KEY) || Gdx.input.isButtonPressed(Input.Buttons.LEFT)) {
-                    if (game.isHost() && game.getServer() != null) {
-                        game.getServer().stop();
-                    }
-                    game.setScreen(new BossScreen(game, client, bridge));
+                    bridge.notifyMatchEnded(new GameBridge.MatchOutcome("DEFEAT", levelNumber));
+                    com.badlogic.gdx.Gdx.app.exit();
                 }
                 return;
             }
         }
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-            paused = !paused;
-            client.sendEvent(paused ? GameConstants.EVENT_PAUSE : GameConstants.EVENT_RESUME, "");
+            if (isSaveOverlayOpen) {
+                isSaveOverlayOpen = false;
+            } else {
+                paused = !paused;
+                client.sendEvent(paused ? GameConstants.EVENT_PAUSE : GameConstants.EVENT_RESUME, "");
+            }
         }
 
-        if (Gdx.input.isKeyJustPressed(Input.Keys.F1)) {
-            showCollisionOverlay = !showCollisionOverlay;
+        // ── TOGGLE SAVE OVERLAY WITH CTRL+S ──
+        boolean ctrlPressed = Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT) || Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT);
+        if (ctrlPressed && Gdx.input.isKeyJustPressed(Input.Keys.S)) {
+            isSaveOverlayOpen = !isSaveOverlayOpen;
+            if (isSaveOverlayOpen) {
+                overlaySlots = bridge.getSaveSlots();
+            }
+        }
+
+        if (isSaveOverlayOpen) {
+            renderSaveOverlay();
+            return;
         }
 
         // ── TOGGLE INVENTORY WITH 'I' KEY ──
@@ -538,25 +557,21 @@ public class GameScreen implements Screen {
 
         if (snapshot == null) {
             font.setColor(Color.LIGHT_GRAY);
-            font.draw(batch, "Waiting for the first snapshot from the host…", 20f, top - 24f);
+            font.draw(batch, "Waiting for the first snapshot from the host…", 20f, top - 18f);
         } else {
-            font.draw(batch, String.format("global contamination %.1f%%   tick %d   players %d",
-                            snapshot.globalContaminationPct, snapshot.serverTick,
-                            snapshot.players == null ? 0 : snapshot.players.size()),
-                    20f, top - 24f);
+            // Commented out tick and player info
+            // font.draw(batch, String.format("tick %d   players %d", snapshot.serverTick, snapshot.players == null ? 0 : snapshot.players.size()), 20f, top - 18f);
 
-            WorldSnapshot.PlayerState me = client.findLocalPlayer(snapshot);
-            if (me != null) {
-                font.draw(batch, String.format("you: %s   contamination %.0f%%%s",
-                                me.character, me.personalContaminationPct,
-                                me.downed ? "   DOWNED " + me.reviveSecondsRemaining + "s" : ""),
-                        20f, top - 75f);
-            }
+            // Commented out you: character info
+            // WorldSnapshot.PlayerState me = client.findLocalPlayer(snapshot);
+            // if (me != null) {
+            //     font.draw(batch, String.format("you: %s%s", me.character, me.downed ? "   DOWNED " + me.reviveSecondsRemaining + "s" : ""), 20f, top - 36f);
+            // }
         }
 
         if (partnerBannerSecondsLeft > 0f && partnerBanner != null) {
             font.setColor(0.910f, 0.353f, 0.310f, 1f);
-            font.draw(batch, partnerBanner, 20f, top - 105f);
+            font.draw(batch, partnerBanner, 20f, top - 90f);
         }
 
         if (isBeingBitten) {
@@ -576,30 +591,32 @@ public class GameScreen implements Screen {
                 float hpPercent = currentHp / maxHp;
 
                 float barX = 20f;
-                float barY = top - 62f;
+                float barY = top - 48f;
                 float barWidth = 150f;
-                float barHeight = 16f;
+                float barHeight = 14f;
 
                 shapes.setProjectionMatrix(hudMatrix);
                 shapes.begin(ShapeRenderer.ShapeType.Filled);
 
+                // --- HEALTH BAR (GREEN) ---
                 shapes.setColor(0.2f, 0.2f, 0.2f, 0.8f);
                 shapes.rect(barX, barY, barWidth, barHeight);
 
-                shapes.setColor(0.15f, 0.8f, 0.3f, 1f);
+                shapes.setColor(0.15f, 0.8f, 0.3f, 1f); // Green
                 shapes.rect(barX, barY, barWidth * hpPercent, barHeight);
 
                 shapes.setColor(0.1f, 0.1f, 0.1f, 1f);
                 shapes.rect(barX + (barWidth / 3f), barY, 2f, barHeight);
                 shapes.rect(barX + (barWidth * 2f / 3f), barY, 2f, barHeight);
 
-                float sprintBarY = barY - 20f;
+                // --- STAMINA BAR (YELLOW) ---
+                float sprintBarY = barY - 18f;
                 float sprintPercent = stamina / maxStamina;
 
                 shapes.setColor(0.2f, 0.2f, 0.2f, 0.8f);
                 shapes.rect(barX, sprintBarY, barWidth, barHeight);
 
-                shapes.setColor(0.15f, 0.5f, 0.9f, 1f);
+                shapes.setColor(0.95f, 0.8f, 0.15f, 1f); // Yellow
                 shapes.rect(barX, sprintBarY, barWidth * sprintPercent, barHeight);
 
                 shapes.setColor(0.1f, 0.1f, 0.1f, 1f);
@@ -612,17 +629,109 @@ public class GameScreen implements Screen {
     }
 
     private void drawPauseOverlay() {
+        Matrix4 hudMatrix = new Matrix4().setToOrtho2D(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+
         Gdx.gl.glEnable(GL20.GL_BLEND);
+        shapes.setProjectionMatrix(hudMatrix);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
-        shapes.setColor(0f, 0f, 0f, 0.6f);
+        shapes.setColor(0.04f, 0.06f, 0.1f, 0.85f);
         shapes.rect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+
+        // Pause Panel Box in Center
+        float panelW = 420f;
+        float panelH = 240f;
+        float panelX = (VIRTUAL_WIDTH - panelW) / 2f;
+        float panelY = (VIRTUAL_HEIGHT - panelH) / 2f;
+
+        shapes.setColor(0.08f, 0.12f, 0.2f, 0.95f);
+        shapes.rect(panelX, panelY, panelW, panelH);
         shapes.end();
+
+        shapes.begin(ShapeRenderer.ShapeType.Line);
+        shapes.setColor(0.91f, 0.69f, 0.16f, 1f); // Accent Gold Border
+        shapes.rect(panelX, panelY, panelW, panelH);
+        shapes.end();
+
+        // Mouse coordinates in HUD space
+        com.badlogic.gdx.math.Vector3 mouseCoords = new com.badlogic.gdx.math.Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
+        viewport.unproject(mouseCoords);
+        float mx = mouseCoords.x;
+        float my = mouseCoords.y;
+
+        boolean mouseJustPressed = Gdx.input.isButtonJustPressed(Input.Buttons.LEFT);
+
+        // Button 1: Resume Game
+        float btnW = 320f;
+        float btnH = 45f;
+        float btnX = (VIRTUAL_WIDTH - btnW) / 2f;
+        float btn1Y = panelY + 120f;
+
+        boolean btn1Hovered = mx >= btnX && mx <= btnX + btnW && my >= btn1Y && my <= btn1Y + btnH;
+        if (btn1Hovered && mouseJustPressed) {
+            paused = false;
+            client.sendEvent(GameConstants.EVENT_RESUME, "");
+        }
+
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        if (btn1Hovered) {
+            shapes.setColor(0.25f, 0.35f, 0.5f, 1f);
+        } else {
+            shapes.setColor(0.15f, 0.2f, 0.3f, 1f);
+        }
+        shapes.rect(btnX, btn1Y, btnW, btnH);
+        shapes.end();
+
+        shapes.begin(ShapeRenderer.ShapeType.Line);
+        if (btn1Hovered) {
+            shapes.setColor(0.91f, 0.69f, 0.16f, 1f);
+        } else {
+            shapes.setColor(0.4f, 0.5f, 0.65f, 1f);
+        }
+        shapes.rect(btnX, btn1Y, btnW, btnH);
+        shapes.end();
+
+        // Button 2: Exit to Main Menu
+        float btn2Y = panelY + 50f;
+        boolean btn2Hovered = mx >= btnX && mx <= btnX + btnW && my >= btn2Y && my <= btn2Y + btnH;
+        if ((btn2Hovered && mouseJustPressed) || Gdx.input.isKeyJustPressed(Input.Keys.Q) || Gdx.input.isKeyJustPressed(Input.Keys.M)) {
+            bridge.onGameWindowClosed();
+            Gdx.app.exit();
+            return;
+        }
+
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        if (btn2Hovered) {
+            shapes.setColor(0.5f, 0.18f, 0.18f, 1f);
+        } else {
+            shapes.setColor(0.28f, 0.12f, 0.12f, 1f);
+        }
+        shapes.rect(btnX, btn2Y, btnW, btnH);
+        shapes.end();
+
+        shapes.begin(ShapeRenderer.ShapeType.Line);
+        if (btn2Hovered) {
+            shapes.setColor(1f, 0.4f, 0.4f, 1f);
+        } else {
+            shapes.setColor(0.65f, 0.25f, 0.25f, 1f);
+        }
+        shapes.rect(btnX, btn2Y, btnW, btnH);
+        shapes.end();
+
         Gdx.gl.glDisable(GL20.GL_BLEND);
 
+        // Text Overlay
+        batch.setProjectionMatrix(hudMatrix);
         batch.begin();
-        font.setColor(Color.WHITE);
-        font.draw(batch, "PAUSED — ESC to resume",
-                VIRTUAL_WIDTH / 2f - 90f, VIRTUAL_HEIGHT / 2f);
+
+        font.setColor(new Color(0.91f, 0.69f, 0.16f, 1f));
+        font.draw(batch, "GAME PAUSED", VIRTUAL_WIDTH / 2f - 60f, panelY + panelH - 25f);
+
+        font.setColor(btn1Hovered ? Color.WHITE : Color.LIGHT_GRAY);
+        font.draw(batch, "Resume Game (ESC)", btnX + 70f, btn1Y + 28f);
+
+        font.setColor(btn2Hovered ? Color.WHITE : new Color(0.95f, 0.6f, 0.6f, 1f));
+        font.draw(batch, "Exit to Main Menu (Q)", btnX + 60f, btn2Y + 28f);
+
         batch.end();
     }
 
@@ -653,6 +762,183 @@ public class GameScreen implements Screen {
     @Override public void pause() { }
     @Override public void resume() { }
     @Override public void hide() { client.setOnEvent(null); }
+
+    private void renderSaveOverlay() {
+        if (overlaySlots == null || overlaySlots.size() < GameConstants.SAVE_SLOT_COUNT) {
+            overlaySlots = bridge.getSaveSlots();
+        }
+
+        Matrix4 hudMatrix = new Matrix4().setToOrtho2D(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+
+        // 1. Draw semi-transparent dark background
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        shapes.setProjectionMatrix(hudMatrix);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(0.04f, 0.06f, 0.1f, 0.92f); // dark navy night matching launcher
+        shapes.rect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+
+        // Grid parameters: 3 cols x 3 rows
+        int cols = 3;
+        float cardW = 340f;
+        float cardH = 145f;
+        float gapX = 20f;
+        float gapY = 16f;
+
+        float gridTotalWidth = (cols * cardW) + ((cols - 1) * gapX);
+        float startX = (VIRTUAL_WIDTH - gridTotalWidth) / 2f;
+        float startY = VIRTUAL_HEIGHT - 120f; // top margin for title
+
+        // Get mouse coordinates in virtual HUD space
+        com.badlogic.gdx.math.Vector3 mouseCoords = new com.badlogic.gdx.math.Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
+        viewport.unproject(mouseCoords);
+        float mx = mouseCoords.x;
+        float my = mouseCoords.y;
+
+        int clickedSlot = -1;
+        boolean mouseJustPressed = Gdx.input.isButtonJustPressed(Input.Buttons.LEFT);
+
+        // Draw 9 card backgrounds & detect hover / click
+        for (int i = 0; i < GameConstants.SAVE_SLOT_COUNT; i++) {
+            int c = i % cols;
+            int r = i / cols;
+
+            float x = startX + c * (cardW + gapX);
+            float y = startY - (r + 1) * cardH - r * gapY;
+
+            boolean isHovered = mx >= x && mx <= x + cardW && my >= y && my <= y + cardH;
+            if (isHovered && mouseJustPressed) {
+                clickedSlot = i + 1;
+            }
+
+            SaveSlotDto slot = (overlaySlots != null && i < overlaySlots.size()) ? overlaySlots.get(i) : SaveSlotDto.empty(i + 1);
+
+            // Card background color
+            if (isHovered) {
+                shapes.setColor(0.18f, 0.24f, 0.35f, 1f);
+            } else if (slot != null && slot.occupied()) {
+                shapes.setColor(0.1f, 0.14f, 0.22f, 1f);
+            } else {
+                shapes.setColor(0.07f, 0.1f, 0.15f, 1f);
+            }
+            shapes.rect(x, y, cardW, cardH);
+
+            // Border line
+            shapes.end();
+            shapes.begin(ShapeRenderer.ShapeType.Line);
+            if (isHovered) {
+                shapes.setColor(0.91f, 0.69f, 0.16f, 1f); // Accent Gold
+            } else if (slot != null && slot.occupied()) {
+                shapes.setColor(0.3f, 0.45f, 0.65f, 0.8f);
+            } else {
+                shapes.setColor(0.2f, 0.25f, 0.35f, 0.5f);
+            }
+            shapes.rect(x, y, cardW, cardH);
+            shapes.end();
+            shapes.begin(ShapeRenderer.ShapeType.Filled);
+        }
+
+        // Back / Close button background
+        float btnW = 200f;
+        float btnH = 40f;
+        float btnX = (VIRTUAL_WIDTH - btnW) / 2f;
+        float btnY = 30f;
+
+        boolean btnHovered = mx >= btnX && mx <= btnX + btnW && my >= btnY && my <= btnY + btnH;
+        if (btnHovered && mouseJustPressed) {
+            isSaveOverlayOpen = false;
+        }
+
+        if (btnHovered) {
+            shapes.setColor(0.25f, 0.32f, 0.45f, 1f);
+        } else {
+            shapes.setColor(0.12f, 0.16f, 0.25f, 1f);
+        }
+        shapes.rect(btnX, btnY, btnW, btnH);
+        shapes.end();
+
+        shapes.begin(ShapeRenderer.ShapeType.Line);
+        if (btnHovered) {
+            shapes.setColor(0.91f, 0.69f, 0.16f, 1f);
+        } else {
+            shapes.setColor(0.4f, 0.45f, 0.55f, 1f);
+        }
+        shapes.rect(btnX, btnY, btnW, btnH);
+        shapes.end();
+
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+
+        // Check for keyboard shortcuts 1-9
+        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_1)) clickedSlot = 1;
+        else if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_2) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_2)) clickedSlot = 2;
+        else if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_3) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_3)) clickedSlot = 3;
+        else if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_4) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_4)) clickedSlot = 4;
+        else if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_5) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_5)) clickedSlot = 5;
+        else if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_6) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_6)) clickedSlot = 6;
+        else if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_7) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_7)) clickedSlot = 7;
+        else if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_8) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_8)) clickedSlot = 8;
+        else if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_9) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_9)) clickedSlot = 9;
+
+        // Perform save if a slot was clicked or number key pressed
+        if (clickedSlot != -1) {
+            if (game.isHost() && game.getServer() != null) {
+                SaveSlotDto slotDto = game.getServer().captureSave(clickedSlot);
+                if (slotDto != null) {
+                    bridge.requestSave(clickedSlot, slotDto);
+                    overlaySlots = bridge.getSaveSlots();
+                    showBanner("Game Saved to Slot " + clickedSlot + "!");
+                    isSaveOverlayOpen = false;
+                }
+            } else {
+                showBanner("Only Host can save");
+            }
+        }
+
+        // 2. Draw text contents over cards
+        batch.setProjectionMatrix(hudMatrix);
+        batch.begin();
+
+        font.setColor(new Color(0.91f, 0.69f, 0.16f, 1f)); // Gold title
+        font.draw(batch, "SAVE GAME", startX, VIRTUAL_HEIGHT - 35f);
+        font.setColor(Color.LIGHT_GRAY);
+        font.draw(batch, "Select a slot to save progress. Click or press keys [1-9]. (Ctrl+S / ESC to close)", startX, VIRTUAL_HEIGHT - 65f);
+
+        for (int i = 0; i < GameConstants.SAVE_SLOT_COUNT; i++) {
+            int c = i % cols;
+            int r = i / cols;
+
+            float x = startX + c * (cardW + gapX);
+            float y = startY - (r + 1) * cardH - r * gapY;
+
+            SaveSlotDto slot = (overlaySlots != null && i < overlaySlots.size()) ? overlaySlots.get(i) : SaveSlotDto.empty(i + 1);
+
+            font.setColor(new Color(0.91f, 0.69f, 0.16f, 1f));
+            font.draw(batch, "SLOT " + (i + 1), x + 14f, y + cardH - 14f);
+
+            if (slot == null || !slot.occupied()) {
+                font.setColor(Color.GRAY);
+                font.draw(batch, "— Empty —", x + 14f, y + cardH - 55f);
+                font.setColor(Color.LIGHT_GRAY);
+                font.draw(batch, "Click or Press [" + (i + 1) + "] to Save", x + 14f, y + 28f);
+            } else {
+                font.setColor(Color.WHITE);
+                font.draw(batch, "Level " + slot.levelNumber() + (slot.levelName() == null ? "" : " — " + slot.levelName()), x + 14f, y + cardH - 42f);
+
+                font.setColor(Color.LIGHT_GRAY);
+                font.draw(batch, slot.checkpointName() == null ? "Checkpoint: —" : slot.checkpointName(), x + 14f, y + cardH - 65f);
+
+                font.draw(batch, String.format("%s   HP %.0f", slot.formattedPlaytime(), slot.playerHp()), x + 14f, y + cardH - 88f);
+
+                font.setColor(Color.DARK_GRAY);
+                font.draw(batch, "Click/Press [" + (i + 1) + "] to Overwrite", x + 14f, y + 24f);
+            }
+        }
+
+        // Close button text
+        font.setColor(btnHovered ? Color.WHITE : Color.LIGHT_GRAY);
+        font.draw(batch, "Close (ESC)", btnX + 60f, btnY + 26f);
+
+        batch.end();
+    }
 
     @Override
     public void dispose() {

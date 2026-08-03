@@ -1,6 +1,11 @@
 package com.infectedhour.core.bridge;
 
+import com.infectedhour.shared.dto.SaveSlotDto;
+
+import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Thread-safe boundary between the JavaFX Application Thread and the
@@ -26,6 +31,11 @@ public class GameBridge {
     private volatile Consumer<String> onJoinFailed = reason -> {
     };
     private volatile Consumer<PartnerEvent> onPartnerEvent = event -> {
+    };
+    private volatile Supplier<List<SaveSlotDto>> slotProvider = List::of;
+    private volatile BiConsumer<Integer, SaveSlotDto> onSaveRequested = (slot, dto) -> {
+    };
+    private volatile Consumer<Integer> onSaveConfirmed = slot -> {
     };
 
     /** Called by core (libGDX thread) when the match reaches Results. Must marshal to FX via Platform.runLater on the receiving side. */
@@ -53,6 +63,18 @@ public class GameBridge {
         onPartnerEvent.accept(event);
     }
 
+    public List<SaveSlotDto> getSaveSlots() {
+        return slotProvider.get();
+    }
+
+    public void requestSave(int slot, SaveSlotDto dto) {
+        onSaveRequested.accept(slot, dto);
+    }
+
+    public void notifySaveConfirmed(int slot) {
+        onSaveConfirmed.accept(slot);
+    }
+
     public void setOnMatchEnded(Consumer<MatchOutcome> callback) {
         this.onMatchEnded = callback;
     }
@@ -67,6 +89,18 @@ public class GameBridge {
 
     public void setOnPartnerEvent(Consumer<PartnerEvent> callback) {
         this.onPartnerEvent = callback;
+    }
+
+    public void setSlotProvider(Supplier<List<SaveSlotDto>> provider) {
+        this.slotProvider = provider != null ? provider : List::of;
+    }
+
+    public void setOnSaveRequested(BiConsumer<Integer, SaveSlotDto> callback) {
+        this.onSaveRequested = callback != null ? callback : (slot, dto) -> {};
+    }
+
+    public void setOnSaveConfirmed(Consumer<Integer> callback) {
+        this.onSaveConfirmed = callback != null ? callback : slot -> {};
     }
 
     /** Minimal payload core hands back to the launcher for the Results screen. */

@@ -122,8 +122,8 @@ public class LoadGameView {
                 : slot.checkpointName());
         checkpoint.getStyleClass().add("slot-detail");
 
-        Label stats = new Label(String.format("%s   HP %.0f   contamination %.0f%%",
-                slot.formattedPlaytime(), slot.playerHp(), slot.personalContaminationPct()));
+        Label stats = new Label(String.format("%s   HP %.0f",
+                slot.formattedPlaytime(), slot.playerHp()));
         stats.getStyleClass().add("slot-detail");
 
         Label when = new Label(slot.savedAt() == null ? "" : SAVED_AT.format(Instant.parse(slot.savedAt())));

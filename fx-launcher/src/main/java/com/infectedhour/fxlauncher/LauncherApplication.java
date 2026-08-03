@@ -3,6 +3,7 @@ package com.infectedhour.fxlauncher;
 import com.infectedhour.fxlauncher.net.BackendClient;
 import com.infectedhour.fxlauncher.views.MainMenuView;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 
@@ -27,6 +28,11 @@ public class LauncherApplication extends Application {
 
     @Override
     public void start(Stage primaryStage) {
+        Platform.setImplicitExit(false);
+        primaryStage.setOnCloseRequest(e -> {
+            Platform.exit();
+            System.exit(0);
+        });
         backendClient = new BackendClient();
 
         primaryStage.setTitle("The Infected Hour");

@@ -70,6 +70,14 @@ public class InfectedHourGame extends Game {
             server.restoreFrom(session.loadedSlot());
         }
 
+        bridge.setOnSaveConfirmed(slotNumber -> {
+            com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+                if (server != null) {
+                    server.broadcastEvent(GameConstants.EVENT_GAME_SAVED, String.valueOf(slotNumber));
+                }
+            });
+        });
+
         setScreen(new LevelBriefingScreen(this, client, bridge, session.startingLevel()));
     }
 
