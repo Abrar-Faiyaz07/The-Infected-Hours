@@ -35,11 +35,16 @@ public class GameLauncherBridge {
      * starting a fresh one.
      */
     public void startAsHost(Runnable onReturnToLauncher) {
+        startAsHost(displayName(), onReturnToLauncher);
+    }
+
+    public void startAsHost(String customName, Runnable onReturnToLauncher) {
+        String name = (customName != null && !customName.isBlank()) ? customName.trim() : displayName();
         var slot = SessionState.get().getLoadedSlot();
         SessionConfig config = slot != null && slot.occupied()
-                ? SessionConfig.hostingFromSave(playerId(), displayName(),
+                ? SessionConfig.hostingFromSave(playerId(), name,
                         SessionState.get().getBackendUrl(), slot)
-                : SessionConfig.hosting(playerId(), displayName(),
+                : SessionConfig.hosting(playerId(), name,
                         SessionState.get().getBackendUrl());
         // Consumed once — returning to the menu must not silently reload the
         // same save the next time the player presses Play.
@@ -49,7 +54,12 @@ public class GameLauncherBridge {
 
     /** This laptop joins a host already running on the LAN. */
     public void startAsClient(String hostAddress, Runnable onReturnToLauncher) {
-        startMatch(SessionConfig.joining(hostAddress, playerId(), displayName()), onReturnToLauncher);
+        startAsClient(hostAddress, displayName(), onReturnToLauncher);
+    }
+
+    public void startAsClient(String hostAddress, String customName, Runnable onReturnToLauncher) {
+        String name = (customName != null && !customName.isBlank()) ? customName.trim() : displayName();
+        startMatch(SessionConfig.joining(hostAddress, playerId(), name), onReturnToLauncher);
     }
 
     public void startMatch(SessionConfig session, Runnable onReturnToLauncher) {

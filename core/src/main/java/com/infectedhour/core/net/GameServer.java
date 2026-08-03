@@ -200,8 +200,13 @@ public class GameServer {
                     ? joinRequest.playerId
                     : character.name().toLowerCase() + "-" + connection.getID();
 
+            String displayName = orDefault(joinRequest.displayName, character.name());
+            if (displayName.equalsIgnoreCase(hostDisplayName)) {
+                displayName = displayName + " (P2)";
+            }
+
             joined = new ConnectedPlayer(connection.getID(), playerId,
-                    orDefault(joinRequest.displayName, character.name()), character);
+                    displayName, character);
             playersByConnectionId.put(connection.getID(), joined);
             mode = currentMatchMode();
 
