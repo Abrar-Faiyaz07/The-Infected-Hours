@@ -229,3 +229,30 @@
     -fx-font-size: 12px;
     -fx-padding: 5 14 5 14;
 }
+
+/* ── Game launch transition ───────────────────────────────────────────────
+   The JavaFX window stays visible while the native libGDX window starts. */
+.launch-loading-overlay {
+    -fx-background-color: rgba(5, 8, 14, 0.88);
+}
+
+.launch-loading-card {
+    -fx-max-width: 280;
+    -fx-max-height: 190;
+    -fx-padding: 32 42 32 42;
+    -fx-background-color: rgba(14, 20, 32, 0.96);
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(232, 176, 42, 0.55);
+    -fx-border-width: 1;
+    -fx-border-radius: 14;
+}
+
+.launch-loading-card .progress-indicator {
+    -fx-progress-color: #E8B02A;
+}
+
+.launch-loading-label {
+    -fx-text-fill: #F2F0E9;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}

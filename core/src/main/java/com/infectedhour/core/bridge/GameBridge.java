@@ -26,8 +26,11 @@ public class GameBridge {
 
     private volatile Consumer<MatchOutcome> onMatchEnded = outcome -> {
     };
+    private volatile Runnable onGameReady = () -> {
+    };
     private volatile Runnable onGameWindowClosed = () -> {
     };
+    private volatile Consumer<Runnable> onReturnToLauncherRequested = completion -> completion.run();
     private volatile Consumer<String> onJoinFailed = reason -> {
     };
     private volatile Consumer<PartnerEvent> onPartnerEvent = event -> {
@@ -43,9 +46,28 @@ public class GameBridge {
         onMatchEnded.accept(outcome);
     }
 
+    /**
+     * Called after libGDX has rendered its first frame. The launcher keeps its
+     * loading overlay visible until this signal, so the desktop never flashes
+     * or disappears while the native game window is being created.
+     */
+    public void notifyGameReady() {
+        onGameReady.run();
+    }
+
     /** Called by core when the libGDX window is disposed, so fx-launcher can re-show its stage. */
     public void onGameWindowClosed() {
         onGameWindowClosed.run();
+    }
+
+    /**
+     * Requests an orderly game-to-launcher handoff. The launcher invokes
+     * {@code closeGameWindow} only after its stage has been restored and given
+     * time to paint, preventing a desktop flash between the two windows.
+     */
+    public void requestReturnToLauncher(Runnable closeGameWindow) {
+        Runnable completion = closeGameWindow != null ? closeGameWindow : () -> {};
+        onReturnToLauncherRequested.accept(completion);
     }
 
     /**
@@ -79,8 +101,16 @@ public class GameBridge {
         this.onMatchEnded = callback;
     }
 
+    public void setOnGameReady(Runnable callback) {
+        this.onGameReady = callback != null ? callback : () -> {};
+    }
+
     public void setOnGameWindowClosed(Runnable callback) {
-        this.onGameWindowClosed = callback;
+        this.onGameWindowClosed = callback != null ? callback : () -> {};
+    }
+
+    public void setOnReturnToLauncherRequested(Consumer<Runnable> callback) {
+        this.onReturnToLauncherRequested = callback != null ? callback : completion -> completion.run();
     }
 
     public void setOnJoinFailed(Consumer<String> callback) {

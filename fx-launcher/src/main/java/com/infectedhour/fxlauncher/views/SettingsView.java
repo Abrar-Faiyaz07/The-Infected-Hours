@@ -25,7 +25,9 @@ public class SettingsView {
 
         Slider musicVolume = new Slider(0, 100, 80);
         Slider sfxVolume = new Slider(0, 100, 80);
-        CheckBox fullscreen = new CheckBox("Fullscreen");
+        CheckBox fullscreen = new CheckBox("Fullscreen (applies when the game starts)");
+        fullscreen.setSelected(SessionState.get().isFullscreen());
+        fullscreen.setOnAction(e -> SessionState.get().setFullscreen(fullscreen.isSelected()));
 
         TextField backendUrl = new TextField(SessionState.get().getBackendUrl());
         backendUrl.setPromptText("Backend URL (advanced)");

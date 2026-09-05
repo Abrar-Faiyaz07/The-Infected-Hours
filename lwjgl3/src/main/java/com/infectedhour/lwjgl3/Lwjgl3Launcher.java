@@ -41,9 +41,22 @@ public class Lwjgl3Launcher {
     }
 
     public static void boot(SessionConfig session, GameBridge bridge) {
+        boot(session, bridge, true);
+    }
+
+    /**
+     * Starts the native game window. Fullscreen is the default because the
+     * 1280x720 value in the UI specification is a virtual rendering size, not
+     * the intended physical desktop-window size.
+     */
+    public static void boot(SessionConfig session, GameBridge bridge, boolean fullscreen) {
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
         config.setTitle("The Infected Hour");
-        config.setWindowedMode(1280, 720); // base virtual resolution, UI/UX doc §1
+        if (fullscreen) {
+            config.setFullscreenMode(Lwjgl3ApplicationConfiguration.getDisplayMode());
+        } else {
+            config.setWindowedMode(1280, 720);
+        }
         config.useVsync(true);
 
         new Lwjgl3Application(new InfectedHourGame(session, bridge), config);

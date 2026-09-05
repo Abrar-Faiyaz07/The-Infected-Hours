@@ -1,8 +1,11 @@
-# Change log — LAN socket layer + main menu fixes
+# Change log — LAN, launcher, menu, and presentation fixes
 
-**Date:** 2026-07-31
+**Created:** 2026-07-31
+
+**Last updated:** 2026-09-01
 **Scope:** (1) make two machines actually connect and play, (2) fix the main-menu
-rendering defects, (3) unbreak `./gradlew build`.
+rendering defects, (3) unbreak `./gradlew build`, and (4) make the transition
+from the launcher into the native game window seamless and fullscreen.
 
 Everything below is traceable: each entry names the file, what was wrong, what it
 is now, and why. Read top-to-bottom to reconstruct the session.
@@ -444,3 +447,141 @@ Find them with:
 ```bash
 grep -rn "TEAMMATE TASK" --include="*.java" .
 ```
+
+---
+
+## 8. Launcher-to-game presentation fixes (2026-09-01)
+
+### 8.1 Launcher no longer disappears while the game window starts
+
+**Symptom:** pressing single-player, starting a hosted match, or joining a match
+hid the complete JavaFX application for several seconds before the libGDX
+window appeared. The desktop was exposed during startup, which looked like the
+application had crashed.
+
+**Cause:** `GameLauncherBridge.startMatch()` called `primaryStage.hide()` before
+the native LWJGL window had been created or rendered.
+
+**Fix:** the launcher now places a modal loading overlay over the current view
+and keeps the stage visible. `InfectedHourGame` reports readiness through
+`GameBridge` after its first frame is rendered; only then is the launcher stage
+hidden. Startup and connection failures remove the overlay, restore the
+launcher, and display an error instead of leaving a blocked or invisible UI.
+
+Files changed:
+
+- `fx-launcher/src/main/java/com/infectedhour/fxlauncher/bridge/GameLauncherBridge.java`
+- `fx-launcher/src/main/resources/launcher.css`
+- `core/src/main/java/com/infectedhour/core/bridge/GameBridge.java`
+- `core/src/main/java/com/infectedhour/core/InfectedHourGame.java`
+- `core/src/test/java/com/infectedhour/core/bridge/GameBridgeTest.java`
+
+### 8.2 Native game now opens fullscreen by default
+
+**Symptom:** the maximized JavaFX launcher was replaced by a centered 1280x720
+game window, leaving the launcher visible around it.
+
+**Cause:** `Lwjgl3Launcher` used `setWindowedMode(1280, 720)`. The 1280x720
+value in the UI/UX document is the game's **base virtual resolution** for
+consistent layout and scaling; it was incorrectly being used as the physical
+desktop window size.
+
+**Fix:** the LWJGL application now uses the current monitor's display mode and
+starts fullscreen. The existing Settings checkbox is connected to
+`SessionState`, defaults to enabled, and can select the 1280x720 windowed mode
+for the next launch. The direct `:lwjgl3:run` development shortcut also defaults
+to fullscreen.
+
+Files changed:
+
+- `lwjgl3/src/main/java/com/infectedhour/lwjgl3/Lwjgl3Launcher.java`
+- `fx-launcher/src/main/java/com/infectedhour/fxlauncher/bridge/GameLauncherBridge.java`
+- `fx-launcher/src/main/java/com/infectedhour/fxlauncher/state/SessionState.java`
+- `fx-launcher/src/main/java/com/infectedhour/fxlauncher/views/SettingsView.java`
+
+### 8.3 Loading overlay is removed when the game opens or closes
+
+**Regression:** after the loading overlay was introduced, closing the native
+game window could return to a launcher that remained dimmed and permanently
+displayed “Preparing your story…”.
+
+**Cause:** the original menu root was still a child of the temporary
+`StackPane` wrapper when `Scene.setRoot(originalRoot)` tried to restore it.
+JavaFX rejected a node being attached in two places and threw
+`IllegalArgumentException: ... is already inside a scene-graph`. Because the
+exception occurred inside the ready callback, the launcher never hid normally;
+the close callback then hit the same failure and could not clear the overlay.
+
+**Fix:** `removeLoadingScreen()` now clears its transition state first, detaches
+the original menu from the wrapper, and only then restores it as the scene
+root. The operation is idempotent, so ready, connection-failure, startup-error,
+and game-close callbacks can safely race without leaving a stuck overlay.
+
+File changed:
+
+- `fx-launcher/src/main/java/com/infectedhour/fxlauncher/bridge/GameLauncherBridge.java`
+
+### 8.4 Returning with Q no longer exposes the desktop
+
+**Symptom:** choosing “Exit to Main Menu” with **Q** closed the fullscreen
+libGDX window immediately, then left the desktop visible while JavaFX restored
+and painted the main menu.
+
+**Cause:** `GameScreen` called `onGameWindowClosed()` and `Gdx.app.exit()` in
+the same frame. `InfectedHourGame.dispose()` then emitted the close event a
+second time. There was no acknowledgement that the launcher was ready before
+the native fullscreen window disappeared.
+
+**Fix:** `GameBridge` now supports an orderly return handshake. JavaFX restores
+the menu, brings its stage forward, and waits 150 ms for a render pulse before
+releasing the libGDX window. An atomic guard makes the later `dispose()` close
+notification a harmless fallback instead of a duplicate navigation. The pause
+overlay displays “RETURNING TO MAIN MENU…” while the short handoff completes.
+
+Files changed:
+
+- `core/src/main/java/com/infectedhour/core/bridge/GameBridge.java`
+- `core/src/main/java/com/infectedhour/core/screens/GameScreen.java`
+- `core/src/test/java/com/infectedhour/core/bridge/GameBridgeTest.java`
+- `fx-launcher/src/main/java/com/infectedhour/fxlauncher/bridge/GameLauncherBridge.java`
+
+### 8.5 Play remains locked until the previous server releases its ports
+
+**Symptom:** after returning to the menu, immediately pressing Play could show
+“Ports 54555/54777 are already in use” even though no separate game was visible.
+
+**Cause:** the reverse handoff made the JavaFX menu interactive before
+`InfectedHourGame.dispose()` had disconnected the client and stopped the
+`GameServer`. A fast click could therefore start another libGDX application in
+the same JVM while the previous application still owned the sockets.
+
+**Fix:** the launcher now displays a blocking “Closing current session…” overlay
+during the short shutdown interval. Only the actual `onGameWindowClosed`
+callback—which is emitted after `client.disconnect()` and `server.stop()`—can
+remove that overlay and re-enable Play. This makes rapid relaunches safe and
+prevents multiple libGDX instances from competing for global state and ports.
+
+File changed:
+
+- `fx-launcher/src/main/java/com/infectedhour/fxlauncher/bridge/GameLauncherBridge.java`
+
+### 8.6 F3 debug view no longer crashes the game
+
+**Symptom:** pressing **F3** displayed an error and returned to the launcher;
+subsequent launches could temporarily report that the game ports were busy.
+
+**Cause:** the split-screen branch ended `SpriteBatch` after rendering its two
+camera views, but the shared zombie and inventory code continued calling
+`batch.draw()` and then `batch.end()`. libGDX requires every draw to be inside
+exactly one matching `begin()` / `end()` pair, so the first F3 frame threw and
+disposed the game.
+
+**Fix:** zombie simulation now updates once per frame and its current sprite is
+drawn inside each camera pass. Both the normal and dual-view passes own complete
+and balanced batch lifecycles, while the inventory uses a separate HUD batch.
+F3 now only toggles the debug split-screen view and cannot launch, close, or
+restart a session.
+
+File changed:
+
+- `core/src/main/java/com/infectedhour/core/screens/GameScreen.java`

@@ -31,6 +31,7 @@ public class InfectedHourGame extends Game {
 
     private GameServer server; // non-null only on the host
     private GameClient client;
+    private boolean firstFrameReported;
 
     public InfectedHourGame(SessionConfig session, GameBridge bridge) {
         this.session = session;
@@ -79,6 +80,15 @@ public class InfectedHourGame extends Game {
         });
 
         setScreen(new LevelBriefingScreen(this, client, bridge, session.startingLevel()));
+    }
+
+    @Override
+    public void render() {
+        super.render();
+        if (!firstFrameReported) {
+            firstFrameReported = true;
+            bridge.notifyGameReady();
+        }
     }
 
     public boolean isHost() {
