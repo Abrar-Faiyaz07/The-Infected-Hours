@@ -182,12 +182,12 @@ public class StoryPanelScreen implements Screen {
                     "THE CONTAINMENT DIRECTIVE"
             };
             case AFTER_LEVEL_1 -> new String[]{
-                    "THE DISTRICT HOLDS",
-                    "A NAME FROM THE FIRST OUTBREAK"
+                    "BEYOND THE HOSPITAL",
+                    "THE ROAD IS NOT EMPTY"
             };
             case AFTER_LEVEL_2 -> new String[]{
-                    "BENEATH FAMILIAR STREETS",
-                    "THE SOURCE WAS NEVER NATURAL"
+                    "THE TUNNEL BELOW ASHGROVE",
+                    "THE HIDDEN LABORATORY"
             };
             case ENDING -> new String[]{
                     "THE HEART FALLS SILENT",
@@ -242,12 +242,12 @@ public class StoryPanelScreen implements Screen {
                     "Find the survivors. Recover the samples. Trace the source. Destroy the Virus Heart before dawn."
             };
             case AFTER_LEVEL_1 -> new String[]{
-                    "The district holds — barely.",
-                    "Elric checks a name off a list he has been carrying since the first outbreak."
+                    "The hospital is behind them, but the road outside cuts through a village overrun by the infected.",
+                    "Survivors are trapped between abandoned homes. Restoring the roadside relays may open the old service tunnel."
             };
             case AFTER_LEVEL_2 -> new String[]{
-                    "Jane knows these streets. She knows what was buried under them.",
-                    "The source was never natural. Something down there is still growing."
+                    "The rescued villagers point toward a sealed passage beneath the road. The relay code unlocks it.",
+                    "Below Ashgrove waits a hidden laboratory — and the organism that started the outbreak."
             };
             case ENDING -> new String[]{
                     "The Virus Heart collapses. The air clears.",

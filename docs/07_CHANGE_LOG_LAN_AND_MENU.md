@@ -649,3 +649,43 @@ Files changed:
 - `core/src/main/java/com/infectedhour/core/screens/GameScreen.java`
 - `core/src/test/java/com/infectedhour/core/level/LevelExitTest.java`
 - `shared/src/main/java/com/infectedhour/shared/constants/GameConstants.java`
+
+### 8.10 Level 2 and Level 3 campaign skeleton
+
+**Request:** continue from the existing hospital level into an outdoor roadside
+village, then return through a hidden route to a laboratory for the final boss.
+
+**Level 2 — Roadside Village:** the level now has its own generated outdoor
+placeholder map instead of reusing the hospital artwork. The mission contains a
+zombie-road-patrol encounter, two stranded villagers, two power-relay puzzle
+points, a visible objective list, interaction prompts, and the existing service
+tunnel exit. Objective actions travel reliably to the host, are validated
+against the player's position, and can only be counted once across both players.
+The tunnel remains locked until every objective is complete.
+
+**Level 3 — Hidden Laboratory:** the previous TODO-only boss screen is now a
+playable three-phase skeleton. Players inject three cure samples, attack the
+exposed Virus Heart during its damage window, then hold the final overload
+action to destroy the core. The arena has a temporary laboratory visualization,
+phase instructions, cure indicators, a boss-health bar, and a working transition
+to the campaign ending.
+
+**Campaign presentation:** level definitions, briefing mission text, and story
+panels now consistently describe Level 1 as Ashgrove Hospital, Level 2 as the
+Roadside Village, and Level 3 as the Hidden Laboratory.
+
+Files changed:
+
+- `core/src/main/java/com/infectedhour/core/level/CampaignLevelPlan.java`
+- `core/src/main/java/com/infectedhour/core/level/LevelDefinition.java`
+- `core/src/main/java/com/infectedhour/core/net/GameServer.java`
+- `core/src/main/java/com/infectedhour/core/screens/BossScreen.java`
+- `core/src/main/java/com/infectedhour/core/screens/GameScreen.java`
+- `core/src/main/java/com/infectedhour/core/screens/LevelBriefingScreen.java`
+- `core/src/main/java/com/infectedhour/core/screens/StoryPanelScreen.java`
+- `core/src/main/java/com/infectedhour/core/systems/ObjectiveSystem.java`
+- `core/src/test/java/com/infectedhour/core/level/CampaignLevelPlanTest.java`
+- `core/src/test/java/com/infectedhour/core/systems/ObjectiveSystemTest.java`
+- `shared/src/main/java/com/infectedhour/shared/constants/GameConstants.java`
+- `shared/src/main/java/com/infectedhour/shared/level/CheckpointRegistry.java`
+- `shared/src/test/java/com/infectedhour/shared/level/CheckpointRegistryTest.java`

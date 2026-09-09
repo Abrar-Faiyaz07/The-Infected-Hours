@@ -19,6 +19,7 @@ import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.infectedhour.core.InfectedHourGame;
 import com.infectedhour.core.bridge.GameBridge;
+import com.infectedhour.core.level.CampaignLevelPlan;
 import com.infectedhour.core.level.LevelDefinition;
 import com.infectedhour.core.level.LevelExit;
 import com.infectedhour.core.level.LevelLoader;
@@ -33,8 +34,10 @@ import com.infectedhour.shared.network.WorldSnapshot;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class GameScreen implements Screen {
 
@@ -65,6 +68,10 @@ public class GameScreen implements Screen {
     private OrthographicCamera camera;
     private Viewport viewport;
     private Texture mapTexture;
+    private Texture markerTexture;
+    private List<CampaignLevelPlan.Feature> levelFeatures = List.of();
+    private final Set<String> completedFeatureIds = new HashSet<>();
+    private boolean zombieObjectiveSent;
 
     private CollisionSystem collisionSystem;
 
@@ -270,7 +277,13 @@ public class GameScreen implements Screen {
         Gdx.gl.glDisable(GL20.GL_BLEND);
     }
 
-    private void drawMapAlignedToCollisionGrid() {
+    private void drawLevelMap() {
+        if (levelNumber != 1) {
+            batch.draw(mapTexture, 0f, 0f,
+                    tileMap.getWidth() * PIXELS_PER_TILE,
+                    tileMap.getHeight() * PIXELS_PER_TILE);
+            return;
+        }
         float scale = PIXELS_PER_TILE / MAP_ART_TILE_PX;
         float gridBottomFromTexBottomPx = mapTexture.getHeight() - (MAP_ART_ORIGIN_Y_TOP_PX + MAP_ART_ROWS * MAP_ART_TILE_PX);
 
@@ -279,6 +292,56 @@ public class GameScreen implements Screen {
                 -gridBottomFromTexBottomPx * scale,
                 mapTexture.getWidth() * scale,
                 mapTexture.getHeight() * scale);
+    }
+
+    /** Temporary top-down village art generated from the Level 2 collision grid. */
+    private Texture createRoadsideVillageTexture() {
+        final int pixelsPerTile = 16;
+        int width = tileMap.getWidth() * pixelsPerTile;
+        int height = tileMap.getHeight() * pixelsPerTile;
+
+        Pixmap pixmap = new Pixmap(width, height, Pixmap.Format.RGBA8888);
+        pixmap.setColor(0.055f, 0.12f, 0.08f, 1f);
+        pixmap.fill();
+
+        for (int y = 0; y < tileMap.getHeight(); y++) {
+            for (int x = 0; x < tileMap.getWidth(); x++) {
+                int px = x * pixelsPerTile;
+                int py = (tileMap.getHeight() - 1 - y) * pixelsPerTile;
+                boolean road = (x >= 26 && x <= 33) || (y >= 18 && y <= 22);
+
+                if (!tileMap.isWalkable(x, y)) {
+                    pixmap.setColor(((x + y) & 1) == 0
+                            ? new Color(0.18f, 0.14f, 0.12f, 1f)
+                            : new Color(0.23f, 0.17f, 0.13f, 1f));
+                    pixmap.fillRectangle(px, py, pixelsPerTile, pixelsPerTile);
+                    pixmap.setColor(0.38f, 0.25f, 0.12f, 1f);
+                    pixmap.drawRectangle(px, py, pixelsPerTile, pixelsPerTile);
+                } else if (road) {
+                    pixmap.setColor(0.22f, 0.22f, 0.20f, 1f);
+                    pixmap.fillRectangle(px, py, pixelsPerTile, pixelsPerTile);
+                    if (((x + y) % 4) == 0) {
+                        pixmap.setColor(0.55f, 0.46f, 0.24f, 0.55f);
+                        pixmap.fillRectangle(px + 6, py + 6, 4, 4);
+                    }
+                } else if (((x * 13 + y * 7) % 11) == 0) {
+                    pixmap.setColor(0.08f, 0.19f, 0.10f, 1f);
+                    pixmap.fillCircle(px + 8, py + 8, 3);
+                }
+            }
+        }
+
+        // Road markings lead visually toward the hidden-lab tunnel at the east edge.
+        pixmap.setColor(0.70f, 0.58f, 0.24f, 0.75f);
+        int roadY = (tileMap.getHeight() - 1 - 20) * pixelsPerTile + 7;
+        for (int x = 1; x < tileMap.getWidth() - 1; x += 4) {
+            pixmap.fillRectangle(x * pixelsPerTile, roadY, pixelsPerTile * 2, 2);
+        }
+
+        Texture texture = new Texture(pixmap);
+        texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        pixmap.dispose();
+        return texture;
     }
 
     @Override
@@ -294,17 +357,33 @@ public class GameScreen implements Screen {
         LevelLoader levelLoader = new LevelLoader();
         LevelDefinition def = levelLoader.loadDefinition(levelNumber);
         tileMap = levelLoader.loadMap(def);
+        levelFeatures = CampaignLevelPlan.featuresFor(levelNumber);
+
+        if (levelNumber == 2) {
+            levelFeatures.stream()
+                    .filter(feature -> feature.type() == CampaignLevelPlan.FeatureType.ZOMBIE_ENCOUNTER)
+                    .findFirst()
+                    .ifPresent(feature -> {
+                        middleZombieX = feature.tileX();
+                        middleZombieY = feature.tileY();
+                    });
+        }
 
         this.collisionSystem = new CollisionSystem(tileMap);
 
         if (game.isHost()) {
             game.getServer().loadTileMap(tileMap);
             game.getServer().setMapWidthInTiles(levelLoader.getMapWidthInTiles());
-            game.getServer().configureLevel(levelNumber);
+            game.getServer().configureLevel(def);
         }
 
-        mapTexture = new Texture(Gdx.files.internal("map.png"));
-        mapTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        if (levelNumber == 1) {
+            mapTexture = new Texture(Gdx.files.internal("map.png"));
+            mapTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        } else {
+            mapTexture = createRoadsideVillageTexture();
+        }
+        markerTexture = createColorTexture(1, 1, Color.WHITE);
 
         // Core player textures
         playerTexture = new Texture(Gdx.files.internal("player.png"));
@@ -473,6 +552,11 @@ public class GameScreen implements Screen {
                 case GameConstants.EVENT_PARTNER_RECONNECTED -> showBanner("Partner reconnected");
                 case GameConstants.EVENT_CONVERTED_TO_SOLO -> showBanner("Continuing solo");
                 case GameConstants.EVENT_GAME_SAVED -> showBanner("Game Saved to Slot " + event.payload + "!");
+                case GameConstants.EVENT_OBJECTIVE_PROGRESS -> Gdx.app.postRunnable(() -> {
+                    completedFeatureIds.add(event.payload);
+                    CampaignLevelPlan.findFeature(levelNumber, event.payload)
+                            .ifPresent(feature -> showBanner("Objective updated: " + feature.label()));
+                });
                 default -> { }
             }
         });
@@ -508,6 +592,32 @@ public class GameScreen implements Screen {
             }
         }
         return true;
+    }
+
+    private void handleLevelFeatureInteraction(WorldSnapshot.PlayerState player) {
+        if (levelNumber != 2 || !Gdx.input.isKeyJustPressed(Input.Keys.E)) return;
+        levelFeatures.stream()
+                .filter(feature -> feature.type() != CampaignLevelPlan.FeatureType.ZOMBIE_ENCOUNTER)
+                .filter(feature -> !completedFeatureIds.contains(feature.actionId()))
+                .filter(feature -> feature.contains(player.x, player.y))
+                .findFirst()
+                .ifPresent(this::completeFeature);
+    }
+
+    private void completeFeature(CampaignLevelPlan.Feature feature) {
+        if (!completedFeatureIds.add(feature.actionId())) return;
+        client.sendEvent(GameConstants.EVENT_OBJECTIVE_PROGRESS, feature.actionId());
+        showBanner(feature.label() + " complete");
+    }
+
+    private CampaignLevelPlan.Feature nearbyIncompleteFeature(WorldSnapshot.PlayerState player) {
+        if (player == null || levelNumber != 2) return null;
+        return levelFeatures.stream()
+                .filter(feature -> feature.type() != CampaignLevelPlan.FeatureType.ZOMBIE_ENCOUNTER)
+                .filter(feature -> !completedFeatureIds.contains(feature.actionId()))
+                .filter(feature -> feature.contains(player.x, player.y))
+                .findFirst()
+                .orElse(null);
     }
 
     @Override
@@ -580,6 +690,10 @@ public class GameScreen implements Screen {
             isInventoryOpen = !isInventoryOpen;
         }
 
+        if (!paused && !isInventoryOpen && me != null) {
+            handleLevelFeatureInteraction(me);
+        }
+
         if (!paused && !isInventoryOpen && !levelTransitionInProgress
                 && me != null && isNearLevelExit(me)
                 && areLevelObjectivesComplete(snapshot)
@@ -650,6 +764,14 @@ public class GameScreen implements Screen {
             }
         }
 
+        if (levelNumber == 2 && isZombieDead && !zombieObjectiveSent) {
+            levelFeatures.stream()
+                    .filter(feature -> feature.type() == CampaignLevelPlan.FeatureType.ZOMBIE_ENCOUNTER)
+                    .findFirst()
+                    .ifPresent(this::completeFeature);
+            zombieObjectiveSent = true;
+        }
+
         game.stepSimulation(delta);
 
         Gdx.gl.glClearColor(0.055f, 0.078f, 0.125f, 1f);
@@ -684,7 +806,7 @@ public class GameScreen implements Screen {
 
                 batch.setProjectionMatrix(camera.combined);
                 batch.begin();
-                drawMapAlignedToCollisionGrid();
+                drawLevelMap();
                 drawWorld(snapshot, delta, zombieFrame, me);
                 batch.end();
 
@@ -695,7 +817,7 @@ public class GameScreen implements Screen {
 
                 batch.setProjectionMatrix(camera.combined);
                 batch.begin();
-                drawMapAlignedToCollisionGrid();
+                drawLevelMap();
                 drawWorld(snapshot, delta, zombieFrame, me);
                 batch.end();
 
@@ -723,7 +845,7 @@ public class GameScreen implements Screen {
 
                 batch.setProjectionMatrix(camera.combined);
                 batch.begin();
-                drawMapAlignedToCollisionGrid();
+                drawLevelMap();
                 drawWorld(snapshot, delta, zombieFrame, me);
                 batch.end();
             }
@@ -858,6 +980,8 @@ public class GameScreen implements Screen {
     }
 
     private void drawWorld(WorldSnapshot snapshot, float delta, TextureRegion zombieFrame, WorldSnapshot.PlayerState me) {
+        drawCampaignFeatures();
+
         // 1. Blood pools
         if (bloodTexture != null) {
             float bloodScale = 0.5f;
@@ -1121,6 +1245,25 @@ public class GameScreen implements Screen {
         }
     }
 
+    private void drawCampaignFeatures() {
+        if (levelNumber != 2 || markerTexture == null) return;
+        for (CampaignLevelPlan.Feature feature : levelFeatures) {
+            if (completedFeatureIds.contains(feature.actionId())) continue;
+
+            Color tint = switch (feature.type()) {
+                case ZOMBIE_ENCOUNTER -> new Color(0.82f, 0.18f, 0.16f, 0.60f);
+                case SURVIVOR -> new Color(0.20f, 0.78f, 0.67f, 0.82f);
+                case POWER_RELAY -> new Color(0.94f, 0.70f, 0.15f, 0.82f);
+            };
+            float size = feature.type() == CampaignLevelPlan.FeatureType.ZOMBIE_ENCOUNTER ? 54f : 30f;
+            float x = feature.tileX() * PIXELS_PER_TILE - size / 2f;
+            float y = feature.tileY() * PIXELS_PER_TILE - size / 2f;
+            batch.setColor(tint);
+            batch.draw(markerTexture, x, y, size, size);
+            batch.setColor(Color.WHITE);
+        }
+    }
+
     private void drawInventoryOverlay() {
         Matrix4 hudMatrix = new Matrix4().setToOrtho2D(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
         batch.setProjectionMatrix(hudMatrix);
@@ -1380,6 +1523,21 @@ public class GameScreen implements Screen {
         font.setColor(Color.WHITE);
         font.draw(batch, "LEVEL " + levelNumber + "   |   " + client.getMatchMode() + "   |   " + (game.isHost() ? "HOST" : "CLIENT"), 20f, top);
 
+        if (snapshot != null && snapshot.objectives != null && !snapshot.objectives.isEmpty()) {
+            float objectiveY = top;
+            font.setColor(0.910f, 0.690f, 0.165f, 1f);
+            font.draw(batch, "ROADSIDE OBJECTIVES", 950f, objectiveY);
+            objectiveY -= 24f;
+            for (WorldSnapshot.ObjectiveState objective : snapshot.objectives) {
+                font.setColor(objective.complete ? Color.GREEN : Color.WHITE);
+                String marker = objective.complete ? "[DONE] " : "[ ] ";
+                font.draw(batch, marker + objectiveLabel(objective.objectiveId)
+                                + "  " + objective.progress + "/" + objective.target,
+                        950f, objectiveY);
+                objectiveY -= 22f;
+            }
+        }
+
         if (showCollisionOverlay && snapshot != null && tileMap != null) {
             WorldSnapshot.PlayerState here = client.findLocalPlayer(snapshot);
             if (here != null) {
@@ -1435,10 +1593,15 @@ public class GameScreen implements Screen {
         }
 
         WorldSnapshot.PlayerState localPlayer = snapshot == null ? null : client.findLocalPlayer(snapshot);
+        CampaignLevelPlan.Feature nearbyFeature = nearbyIncompleteFeature(localPlayer);
         boolean nearLevelExit = localPlayer != null && isNearLevelExit(localPlayer);
         boolean canAdvanceLevel = nearLevelExit && areLevelObjectivesComplete(snapshot);
 
-        if (canAdvanceLevel) {
+        if (nearbyFeature != null) {
+            font.setColor(Color.GOLD);
+            font.draw(batch, "Press [E] — " + nearbyFeature.label(),
+                    VIRTUAL_WIDTH / 2f - 150f, VIRTUAL_HEIGHT / 2f - 50f);
+        } else if (canAdvanceLevel) {
             font.setColor(Color.GOLD);
             font.draw(batch, "Press [E] to proceed to LEVEL " + (levelNumber + 1),
                     VIRTUAL_WIDTH / 2f - 120f, VIRTUAL_HEIGHT / 2f - 50f);
@@ -1460,6 +1623,16 @@ public class GameScreen implements Screen {
         font.setColor(Color.GRAY);
         font.draw(batch, "WASD move   E interact   SPACE attack / LMB   SHIFT sprint   ESC pause   I inventory   F3 debug   H immunity", 20f, 30f);
         batch.end();
+    }
+
+    private static String objectiveLabel(String objectiveId) {
+        if (objectiveId == null) return "Unknown objective";
+        return switch (objectiveId) {
+            case "l2_infected" -> "Clear zombie patrol";
+            case "l2_rescue" -> "Rescue villagers";
+            case "l2_puzzle" -> "Restore relay puzzle";
+            default -> objectiveId;
+        };
     }
 
     private boolean isNearLevelExit(WorldSnapshot.PlayerState player) {
@@ -1735,6 +1908,7 @@ public class GameScreen implements Screen {
         if (shapes != null) shapes.dispose();
         if (font != null) font.dispose();
         if (mapTexture != null) mapTexture.dispose();
+        if (markerTexture != null) markerTexture.dispose();
         if (playerTexture != null) playerTexture.dispose();
         if (idleTexture != null) idleTexture.dispose();
         if (zombieTexture != null) zombieTexture.dispose();

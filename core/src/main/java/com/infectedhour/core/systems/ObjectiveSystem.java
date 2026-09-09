@@ -4,14 +4,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * State machine for the 6 PRD §6 mission types. Each objective is tracked
+ * State machine for the campaign mission types. Each objective is tracked
  * as progress/target so the same class drives isolate, sample, medicine,
  * rescue, and sanitation objectives without a subclass per type.
  */
 public class ObjectiveSystem {
 
     public enum ObjectiveType {
-        ISOLATE_ZONE, COLLECT_SAMPLE, DELIVER_MEDICINE, RESCUE_VILLAGER, ACTIVATE_SANITATION
+        ISOLATE_ZONE, COLLECT_SAMPLE, DELIVER_MEDICINE, RESCUE_VILLAGER,
+        ACTIVATE_SANITATION, CLEAR_INFECTED, SOLVE_PUZZLE
     }
 
     public static class ObjectiveState {
@@ -35,6 +36,10 @@ public class ObjectiveSystem {
 
     public void register(String id, ObjectiveType type, int target) {
         objectives.put(id, new ObjectiveState(id, type, target));
+    }
+
+    public void clear() {
+        objectives.clear();
     }
 
     public void incrementProgress(String id) {

@@ -63,6 +63,8 @@ public final class GameConstants {
     public static final String EVENT_GAME_SAVED = "GAME_SAVED";
     /** Client → host reliable request to use the current level's exit zone. */
     public static final String EVENT_LEVEL_EXIT_REQUEST = "LEVEL_EXIT_REQUEST";
+    /** Client → host interaction with a campaign feature; payload is its stable action id. */
+    public static final String EVENT_OBJECTIVE_PROGRESS = "OBJECTIVE_PROGRESS";
 
     // --- Join rejection reasons ---
     public static final String REJECT_LOBBY_FULL = "LOBBY_FULL";

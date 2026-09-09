@@ -6,6 +6,9 @@ import com.esotericsoftware.kryonet.Server;
 import com.infectedhour.core.entities.ContaminationZone;
 import com.infectedhour.core.entities.Enemy;
 import com.infectedhour.core.entities.Player;
+import com.infectedhour.core.level.CampaignLevelPlan;
+import com.infectedhour.core.level.LevelDefinition;
+import com.infectedhour.core.level.LevelLoader;
 import com.infectedhour.core.level.TileMap;
 import com.infectedhour.core.level.LevelExit;
 import com.infectedhour.core.systems.AISystem;
@@ -73,6 +76,7 @@ public class GameServer {
     private volatile int currentLevelNumber = 1;
     private volatile LevelExit activeLevelExit = LevelExit.forLevel(1).orElse(null);
     private volatile boolean levelTransitionBroadcast;
+    private final Set<String> completedObjectiveActions = new HashSet<>();
 
     private final Map<String, Set<Integer>> sentCloudTiles = new LinkedHashMap<>();
 
@@ -277,6 +281,11 @@ public class GameServer {
         // completion are still validated by the authoritative host.
         if (GameConstants.EVENT_LEVEL_EXIT_REQUEST.equals(event.type)) {
             tryUseLevelExit(sender);
+            return;
+        }
+
+        if (GameConstants.EVENT_OBJECTIVE_PROGRESS.equals(event.type)) {
+            tryAdvanceLevelObjective(sender, event.payload);
             return;
         }
 
@@ -507,11 +516,57 @@ public class GameServer {
         this.mapWidthInTiles = Math.max(1, mapWidthInTiles);
     }
 
-    /** Selects the exit zone for the screen currently being played. */
+    /** Configures exits and objectives from the campaign's single source of truth. */
     public void configureLevel(int levelNumber) {
-        this.currentLevelNumber = levelNumber;
-        this.activeLevelExit = LevelExit.forLevel(levelNumber).orElse(null);
+        configureLevel(new LevelLoader().loadDefinition(levelNumber));
+    }
+
+    public synchronized void configureLevel(LevelDefinition definition) {
+        boolean enteringNewLevel = this.currentLevelNumber != definition.levelNumber();
+        this.currentLevelNumber = definition.levelNumber();
+        this.activeLevelExit = LevelExit.forLevel(definition.levelNumber()).orElse(null);
         this.levelTransitionBroadcast = false;
+        this.completedObjectiveActions.clear();
+
+        objectiveSystem.clear();
+        for (LevelDefinition.ObjectiveSpec spec : definition.objectives()) {
+            objectiveSystem.register(spec.id(), ObjectiveSystem.ObjectiveType.valueOf(spec.type()), spec.target());
+        }
+        if (enteringNewLevel) {
+            Checkpoint start = CheckpointRegistry.firstOf(definition.levelNumber());
+            int playerIndex = 0;
+            for (ConnectedPlayer connected : playersByConnectionId.values()) {
+                connected.entity.setPosition(start.spawnTileX() + playerIndex * 0.5f, start.spawnTileY());
+                playerIndex++;
+            }
+        }
+        LOG.info(() -> "Configured " + definition.name() + " with "
+                + definition.objectives().size() + " objectives");
+    }
+
+    /**
+     * Accepts one interaction only once and only while the sender is standing
+     * at the matching landmark.  This keeps co-op clients from double-counting
+     * the same survivor or relay.
+     */
+    private synchronized void tryAdvanceLevelObjective(ConnectedPlayer sender, String actionId) {
+        CampaignLevelPlan.Feature feature = CampaignLevelPlan.findFeature(currentLevelNumber, actionId).orElse(null);
+        if (sender == null || feature == null || completedObjectiveActions.contains(actionId)) {
+            return;
+        }
+        if (!feature.contains(sender.entity.getX(), sender.entity.getY())) {
+            return;
+        }
+        if (!objectiveSystem.getObjectives().containsKey(feature.objectiveId())) {
+            return;
+        }
+
+        completedObjectiveActions.add(actionId);
+        objectiveSystem.incrementProgress(feature.objectiveId());
+        broadcastEvent(GameConstants.EVENT_OBJECTIVE_PROGRESS, actionId);
+        if (objectiveSystem.isObjectiveComplete(feature.objectiveId())) {
+            broadcastEvent(GameConstants.EVENT_OBJECTIVE_COMPLETE, feature.objectiveId());
+        }
     }
 
     private synchronized void tryUseLevelExit(ConnectedPlayer sender) {
@@ -623,6 +678,7 @@ public class GameServer {
             checkpoint = CheckpointRegistry.firstOf(Math.max(1, slot.levelNumber()));
         }
         checkpointSystem.restoreTo(checkpoint.id());
+        currentLevelNumber = checkpoint.levelNumber();
         contaminationSystem.setGlobalContaminationPct(slot.globalContaminationPct());
 
         for (ConnectedPlayer connected : playersByConnectionId.values()) {
@@ -653,9 +709,9 @@ public class GameServer {
 
     private static String levelNameFor(int levelNumber) {
         return switch (levelNumber) {
-            case 1 -> "Village Outskirts";
-            case 2 -> "Market District";
-            case 3 -> "The Virus Heart";
+            case 1 -> "Ashgrove Hospital";
+            case 2 -> "Roadside Village";
+            case 3 -> "Hidden Laboratory";
             default -> "Level " + levelNumber;
         };
     }
