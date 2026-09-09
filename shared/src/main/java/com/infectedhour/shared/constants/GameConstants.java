@@ -61,6 +61,8 @@ public final class GameConstants {
     public static final String EVENT_CHECKPOINT_REACHED = "CHECKPOINT_REACHED";
     /** Host → clients when a slot has been written; payload is the slot number. */
     public static final String EVENT_GAME_SAVED = "GAME_SAVED";
+    /** Client → host reliable request to use the current level's exit zone. */
+    public static final String EVENT_LEVEL_EXIT_REQUEST = "LEVEL_EXIT_REQUEST";
 
     // --- Join rejection reasons ---
     public static final String REJECT_LOBBY_FULL = "LOBBY_FULL";

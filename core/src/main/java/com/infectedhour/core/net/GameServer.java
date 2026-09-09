@@ -7,6 +7,7 @@ import com.infectedhour.core.entities.ContaminationZone;
 import com.infectedhour.core.entities.Enemy;
 import com.infectedhour.core.entities.Player;
 import com.infectedhour.core.level.TileMap;
+import com.infectedhour.core.level.LevelExit;
 import com.infectedhour.core.systems.AISystem;
 import com.infectedhour.core.systems.CheckpointSystem;
 import com.infectedhour.core.systems.CollisionSystem;
@@ -69,6 +70,9 @@ public class GameServer {
     private final List<ContaminationZone> zones = new ArrayList<>();
     private final List<WorldSnapshot.ItemState> items = new ArrayList<>();
     private int mapWidthInTiles = 64;
+    private volatile int currentLevelNumber = 1;
+    private volatile LevelExit activeLevelExit = LevelExit.forLevel(1).orElse(null);
+    private volatile boolean levelTransitionBroadcast;
 
     private final Map<String, Set<Integer>> sentCloudTiles = new LinkedHashMap<>();
 
@@ -265,6 +269,14 @@ public class GameServer {
                     LOG.warning("Invalid zombie bite damage payload: " + event.payload);
                 }
             }
+            return;
+        }
+
+        // Level exits use TCP because a one-frame E press must never disappear
+        // as a dropped/rate-limited UDP input packet. Position and objective
+        // completion are still validated by the authoritative host.
+        if (GameConstants.EVENT_LEVEL_EXIT_REQUEST.equals(event.type)) {
+            tryUseLevelExit(sender);
             return;
         }
 
@@ -493,6 +505,35 @@ public class GameServer {
 
     public void setMapWidthInTiles(int mapWidthInTiles) {
         this.mapWidthInTiles = Math.max(1, mapWidthInTiles);
+    }
+
+    /** Selects the exit zone for the screen currently being played. */
+    public void configureLevel(int levelNumber) {
+        this.currentLevelNumber = levelNumber;
+        this.activeLevelExit = LevelExit.forLevel(levelNumber).orElse(null);
+        this.levelTransitionBroadcast = false;
+    }
+
+    private synchronized void tryUseLevelExit(ConnectedPlayer sender) {
+        if (sender == null || activeLevelExit == null || levelTransitionBroadcast) {
+            return;
+        }
+        if (!activeLevelExit.contains(sender.entity.getX(), sender.entity.getY())) {
+            return;
+        }
+        if (!objectiveSystem.areAllObjectivesComplete()) {
+            return;
+        }
+
+        int nextLevelNumber = currentLevelNumber + 1;
+        if (nextLevelNumber > GameConstants.LEVEL_COUNT) {
+            return;
+        }
+
+        levelTransitionBroadcast = true;
+        LOG.info(() -> sender.displayName + " activated the level exit: "
+                + currentLevelNumber + " -> " + nextLevelNumber);
+        broadcastLevelTransition(nextLevelNumber);
     }
 
     /**

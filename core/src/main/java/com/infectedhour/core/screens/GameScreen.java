@@ -20,6 +20,7 @@ import com.badlogic.gdx.utils.viewport.Viewport;
 import com.infectedhour.core.InfectedHourGame;
 import com.infectedhour.core.bridge.GameBridge;
 import com.infectedhour.core.level.LevelDefinition;
+import com.infectedhour.core.level.LevelExit;
 import com.infectedhour.core.level.LevelLoader;
 import com.infectedhour.core.level.TileMap;
 import com.infectedhour.core.net.GameClient;
@@ -178,6 +179,7 @@ public class GameScreen implements Screen {
 
     private boolean paused = false;
     private boolean returningToLauncher = false;
+    private volatile boolean levelTransitionInProgress = false;
     private boolean isDualViewDebugMode = false;
     private String partnerBanner = null;
     private float partnerBannerSecondsLeft = 0f;
@@ -298,6 +300,7 @@ public class GameScreen implements Screen {
         if (game.isHost()) {
             game.getServer().loadTileMap(tileMap);
             game.getServer().setMapWidthInTiles(levelLoader.getMapWidthInTiles());
+            game.getServer().configureLevel(levelNumber);
         }
 
         mapTexture = new Texture(Gdx.files.internal("map.png"));
@@ -473,6 +476,19 @@ public class GameScreen implements Screen {
                 default -> { }
             }
         });
+
+        client.setOnLevelTransition(transition -> {
+            if (transition.nextLevelNumber != levelNumber + 1 || levelTransitionInProgress) {
+                return;
+            }
+            levelTransitionInProgress = true;
+            Gdx.app.postRunnable(() -> {
+                StoryPanelScreen.Sequence storySequence = levelNumber == 1
+                        ? StoryPanelScreen.Sequence.AFTER_LEVEL_1
+                        : StoryPanelScreen.Sequence.AFTER_LEVEL_2;
+                game.setScreen(new StoryPanelScreen(game, client, bridge, storySequence, levelNumber));
+            });
+        });
     }
 
     private boolean isWalkable(float x, float y, float radius) {
@@ -562,6 +578,14 @@ public class GameScreen implements Screen {
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.I)) {
             isInventoryOpen = !isInventoryOpen;
+        }
+
+        if (!paused && !isInventoryOpen && !levelTransitionInProgress
+                && me != null && isNearLevelExit(me)
+                && areLevelObjectivesComplete(snapshot)
+                && Gdx.input.isKeyJustPressed(Input.Keys.E)) {
+            showBanner("Proceeding to Level " + (levelNumber + 1) + "…");
+            client.sendEvent(GameConstants.EVENT_LEVEL_EXIT_REQUEST, String.valueOf(levelNumber));
         }
 
         if (!hasBomb && mockBombX != -1f && me != null) {
@@ -1410,7 +1434,19 @@ public class GameScreen implements Screen {
             }
         }
 
-        if (canPickUpMachete && canPickUpBomb) {
+        WorldSnapshot.PlayerState localPlayer = snapshot == null ? null : client.findLocalPlayer(snapshot);
+        boolean nearLevelExit = localPlayer != null && isNearLevelExit(localPlayer);
+        boolean canAdvanceLevel = nearLevelExit && areLevelObjectivesComplete(snapshot);
+
+        if (canAdvanceLevel) {
+            font.setColor(Color.GOLD);
+            font.draw(batch, "Press [E] to proceed to LEVEL " + (levelNumber + 1),
+                    VIRTUAL_WIDTH / 2f - 120f, VIRTUAL_HEIGHT / 2f - 50f);
+        } else if (nearLevelExit) {
+            font.setColor(Color.LIGHT_GRAY);
+            font.draw(batch, "Complete the remaining objectives to unlock this exit",
+                    VIRTUAL_WIDTH / 2f - 160f, VIRTUAL_HEIGHT / 2f - 50f);
+        } else if (canPickUpMachete && canPickUpBomb) {
             font.setColor(Color.YELLOW);
             font.draw(batch, "Press [E] to Pick Up Items", VIRTUAL_WIDTH / 2f - 80f, VIRTUAL_HEIGHT / 2f - 50f);
         } else if (canPickUpMachete) {
@@ -1424,6 +1460,25 @@ public class GameScreen implements Screen {
         font.setColor(Color.GRAY);
         font.draw(batch, "WASD move   E interact   SPACE attack / LMB   SHIFT sprint   ESC pause   I inventory   F3 debug   H immunity", 20f, 30f);
         batch.end();
+    }
+
+    private boolean isNearLevelExit(WorldSnapshot.PlayerState player) {
+        return player != null
+                && LevelExit.forLevel(levelNumber)
+                .map(exit -> exit.contains(player.x, player.y))
+                .orElse(false);
+    }
+
+    private boolean areLevelObjectivesComplete(WorldSnapshot snapshot) {
+        if (snapshot == null || snapshot.objectives == null) {
+            return false;
+        }
+        for (WorldSnapshot.ObjectiveState objective : snapshot.objectives) {
+            if (!objective.complete) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void drawPauseOverlay() {
@@ -1559,6 +1614,7 @@ public class GameScreen implements Screen {
     @Override
     public void hide() {
         client.setOnEvent(null);
+        client.setOnLevelTransition(null);
     }
 
     private void renderSaveOverlay() {

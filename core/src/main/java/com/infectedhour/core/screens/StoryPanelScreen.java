@@ -5,6 +5,8 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.Align;
@@ -38,8 +40,11 @@ public class StoryPanelScreen implements Screen {
     private SpriteBatch batch;
     private BitmapFont font;
     private BitmapFont titleFont;
+    private Texture storyBackground;
+    private Texture overlayPixel;
 
     private String[] panels;
+    private String[] panelTitles;
     private int currentPanelIndex = 0;
     private float typewriterElapsed = 0f;
     private float panelElapsed = 0f;
@@ -62,9 +67,22 @@ public class StoryPanelScreen implements Screen {
     public void show() {
         batch = new SpriteBatch();
         font = new BitmapFont();
+        font.getData().setScale(1.15f);
         titleFont = new BitmapFont();
-        titleFont.getData().setScale(1.6f);
+        titleFont.getData().setScale(2.05f);
         panels = panelsFor(sequence);
+        panelTitles = panelTitlesFor(sequence);
+
+        if (sequence == Sequence.INTRO && Gdx.files.internal("story_intro.png").exists()) {
+            storyBackground = new Texture(Gdx.files.internal("story_intro.png"));
+            storyBackground.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        }
+
+        Pixmap pixel = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+        pixel.setColor(Color.WHITE);
+        pixel.fill();
+        overlayPixel = new Texture(pixel);
+        pixel.dispose();
 
         client.setOnEvent(event -> {
             if (STORY_ADVANCE_EVENT.equals(event.type)) {
@@ -101,28 +119,81 @@ public class StoryPanelScreen implements Screen {
         Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        float top = Gdx.graphics.getHeight() - 70f;
+        float screenWidth = Gdx.graphics.getWidth();
+        float screenHeight = Gdx.graphics.getHeight();
+        float marginX = Math.max(54f, screenWidth * 0.055f);
+        float contentWidth = Math.min(700f, screenWidth * 0.40f);
+        float top = screenHeight - Math.max(64f, screenHeight * 0.075f);
+
         batch.begin();
+        if (storyBackground != null) {
+            batch.setColor(Color.WHITE);
+            batch.draw(storyBackground, 0f, 0f, screenWidth, screenHeight);
+        }
+
+        // Readability layers keep the generated scene visible while giving the
+        // story copy a stable dark area at every supported resolution.
+        batch.setColor(0.01f, 0.02f, 0.035f, 0.20f);
+        batch.draw(overlayPixel, 0f, 0f, screenWidth, screenHeight);
+        batch.setColor(0.01f, 0.02f, 0.035f, 0.82f);
+        batch.draw(overlayPixel, 0f, 0f, Math.min(screenWidth * 0.54f, 930f), screenHeight);
+        batch.setColor(0.910f, 0.690f, 0.165f, 1f);
+        batch.draw(overlayPixel, marginX, top - 34f, 82f, 3f);
+        batch.setColor(Color.WHITE);
+
+        font.setColor(0.910f, 0.690f, 0.165f, 1f);
+        font.draw(batch, sequenceLabel(sequence), marginX, top);
+
+        titleFont.setColor(Color.WHITE);
+        titleFont.draw(batch, panelTitles[currentPanelIndex], marginX, top - 62f,
+                contentWidth, Align.left, true);
+
+        font.setColor(0.88f, 0.90f, 0.92f, 1f);
+        font.draw(batch, text.substring(0, visibleChars), marginX, top - 158f,
+                contentWidth, Align.left, true);
+
         titleFont.setColor(0.910f, 0.690f, 0.165f, 1f); // accent-gold
-        titleFont.draw(batch, sequence.name().replace('_', ' '), 70f, top);
-
-        font.setColor(Color.WHITE);
-        font.draw(batch, text.substring(0, visibleChars), 70f, top - 60f,
-                Gdx.graphics.getWidth() - 140f, Align.left, true);
-
-        font.setColor(Color.GRAY);
-        font.draw(batch, footerHint(fullyRevealed, partnerOk), 70f, 50f);
+        font.setColor(0.62f, 0.65f, 0.69f, 1f);
+        font.draw(batch, footerHint(fullyRevealed, partnerOk), marginX, 58f);
+        font.draw(batch, String.format("%02d / %02d", currentPanelIndex + 1, panels.length),
+                marginX + contentWidth - 64f, 58f);
         batch.end();
 
         if (localAdvanceRequested && partnerOk) {
             nextPanel();
         }
 
-        // ============ TEAMMATE TASK: PANEL ART ============
-        // TODO(story): draw assets/story/<sequence>/panel_N.png full-screen
-        // behind this text, with the copy in a panel-dark (#1C2536) box at the
-        // bottom (UI/UX doc §6). The advance/sync logic above stays as-is.
-        // ==================================================
+    }
+
+    private static String sequenceLabel(Sequence sequence) {
+        return switch (sequence) {
+            case INTRO -> "OPERATION ASHGROVE";
+            case AFTER_LEVEL_1 -> "FIELD REPORT 01";
+            case AFTER_LEVEL_2 -> "FIELD REPORT 02";
+            case ENDING -> "FINAL REPORT";
+        };
+    }
+
+    private static String[] panelTitlesFor(Sequence sequence) {
+        return switch (sequence) {
+            case INTRO -> new String[]{
+                    "THE WARNING CAME TOO LATE",
+                    "TWO RESPONDERS. ONE HOUR.",
+                    "THE CONTAINMENT DIRECTIVE"
+            };
+            case AFTER_LEVEL_1 -> new String[]{
+                    "THE DISTRICT HOLDS",
+                    "A NAME FROM THE FIRST OUTBREAK"
+            };
+            case AFTER_LEVEL_2 -> new String[]{
+                    "BENEATH FAMILIAR STREETS",
+                    "THE SOURCE WAS NEVER NATURAL"
+            };
+            case ENDING -> new String[]{
+                    "THE HEART FALLS SILENT",
+                    "ASHGROVE REMEMBERS"
+            };
+        };
     }
 
     private String footerHint(boolean fullyRevealed, boolean partnerOk) {
@@ -166,9 +237,9 @@ public class StoryPanelScreen implements Screen {
     private static String[] panelsFor(Sequence sequence) {
         return switch (sequence) {
             case INTRO -> new String[]{
-                    "The outbreak reached Ashgrove before the warning did.",
-                    "Elric, a field medic. Jane, a local scout. One hour before the district is sealed.",
-                    "Contain it. Find the source. End it."
+                    "By midnight, the infection had crossed the river. Every road out of Ashgrove was sealed before the warning reached its people.",
+                    "Elric is a field medic who knows what an outbreak costs. Jane is the scout who knows every path through Ashgrove. They are the last team going in.",
+                    "Find the survivors. Recover the samples. Trace the source. Destroy the Virus Heart before dawn."
             };
             case AFTER_LEVEL_1 -> new String[]{
                     "The district holds — barely.",
@@ -199,5 +270,7 @@ public class StoryPanelScreen implements Screen {
         if (batch != null) batch.dispose();
         if (font != null) font.dispose();
         if (titleFont != null) titleFont.dispose();
+        if (storyBackground != null) storyBackground.dispose();
+        if (overlayPixel != null) overlayPixel.dispose();
     }
 }

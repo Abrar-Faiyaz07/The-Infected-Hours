@@ -585,3 +585,67 @@ restart a session.
 File changed:
 
 - `core/src/main/java/com/infectedhour/core/screens/GameScreen.java`
+
+### 8.7 Home menu redesigned as a cinematic console dashboard
+
+**Request:** replace the form-like vertical menu with a home screen inspired by
+modern console game libraries while retaining *The Infected Hour* visual
+identity and existing navigation behavior.
+
+**Change:** the village scene now uses a lighter cinematic overlay, a compact
+top navigation bar, and a horizontally scrollable activity rail for Story,
+Co-op, Load Game, Settings, About, and Quit. A featured Story panel and compact
+operation summary fill the lower portion of the screen. Gold, crimson, and
+night-blue styling keeps the dashboard consistent with the survival-horror
+theme. All cards remain connected to their original controller actions, and
+the loading overlay is unchanged.
+
+Files changed:
+
+- `fx-launcher/src/main/resources/assets/bg_home_console.png`
+- `fx-launcher/src/main/resources/views/MainMenu.fxml`
+- `fx-launcher/src/main/resources/launcher.css`
+
+### 8.8 Intro and results screens receive cinematic presentation
+
+**Problem:** the story intro rendered gold and white placeholder copy on a
+plain black frame, while the defeat screen used a nearly empty JavaFX layout.
+Neither screen matched the visual quality of the redesigned home menu.
+
+**Change:** the intro now presents a rewritten three-part Ashgrove briefing
+over illustrated arrival artwork, with a dark readability gradient, stronger
+heading hierarchy, typewriter copy, progress counter, and the existing co-op
+advance synchronization preserved. The results screen now uses outcome-aware
+cinematic copy, real reached-level data, an operation-status card, themed
+buttons, and separate victory/defeat background treatment.
+
+Files changed:
+
+- `assets/story_intro.png`
+- `core/src/main/java/com/infectedhour/core/screens/StoryPanelScreen.java`
+- `fx-launcher/src/main/java/com/infectedhour/fxlauncher/views/ResultsView.java`
+- `fx-launcher/src/main/resources/assets/bg_defeat.png`
+- `fx-launcher/src/main/resources/launcher.css`
+
+### 8.9 Upstairs exit now advances the campaign
+
+**Problem:** reaching the upstairs exit sign in Level 1 provided no prompt and
+could not advance the run, even though a `LevelTransition` network message
+already existed.
+
+**Change:** the exit is now an explicit tile-based interaction zone. When the
+local player approaches it, the HUD displays **Press [E] to proceed to LEVEL
+2** (or explains that unfinished objectives still lock the exit). The E press
+travels to the host as a reliable TCP event; the host validates the player's
+authoritative position and objective state, broadcasts one level transition,
+and every client enters the post-level story followed by the next briefing.
+Level 2 has the same mechanism at its service-tunnel exit, while the final boss
+level intentionally has no next-level zone.
+
+Files changed:
+
+- `core/src/main/java/com/infectedhour/core/level/LevelExit.java`
+- `core/src/main/java/com/infectedhour/core/net/GameServer.java`
+- `core/src/main/java/com/infectedhour/core/screens/GameScreen.java`
+- `core/src/test/java/com/infectedhour/core/level/LevelExitTest.java`
+- `shared/src/main/java/com/infectedhour/shared/constants/GameConstants.java`

@@ -18,81 +18,110 @@
         styleClass="menu-root"
         minWidth="900" minHeight="560">
 
-    <!-- Layer 0: background overlay vignette. -->
+    <!-- The village art stays full-screen; these layers create a cinematic
+         console-dashboard treatment without hiding the scene. -->
     <Region styleClass="menu-overlay"/>
+    <Region styleClass="menu-bottom-fade" StackPane.alignment="BOTTOM_CENTER"/>
 
-    <!-- Layer 1: content. -->
-    <AnchorPane>
-        <ScrollPane fx:id="menuScroller"
-                    AnchorPane.leftAnchor="72"
-                    AnchorPane.topAnchor="0"
-                    AnchorPane.bottomAnchor="64"
-                    prefWidth="440" minWidth="440" maxWidth="440"
-                    fitToWidth="true" fitToHeight="true"
-                    hbarPolicy="NEVER" vbarPolicy="AS_NEEDED"
-                    styleClass="menu-scroll">
-
-            <VBox fx:id="menuColumn" spacing="0">
-                <padding><Insets top="24" right="0" bottom="20" left="0"/></padding>
-
-                <!-- Flexible top spacer -->
-                <Region VBox.vgrow="ALWAYS" minHeight="8"/>
-
-                <!-- Brand block -->
-                <Label text="THE INFECTED" styleClass="brand-title"/>
-                <Label text="HOUR" styleClass="brand-title, brand-title-accent"/>
-
-                <Region prefHeight="8" minHeight="8"/>
-                <Label text="Cooperative Survival Horror" styleClass="brand-subtitle"/>
-
-                <Region prefHeight="28" minHeight="20"/>
-
-                <!-- Primary actions -->
-                <VBox spacing="8">
-                    <Button fx:id="singlePlayerBtn" text="1 Player Story Mode"
-                            maxWidth="Infinity" styleClass="menu-btn, menu-btn-primary"
-                            onAction="#onSinglePlayer"/>
-                    <Button fx:id="coopBtn" text="2 Player Co-op Mode"
-                            maxWidth="Infinity" styleClass="menu-btn, menu-btn-primary"
-                            onAction="#onCoopMode"/>
-                </VBox>
-
-                <Region prefHeight="16" minHeight="12"/>
-
-                <!-- Secondary actions -->
-                <VBox spacing="8">
-                    <Button fx:id="loadGameBtn" text="Load Game"
-                            maxWidth="Infinity" styleClass="menu-btn"
-                            onAction="#onLoadGame"/>
-                    <Button fx:id="settingsBtn" text="Settings"
-                            maxWidth="Infinity" styleClass="menu-btn"
-                            onAction="#onSettings"/>
-                    <Button fx:id="aboutBtn" text="About"
-                            maxWidth="Infinity" styleClass="menu-btn"
-                            onAction="#onAbout"/>
-                </VBox>
-
-                <Region prefHeight="16" minHeight="12"/>
-
-                <Button fx:id="quitBtn" text="Quit"
-                        maxWidth="Infinity" styleClass="menu-btn, menu-btn-danger"
-                        onAction="#onQuit"/>
-
-                <!-- Flexible bottom spacer -->
-                <Region VBox.vgrow="ALWAYS" minHeight="12"/>
-
+    <AnchorPane styleClass="menu-content">
+        <!-- Console-style navigation bar. -->
+        <HBox alignment="CENTER_LEFT" spacing="30"
+              AnchorPane.leftAnchor="56" AnchorPane.rightAnchor="56"
+              AnchorPane.topAnchor="24">
+            <Label text="THE INFECTED HOUR" styleClass="top-brand"/>
+            <HBox alignment="CENTER_LEFT" spacing="24">
+                <Label text="HOME" styleClass="top-nav-link, top-nav-link-active"/>
+                <Label text="SURVIVAL" styleClass="top-nav-link"/>
+                <Label text="ARCHIVE" styleClass="top-nav-link"/>
+            </HBox>
+            <Region HBox.hgrow="ALWAYS"/>
+            <VBox alignment="CENTER_RIGHT" spacing="2">
+                <HBox alignment="CENTER_RIGHT" spacing="8">
+                    <Label fx:id="statusChip" text="●  offline" styleClass="chip-searching"/>
+                    <Label fx:id="usernameLabel" text="Guest" styleClass="player-name"/>
+                </HBox>
+                <Label fx:id="versionLabel" text="v0.1-alpha" styleClass="version-label"/>
             </VBox>
+        </HBox>
+
+        <!-- Horizontal activity rail inspired by a console home screen. -->
+        <ScrollPane fx:id="menuScroller"
+                    AnchorPane.leftAnchor="56" AnchorPane.rightAnchor="56"
+                    AnchorPane.topAnchor="84"
+                    prefHeight="140"
+                    fitToHeight="true"
+                    hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
+                    styleClass="mode-scroll">
+            <HBox fx:id="menuRail" alignment="TOP_LEFT" spacing="12">
+                <padding><Insets top="5" right="12" bottom="12" left="2"/></padding>
+                <Button text="STORY&#10;1 PLAYER"
+                        prefWidth="182" prefHeight="104"
+                        styleClass="mode-card, mode-card-active"
+                        onAction="#onSinglePlayer"/>
+                <Button text="CO-OP&#10;2 PLAYERS"
+                        prefWidth="170" prefHeight="104"
+                        styleClass="mode-card"
+                        onAction="#onCoopMode"/>
+                <Button text="CONTINUE&#10;LOAD GAME"
+                        prefWidth="170" prefHeight="104"
+                        styleClass="mode-card"
+                        onAction="#onLoadGame"/>
+                <Button text="SYSTEM&#10;SETTINGS"
+                        prefWidth="155" prefHeight="104"
+                        styleClass="mode-card, mode-card-compact"
+                        onAction="#onSettings"/>
+                <Button text="INTEL&#10;ABOUT"
+                        prefWidth="145" prefHeight="104"
+                        styleClass="mode-card, mode-card-compact"
+                        onAction="#onAbout"/>
+                <Button text="EXIT&#10;QUIT"
+                        prefWidth="135" prefHeight="104"
+                        styleClass="mode-card, mode-card-danger, mode-card-compact"
+                        onAction="#onQuit"/>
+            </HBox>
         </ScrollPane>
 
-        <!-- Player info footer -->
-        <VBox fx:id="footerBox" spacing="2"
-              AnchorPane.leftAnchor="72"
-              AnchorPane.bottomAnchor="16">
-            <HBox spacing="8" alignment="CENTER_LEFT">
-                <Label fx:id="statusChip" text="⬤  offline" styleClass="chip-searching"/>
-                <Label fx:id="usernameLabel" text="Guest" styleClass="player-name"/>
+        <!-- Featured activity information. -->
+        <VBox spacing="9"
+              AnchorPane.leftAnchor="64" AnchorPane.bottomAnchor="62"
+              maxWidth="590">
+            <Label text="FEATURED  /  STORY MODE" styleClass="hero-eyebrow"/>
+            <Label text="THE INFECTED" styleClass="hero-title"/>
+            <Label text="HOUR" styleClass="hero-title, hero-title-accent"/>
+            <Label text="The night is spreading. Contain the epidemic, rescue the survivors, and destroy the Virus Heart before dawn."
+                   wrapText="true" maxWidth="560" styleClass="hero-description"/>
+            <Region prefHeight="8"/>
+            <HBox alignment="CENTER_LEFT" spacing="12">
+                <Button fx:id="singlePlayerBtn" text="PLAY STORY"
+                        styleClass="hero-play-btn" onAction="#onSinglePlayer"/>
+                <Label text="WASD MOVE   •   E INTERACT   •   SPACE ATTACK"
+                       styleClass="hero-control-hint"/>
             </HBox>
-            <Label fx:id="versionLabel" text="v0.1-alpha" styleClass="version-label"/>
+        </VBox>
+
+        <!-- Compact operation card, matching the reference composition. -->
+        <VBox spacing="10"
+              AnchorPane.rightAnchor="56" AnchorPane.bottomAnchor="62"
+              prefWidth="270" styleClass="survival-card">
+            <HBox alignment="CENTER_LEFT">
+                <VBox spacing="2">
+                    <Label text="CURRENT OPERATION" styleClass="survival-label"/>
+                    <Label text="CONTAINMENT" styleClass="survival-value"/>
+                </VBox>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Label text="01" styleClass="chapter-number"/>
+            </HBox>
+            <Region prefHeight="1" styleClass="survival-divider"/>
+            <HBox alignment="CENTER_LEFT" spacing="24">
+                <VBox spacing="2">
+                    <Label text="PLAYERS" styleClass="survival-label"/>
+                    <Label text="1–2" styleClass="survival-stat"/>
+                </VBox>
+                <VBox spacing="2">
+                    <Label text="THREAT" styleClass="survival-label"/>
+                    <Label text="CRITICAL" styleClass="survival-stat-danger"/>
+                </VBox>
+            </HBox>
         </VBox>
     </AnchorPane>
 </StackPane>
