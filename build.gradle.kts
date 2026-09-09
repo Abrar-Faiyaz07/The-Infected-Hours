@@ -24,6 +24,10 @@ subprojects {
             showStandardStreams = false
         }
     }
+
+    tasks.withType<ProcessResources> {
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    }
 }
 
 // NOTE: junit-platform-launcher is declared per-module, not here. Adding it from

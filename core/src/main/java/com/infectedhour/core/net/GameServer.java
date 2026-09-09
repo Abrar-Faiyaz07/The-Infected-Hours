@@ -67,6 +67,7 @@ public class GameServer {
 
     private final List<Enemy> enemies = new ArrayList<>();
     private final List<ContaminationZone> zones = new ArrayList<>();
+    private final List<WorldSnapshot.ItemState> items = new ArrayList<>();
     private int mapWidthInTiles = 64;
 
     private final Map<String, Set<Integer>> sentCloudTiles = new LinkedHashMap<>();
@@ -110,6 +111,7 @@ public class GameServer {
         final String displayName;
         final Player entity;
         volatile InputCommand latestInput = new InputCommand();
+        volatile String equippedWeapon = "NONE";
 
         ConnectedPlayer(int connectionId, String playerId, String displayName, CharacterType character) {
             this.connectionId = connectionId;
@@ -154,6 +156,14 @@ public class GameServer {
         running = true;
         LOG.info(() -> "GameServer listening on TCP " + GameConstants.KRYONET_TCP_PORT
                 + " / UDP " + GameConstants.KRYONET_UDP_PORT + " as \"" + this.hostDisplayName + "\"");
+
+        // Spawn test machete to the right
+        WorldSnapshot.ItemState testMachete = new WorldSnapshot.ItemState();
+        testMachete.id = "machete_1";
+        testMachete.type = "MELEE";
+        testMachete.x = spawnX(CharacterType.ELRIC) + 1.5f;
+        testMachete.y = spawnY(CharacterType.ELRIC);
+        addItem(testMachete);
     }
 
     public void start() throws IOException {
@@ -319,12 +329,29 @@ public class GameServer {
         if (allPlayersDead && !players.isEmpty()) {
             broadcastSnapshotIfDue(delta);
             return;
-        }
-
-        for (ConnectedPlayer connected : playersByConnectionId.values()) {
+        }        for (ConnectedPlayer connected : playersByConnectionId.values()) {
             InputCommand input = connected.latestInput;
             if (input != null && !connected.entity.isDowned() && connected.entity.getHp() > 0f) {
                 movementSystem.apply(connected.entity, input, delta);
+
+                if (input.interactPressed) {
+                    java.util.Iterator<WorldSnapshot.ItemState> iterator = items.iterator();
+                    while (iterator.hasNext()) {
+                        WorldSnapshot.ItemState item = iterator.next();
+
+                        float distX = connected.entity.getX() - item.x;
+                        float distY = connected.entity.getY() - item.y;
+                        float distance = (float) Math.sqrt(distX * distX + distY * distY);
+
+                        if (distance <= 1.0f) {
+                            iterator.remove();
+                            connected.equippedWeapon = item.type;
+                            LOG.info(() -> connected.displayName + " picked up: " + item.type);
+                            break;
+                        }
+                    }
+                    input.interactPressed = false;
+                }
             }
             connected.entity.update(delta);
         }
@@ -373,6 +400,8 @@ public class GameServer {
         snapshot.serverTick = serverTick;
         snapshot.globalContaminationPct = contaminationSystem.getGlobalContaminationPct();
 
+        snapshot.items = new ArrayList<>(this.items);
+
         snapshot.players = new ArrayList<>();
         for (ConnectedPlayer connected : playersByConnectionId.values()) {
             Player entity = connected.entity;
@@ -385,6 +414,7 @@ public class GameServer {
             state.personalContaminationPct = entity.getPersonalContaminationPct();
             state.downed = entity.isDowned();
             state.reviveSecondsRemaining = entity.getReviveSecondsRemaining();
+            state.equippedWeapon = connected.equippedWeapon;
             snapshot.players.add(state);
         }
 
@@ -415,13 +445,10 @@ public class GameServer {
             if (added.isEmpty()) {
                 continue;
             }
-            WorldSnapshot.CloudFrontierDelta delta = new WorldSnapshot.CloudFrontierDelta();
-            delta.cloudId = zone.getCloudId();
-            delta.addedTileIndices = new int[added.size()];
-            for (int i = 0; i < added.size(); i++) {
-                delta.addedTileIndices[i] = added.get(i);
-            }
-            snapshot.cloudDeltas.add(delta);
+            WorldSnapshot.CloudFrontierDelta deltaMsg = new WorldSnapshot.CloudFrontierDelta();
+            deltaMsg.cloudId = zone.getCloudId();
+            deltaMsg.addedTileIndices = added.stream().mapToInt(Integer::intValue).toArray();
+            snapshot.cloudDeltas.add(deltaMsg);
             alreadySent.addAll(added);
         }
 
@@ -454,6 +481,10 @@ public class GameServer {
 
     public void addEnemy(Enemy enemy) {
         enemies.add(enemy);
+    }
+
+    public void addItem(WorldSnapshot.ItemState item) {
+        items.add(item);
     }
 
     public void addContaminationZone(ContaminationZone zone) {

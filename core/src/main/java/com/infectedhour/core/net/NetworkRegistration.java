@@ -2,6 +2,7 @@ package com.infectedhour.core.net;
 
 import com.esotericsoftware.kryonet.EndPoint;
 import com.infectedhour.shared.network.NetworkMessages;
+import com.infectedhour.shared.network.WorldSnapshot;
 
 /**
  * Registers every message class from shared/network with a KryoNet
@@ -19,5 +20,8 @@ public final class NetworkRegistration {
         for (Class<?> clazz : NetworkMessages.registrationOrder()) {
             kryo.register(clazz);
         }
+
+        // ── NEW: Register ItemState so KryoNet can serialize ground items ──
+        kryo.register(WorldSnapshot.ItemState.class);
     }
 }
