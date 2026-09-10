@@ -180,6 +180,39 @@ public class GameScreen implements Screen {
     private float biteCooldown = 0.8f;
     private boolean isBeingBitten = false;
 
+    // Level 1 Key & Ambush Mechanics
+    private boolean hasStairsKey = false;
+    private boolean isAmbushActive = false;
+    private boolean isAmbushDefeated = false;
+    private Texture keyTexture;
+    private float keyX = 38.0f;
+    private float keyY = 27.0f;
+
+    private static class AmbushZombie {
+        float x, y;
+        float hp = 100f;
+        float maxHp = 100f;
+        boolean isBoss = false;
+        boolean dead = false;
+        float stateTime = 0f;
+        boolean biting = false;
+        float biteCooldown = 0.8f;
+
+        AmbushZombie(float x, float y, boolean isBoss) {
+            this.x = x;
+            this.y = y;
+            this.isBoss = isBoss;
+            this.maxHp = isBoss ? 450f : 100f;
+            this.hp = this.maxHp;
+        }
+    }
+    private final List<AmbushZombie> ambushZombies = new ArrayList<>();
+
+    // Minimap Radar
+    private boolean isMinimapOpen = true;
+    private float minimapStateTime = 0f;
+    private TextureRegion minimapRegion;
+
     // Save Overlay & State
     private boolean isSaveOverlayOpen = false;
     private List<SaveSlotDto> overlaySlots = null;
@@ -380,10 +413,34 @@ public class GameScreen implements Screen {
         if (levelNumber == 1) {
             mapTexture = new Texture(Gdx.files.internal("map.png"));
             mapTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        } else if (levelNumber == 2) {
+            Texture customMap2 = loadTextureSafely("map2.png");
+            if (customMap2 != null) {
+                mapTexture = customMap2;
+                mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            } else {
+                mapTexture = createRoadsideVillageTexture();
+            }
         } else {
-            mapTexture = createRoadsideVillageTexture();
+            Texture customMap3 = loadTextureSafely("map3.png");
+            if (customMap3 != null) {
+                mapTexture = customMap3;
+                mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            } else {
+                Texture fallback = loadTextureSafely("map2.png");
+                mapTexture = fallback != null ? fallback : createRoadsideVillageTexture();
+            }
         }
         markerTexture = createColorTexture(1, 1, Color.WHITE);
+        keyTexture = loadTextureSafely("key.png");
+
+        if (levelNumber == 1 && mapTexture != null) {
+            int srcW = Math.min((int) (45 * MAP_ART_TILE_PX), mapTexture.getWidth() - 32);
+            int srcH = Math.min((int) (33 * MAP_ART_TILE_PX), mapTexture.getHeight() - 32);
+            minimapRegion = new TextureRegion(mapTexture, 32, 32, srcW, srcH);
+        } else if (mapTexture != null) {
+            minimapRegion = new TextureRegion(mapTexture);
+        }
 
         // Core player textures
         playerTexture = new Texture(Gdx.files.internal("player.png"));
@@ -690,16 +747,53 @@ public class GameScreen implements Screen {
             isInventoryOpen = !isInventoryOpen;
         }
 
+        if (!paused && Gdx.input.isKeyJustPressed(Input.Keys.M)) {
+            isMinimapOpen = !isMinimapOpen;
+        }
+
         if (!paused && !isInventoryOpen && me != null) {
             handleLevelFeatureInteraction(me);
         }
 
         if (!paused && !isInventoryOpen && !levelTransitionInProgress
                 && me != null && isNearLevelExit(me)
-                && areLevelObjectivesComplete(snapshot)
                 && Gdx.input.isKeyJustPressed(Input.Keys.E)) {
-            showBanner("Proceeding to Level " + (levelNumber + 1) + "…");
-            client.sendEvent(GameConstants.EVENT_LEVEL_EXIT_REQUEST, String.valueOf(levelNumber));
+            if (levelNumber == 1 && !hasStairsKey) {
+                showBanner("The stairs are locked! Find the hospital key first!");
+            } else if (levelNumber == 1 && !isAmbushDefeated) {
+                long remaining = ambushZombies.stream().filter(z -> !z.dead).count();
+                boolean bossAlive = ambushZombies.stream().anyMatch(z -> z.isBoss && !z.dead);
+                if (bossAlive) {
+                    showBanner("Defeat the Mutated Boss & horde (" + remaining + " remaining) first!");
+                } else {
+                    showBanner("Defeat the remaining " + remaining + " ambush zombies first!");
+                }
+            } else if (areLevelObjectivesComplete(snapshot)) {
+                String nextName = levelNumber == 1 ? "Hospital Ground Floor" : (levelNumber == 2 ? "Roadside Village" : "Level " + (levelNumber + 1));
+                showBanner("Proceeding to Level " + (levelNumber + 1) + " (" + nextName + ")…");
+                client.sendEvent(GameConstants.EVENT_LEVEL_EXIT_REQUEST, String.valueOf(levelNumber));
+            } else {
+                showBanner("Complete remaining objectives before proceeding!");
+            }
+        }
+
+        if (levelNumber == 1 && !hasStairsKey && me != null) {
+            float distX = me.x - keyX;
+            float distY = me.y - keyY;
+            if (Math.sqrt(distX * distX + distY * distY) <= 1.5f) {
+                if (Gdx.input.isKeyJustPressed(Input.Keys.E)) {
+                    hasStairsKey = true;
+                    isAmbushActive = true;
+                    ambushZombies.clear();
+                    // Boss zombie guarding the door corridor:
+                    ambushZombies.add(new AmbushZombie(41.0f, 29.5f, true));
+                    // 3 regular zombies swarming:
+                    ambushZombies.add(new AmbushZombie(36.0f, 26.5f, false));
+                    ambushZombies.add(new AmbushZombie(40.5f, 25.5f, false));
+                    ambushZombies.add(new AmbushZombie(37.5f, 29.0f, false));
+                    showBanner("DOOR BREACHED! MUTATED BOSS & ZOMBIE HORDE EMERGE!");
+                }
+            }
         }
 
         if (!hasBomb && mockBombX != -1f && me != null) {
@@ -743,6 +837,34 @@ public class GameScreen implements Screen {
                                 }
                             }
                         }
+                    }
+
+                    if (isAmbushActive) {
+                        for (AmbushZombie az : ambushZombies) {
+                            if (az.dead) continue;
+                            float azDistX = az.x - me.x;
+                            float azDistY = az.y - me.y;
+                            float azDistance = (float) Math.sqrt(azDistX * azDistX + azDistY * azDistY);
+
+                            float hitReach = az.isBoss ? 1.8f : 1.5f;
+                            if (azDistance <= hitReach) {
+                                boolean azHit = false;
+                                float bound = az.isBoss ? 1.3f : 1.0f;
+                                if (anim.currentRow == 3 && azDistY > 0 && Math.abs(azDistX) <= bound) azHit = true;
+                                else if (anim.currentRow == 0 && azDistY < 0 && Math.abs(azDistX) <= bound) azHit = true;
+                                else if (anim.currentRow == 2 && azDistX > 0 && Math.abs(azDistY) <= bound) azHit = true;
+                                else if (anim.currentRow == 1 && azDistX < 0 && Math.abs(azDistY) <= bound) azHit = true;
+
+                                if (azHit) {
+                                    az.hp -= 100f;
+                                    if (az.hp <= 0f) {
+                                        az.dead = true;
+                                        bloodPools.add(new Vector2(az.x, az.y));
+                                    }
+                                }
+                            }
+                        }
+                        checkAmbushCompletion();
                     }
                 } else if (isBombEquipped && bombCooldown <= 0f) {
                     anim.isAttacking = true;
@@ -884,6 +1006,35 @@ public class GameScreen implements Screen {
                 shapes.setColor(Color.YELLOW);
                 shapes.rect(zx, zy, barW * (middleZombieHp / 300f), barH);
             }
+
+            if (isAmbushActive) {
+                for (AmbushZombie az : ambushZombies) {
+                    if (az.dead) continue;
+                    if (az.isBoss) {
+                        float barW = 38f;
+                        float barH = 5f;
+                        float zx = Math.round((az.x * PIXELS_PER_TILE) - (barW / 2f) + 8f);
+                        float zy = Math.round((az.y * PIXELS_PER_TILE) + (zombieFrameHeight * 1.45f / 2f) + 24f);
+
+                        shapes.setColor(Color.BLACK);
+                        shapes.rect(zx - 1f, zy - 1f, barW + 2f, barH + 2f);
+
+                        shapes.setColor(Color.MAGENTA);
+                        shapes.rect(zx, zy, barW * Math.max(0f, az.hp / az.maxHp), barH);
+                    } else {
+                        float barW = 24f;
+                        float barH = 3f;
+                        float zx = Math.round((az.x * PIXELS_PER_TILE) - (barW / 2f) + 8f);
+                        float zy = Math.round((az.y * PIXELS_PER_TILE) + (zombieFrameHeight / 2f) + 22f);
+
+                        shapes.setColor(Color.BLACK);
+                        shapes.rect(zx - 1f, zy - 1f, barW + 2f, barH + 2f);
+
+                        shapes.setColor(Color.FIREBRICK);
+                        shapes.rect(zx, zy, barW * Math.max(0f, az.hp / az.maxHp), barH);
+                    }
+                }
+            }
             shapes.end();
             Gdx.gl.glDisable(GL20.GL_BLEND);
 
@@ -979,6 +1130,79 @@ public class GameScreen implements Screen {
         }
     }
 
+    private void checkAmbushCompletion() {
+        if (!isAmbushActive || isAmbushDefeated) return;
+        long remaining = ambushZombies.stream().filter(z -> !z.dead).count();
+        if (remaining == 0) {
+            isAmbushDefeated = true;
+            showBanner("MUTATED BOSS & HORDE DEFEATED! The stairs to Ground Floor are unlocked!");
+        }
+    }
+
+    private TextureRegion getAmbushZombieFrame(AmbushZombie az, WorldSnapshot.PlayerState me, float delta) {
+        if (az.dead || me == null) return null;
+
+        az.stateTime += delta;
+        float distXP = me.x - az.x;
+        float distYP = me.y - az.y;
+        float distP = (float) Math.sqrt(distXP * distXP + distYP * distYP);
+
+        boolean hasLOS = hasLineOfSight(az.x, az.y, me.x, me.y);
+
+        float biteDist = az.isBoss ? 1.0f : 0.8f;
+        if (distP <= biteDist && !me.downed && me.hp > 0f && hasLOS) {
+            az.biting = true;
+            az.biteCooldown -= delta;
+            if (az.biteCooldown <= 0f) {
+                float biteDmg = az.isBoss ? 35.0f : 20.0f;
+                client.sendEvent("ZOMBIE_BITE_DAMAGE", String.valueOf(biteDmg));
+                az.biteCooldown = az.isBoss ? 1.0f : 0.8f;
+            }
+        } else {
+            az.biting = false;
+            az.biteCooldown = az.isBoss ? 1.0f : 0.8f;
+        }
+
+        int dirRow;
+        if (Math.abs(distXP) > Math.abs(distYP)) dirRow = distXP > 0 ? 2 : 1;
+        else dirRow = distYP > 0 ? 3 : 0;
+
+        if (az.biting && zombieBiteFrames != null) {
+            float biteProgress = (az.isBoss ? 1.0f : 0.8f) - az.biteCooldown;
+            if (biteProgress < 0f) biteProgress = 0f;
+            int biteCol = (int) (biteProgress / 0.4f);
+            if (biteCol >= 2) biteCol = 1;
+            int safeRow = dirRow % zombieBiteFrames.length;
+            int safeCol = biteCol % zombieBiteFrames[0].length;
+            return zombieBiteFrames[safeRow][safeCol];
+        }
+
+        if (distP > 0.5f && distP <= 14.0f) {
+            float speed = az.isBoss ? 1.4f : 1.7f;
+            float moveX = (distXP / distP) * speed * delta;
+            float moveY = (distYP / distP) * speed * delta;
+            float nextX = az.x + moveX;
+            float nextY = az.y + moveY;
+            float radius = az.isBoss ? 0.35f : 0.25f;
+            if (isWalkable(nextX, az.y, radius)) az.x = nextX;
+            if (isWalkable(az.x, nextY, radius)) az.y = nextY;
+
+            if (zombieFrames != null) {
+                int walkCol = ((int) (az.stateTime / 0.15f)) % 8;
+                int safeRow = dirRow % zombieFrames.length;
+                int safeCol = walkCol % zombieFrames[0].length;
+                return zombieFrames[safeRow][safeCol];
+            }
+        } else if (zombieIdleFrames != null) {
+            int idleCol = ((int) (az.stateTime / 0.5f)) % 2;
+            int safeRow = dirRow % zombieIdleFrames.length;
+            int safeCol = idleCol % zombieIdleFrames[0].length;
+            return zombieIdleFrames[safeRow][safeCol];
+        }
+
+        return zombieFrames != null ? zombieFrames[0][0] : null;
+    }
+
     private void drawWorld(WorldSnapshot snapshot, float delta, TextureRegion zombieFrame, WorldSnapshot.PlayerState me) {
         drawCampaignFeatures();
 
@@ -1029,6 +1253,26 @@ public class GameScreen implements Screen {
                             bloodPools.add(new Vector2(middleZombieX, middleZombieY));
                         }
                     }
+                }
+
+                if (isAmbushActive) {
+                    for (AmbushZombie az : ambushZombies) {
+                        if (az.dead) continue;
+                        float distAZ = (float) Math.sqrt(Math.pow(az.x - exp.x, 2) + Math.pow(az.y - exp.y, 2));
+                        float dmgAZ = 0f;
+                        if (distAZ <= 0.5f) dmgAZ = 300f;
+                        else if (distAZ <= 1.0f) dmgAZ = 200f;
+                        else if (distAZ <= 1.5f) dmgAZ = 100f;
+
+                        if (dmgAZ > 0f) {
+                            az.hp -= dmgAZ;
+                            if (az.hp <= 0f) {
+                                az.dead = true;
+                                bloodPools.add(new Vector2(az.x, az.y));
+                            }
+                        }
+                    }
+                    checkAmbushCompletion();
                 }
 
                 if (me != null && !me.downed && me.hp > 0f) {
@@ -1119,6 +1363,15 @@ public class GameScreen implements Screen {
             }
         }
 
+        // Draw Stairs Key in Level 1
+        if (levelNumber == 1 && !hasStairsKey && keyTexture != null) {
+            float kSize = 24f;
+            float bob = (float) Math.sin(groundItemStateTime * 4.0f) * 3.0f;
+            float kDrawX = Math.round((keyX * PIXELS_PER_TILE) - (kSize / 2f));
+            float kDrawY = Math.round((keyY * PIXELS_PER_TILE) - (kSize / 2f) + bob);
+            batch.draw(keyTexture, kDrawX, kDrawY, kSize, kSize);
+        }
+
         // 5. Middle Zombie
         if (!isZombieDead && zombieFrame != null) {
             float currentZDrawWidth = isBeingBitten ? zombieBiteFrameWidth : zombieFrameWidth;
@@ -1126,6 +1379,31 @@ public class GameScreen implements Screen {
             float midDrawX = Math.round((middleZombieX * PIXELS_PER_TILE) - (currentZDrawWidth / 2f));
             float midDrawY = Math.round((middleZombieY * PIXELS_PER_TILE) - SPRITE_FEET_INSET_PX);
             batch.draw(zombieFrame, midDrawX, midDrawY, currentZDrawWidth, currentZDrawHeight);
+        }
+
+        // 5b. Ambush Zombies & Boss
+        if (isAmbushActive) {
+            for (AmbushZombie az : ambushZombies) {
+                if (az.dead) continue;
+                TextureRegion azFrame = getAmbushZombieFrame(az, me, delta);
+                if (azFrame != null) {
+                    float baseW = az.biting ? zombieBiteFrameWidth : zombieFrameWidth;
+                    float baseH = az.biting ? zombieBiteFrameHeight : zombieFrameHeight;
+                    float scale = az.isBoss ? 1.45f : 1.0f;
+                    float azDrawWidth = baseW * scale;
+                    float azDrawHeight = baseH * scale;
+                    float azDrawX = Math.round((az.x * PIXELS_PER_TILE) - (azDrawWidth / 2f));
+                    float azDrawY = Math.round((az.y * PIXELS_PER_TILE) - SPRITE_FEET_INSET_PX);
+
+                    if (az.isBoss) {
+                        batch.setColor(1.0f, 0.45f, 0.45f, 1.0f);
+                    }
+                    batch.draw(azFrame, azDrawX, azDrawY, azDrawWidth, azDrawHeight);
+                    if (az.isBoss) {
+                        batch.setColor(Color.WHITE);
+                    }
+                }
+            }
         }
 
         // 6. Players
@@ -1523,18 +1801,60 @@ public class GameScreen implements Screen {
         font.setColor(Color.WHITE);
         font.draw(batch, "LEVEL " + levelNumber + "   |   " + client.getMatchMode() + "   |   " + (game.isHost() ? "HOST" : "CLIENT"), 20f, top);
 
-        if (snapshot != null && snapshot.objectives != null && !snapshot.objectives.isEmpty()) {
-            float objectiveY = top;
+        float objectiveX = 1010f;
+        float objectiveY = isMinimapOpen ? 556f : top;
+
+        if (levelNumber == 1) {
             font.setColor(0.910f, 0.690f, 0.165f, 1f);
-            font.draw(batch, "ROADSIDE OBJECTIVES", 950f, objectiveY);
-            objectiveY -= 24f;
+            font.draw(batch, "HOSPITAL LEVEL 1", objectiveX, objectiveY);
+            objectiveY -= 22f;
+
+            font.setColor(hasStairsKey ? Color.GREEN : Color.WHITE);
+            font.draw(batch, (hasStairsKey ? "[DONE] " : "[ ] ") + "Find Stairs Key", objectiveX, objectiveY);
+            objectiveY -= 20f;
+
+            if (isAmbushActive) {
+                AmbushZombie boss = null;
+                long minionsAlive = 0;
+                for (AmbushZombie az : ambushZombies) {
+                    if (az.dead) continue;
+                    if (az.isBoss) boss = az;
+                    else minionsAlive++;
+                }
+
+                if (boss != null) {
+                    font.setColor(Color.CORAL);
+                    font.draw(batch, "[!] Boss: " + (int) boss.hp + "/" + (int) boss.maxHp + " HP", objectiveX, objectiveY);
+                } else {
+                    font.setColor(Color.GREEN);
+                    font.draw(batch, "[DONE] Mutated Boss Defeated", objectiveX, objectiveY);
+                }
+                objectiveY -= 20f;
+
+                if (minionsAlive > 0) {
+                    font.setColor(Color.FIREBRICK);
+                    font.draw(batch, "[!] Horde: " + minionsAlive + " left", objectiveX, objectiveY);
+                } else {
+                    font.setColor(Color.GREEN);
+                    font.draw(batch, "[DONE] Horde Eliminated", objectiveX, objectiveY);
+                }
+                objectiveY -= 20f;
+            }
+
+            boolean canEscape = hasStairsKey && isAmbushDefeated;
+            font.setColor(canEscape ? Color.GREEN : Color.GRAY);
+            font.draw(batch, (canEscape ? "[READY] " : "[LOCKED] ") + "Escape to Ground Floor", objectiveX, objectiveY);
+        } else if (snapshot != null && snapshot.objectives != null && !snapshot.objectives.isEmpty()) {
+            font.setColor(0.910f, 0.690f, 0.165f, 1f);
+            font.draw(batch, "ROADSIDE OBJECTIVES", objectiveX, objectiveY);
+            objectiveY -= 22f;
             for (WorldSnapshot.ObjectiveState objective : snapshot.objectives) {
                 font.setColor(objective.complete ? Color.GREEN : Color.WHITE);
                 String marker = objective.complete ? "[DONE] " : "[ ] ";
                 font.draw(batch, marker + objectiveLabel(objective.objectiveId)
                                 + "  " + objective.progress + "/" + objective.target,
-                        950f, objectiveY);
-                objectiveY -= 22f;
+                        objectiveX, objectiveY);
+                objectiveY -= 20f;
             }
         }
 
@@ -1595,20 +1915,49 @@ public class GameScreen implements Screen {
         WorldSnapshot.PlayerState localPlayer = snapshot == null ? null : client.findLocalPlayer(snapshot);
         CampaignLevelPlan.Feature nearbyFeature = nearbyIncompleteFeature(localPlayer);
         boolean nearLevelExit = localPlayer != null && isNearLevelExit(localPlayer);
-        boolean canAdvanceLevel = nearLevelExit && areLevelObjectivesComplete(snapshot);
+        boolean canAdvanceLevel = nearLevelExit && areLevelObjectivesComplete(snapshot)
+                && (levelNumber != 1 || (hasStairsKey && isAmbushDefeated));
+
+        boolean canPickUpKey = false;
+        if (levelNumber == 1 && !hasStairsKey && localPlayer != null) {
+            float distX = localPlayer.x - keyX;
+            float distY = localPlayer.y - keyY;
+            if (Math.sqrt(distX * distX + distY * distY) <= 1.5f) {
+                canPickUpKey = true;
+            }
+        }
 
         if (nearbyFeature != null) {
             font.setColor(Color.GOLD);
             font.draw(batch, "Press [E] — " + nearbyFeature.label(),
                     VIRTUAL_WIDTH / 2f - 150f, VIRTUAL_HEIGHT / 2f - 50f);
+        } else if (nearLevelExit && levelNumber == 1 && !hasStairsKey) {
+            font.setColor(Color.CORAL);
+            font.draw(batch, "[LOCKED] Stairs Key Required! Explore the hospital ward.",
+                    VIRTUAL_WIDTH / 2f - 180f, VIRTUAL_HEIGHT / 2f - 50f);
+        } else if (nearLevelExit && levelNumber == 1 && !isAmbushDefeated) {
+            long remaining = ambushZombies.stream().filter(z -> !z.dead).count();
+            boolean bossAlive = ambushZombies.stream().anyMatch(z -> z.isBoss && !z.dead);
+            font.setColor(Color.FIREBRICK);
+            if (bossAlive) {
+                font.draw(batch, "[LOCKED] Defeat Mutated Boss & Horde (" + remaining + " remaining)",
+                        VIRTUAL_WIDTH / 2f - 180f, VIRTUAL_HEIGHT / 2f - 50f);
+            } else {
+                font.draw(batch, "[LOCKED] Defeat Ambush Zombies (" + remaining + " remaining)",
+                        VIRTUAL_WIDTH / 2f - 160f, VIRTUAL_HEIGHT / 2f - 50f);
+            }
         } else if (canAdvanceLevel) {
             font.setColor(Color.GOLD);
-            font.draw(batch, "Press [E] to proceed to LEVEL " + (levelNumber + 1),
-                    VIRTUAL_WIDTH / 2f - 120f, VIRTUAL_HEIGHT / 2f - 50f);
+            String nextName = levelNumber == 1 ? "Hospital Ground Floor" : (levelNumber == 2 ? "Roadside Village" : "Level " + (levelNumber + 1));
+            font.draw(batch, "Press [E] to proceed to LEVEL " + (levelNumber + 1) + " (" + nextName + ")",
+                    VIRTUAL_WIDTH / 2f - 160f, VIRTUAL_HEIGHT / 2f - 50f);
         } else if (nearLevelExit) {
             font.setColor(Color.LIGHT_GRAY);
             font.draw(batch, "Complete the remaining objectives to unlock this exit",
                     VIRTUAL_WIDTH / 2f - 160f, VIRTUAL_HEIGHT / 2f - 50f);
+        } else if (canPickUpKey) {
+            font.setColor(Color.GOLD);
+            font.draw(batch, "Press [E] to Pick Up Stairs Key", VIRTUAL_WIDTH / 2f - 95f, VIRTUAL_HEIGHT / 2f - 50f);
         } else if (canPickUpMachete && canPickUpBomb) {
             font.setColor(Color.YELLOW);
             font.draw(batch, "Press [E] to Pick Up Items", VIRTUAL_WIDTH / 2f - 80f, VIRTUAL_HEIGHT / 2f - 50f);
@@ -1621,8 +1970,156 @@ public class GameScreen implements Screen {
         }
 
         font.setColor(Color.GRAY);
-        font.draw(batch, "WASD move   E interact   SPACE attack / LMB   SHIFT sprint   ESC pause   I inventory   F3 debug   H immunity", 20f, 30f);
+        font.draw(batch, "WASD move   E interact   SPACE attack / LMB   SHIFT sprint   M map   ESC pause   I inventory   F3 debug   H immunity", 20f, 30f);
         batch.end();
+
+        drawMinimap(snapshot, hudMatrix, delta);
+    }
+
+    private void drawMinimap(WorldSnapshot snapshot, Matrix4 hudMatrix, float delta) {
+        if (!isMinimapOpen || tileMap == null) return;
+        minimapStateTime += delta;
+
+        float mmW = 150f;
+        float mmH = 110f;
+        float mmX = VIRTUAL_WIDTH - mmW - 20f;
+        float mmY = VIRTUAL_HEIGHT - mmH - 36f;
+
+        float mapTilesW = tileMap.getWidth();
+        float mapTilesH = tileMap.getHeight();
+        if (mapTilesW <= 0 || mapTilesH <= 0) return;
+
+        // 1. Semi-transparent background & Header Bar
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        shapes.setProjectionMatrix(hudMatrix);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+
+        // Header tab
+        shapes.setColor(0.08f, 0.12f, 0.18f, 0.92f);
+        shapes.rect(mmX, mmY + mmH, mmW, 18f);
+
+        // Main map frame background
+        shapes.setColor(0.05f, 0.08f, 0.12f, 0.88f);
+        shapes.rect(mmX, mmY, mmW, mmH);
+        shapes.end();
+
+        // 2. Render tactical map view
+        batch.setProjectionMatrix(hudMatrix);
+        batch.begin();
+        if (minimapRegion != null) {
+            batch.setColor(0.70f, 0.82f, 0.95f, 0.85f); // tactical radar tint
+            batch.draw(minimapRegion, mmX, mmY, mmW, mmH);
+            batch.setColor(Color.WHITE);
+        } else if (mapTexture != null) {
+            batch.setColor(0.70f, 0.82f, 0.95f, 0.85f);
+            batch.draw(mapTexture, mmX, mmY, mmW, mmH);
+            batch.setColor(Color.WHITE);
+        }
+
+        // Header text
+        font.setColor(0.910f, 0.690f, 0.165f, 1f);
+        String header = levelNumber == 1 ? "MAP: WARD" : (levelNumber == 2 ? "MAP: GROUND" : "MAP: VILLAGE");
+        font.draw(batch, header, mmX + 6f, mmY + mmH + 14f);
+
+        font.setColor(Color.LIGHT_GRAY);
+        font.draw(batch, "[M]", mmX + mmW - 22f, mmY + mmH + 14f);
+        batch.end();
+
+        // 3. Grid lines & border
+        shapes.setProjectionMatrix(hudMatrix);
+        shapes.begin(ShapeRenderer.ShapeType.Line);
+
+        // Header border
+        shapes.setColor(0.20f, 0.50f, 0.80f, 0.90f);
+        shapes.rect(mmX, mmY + mmH, mmW, 18f);
+
+        // Outer border
+        shapes.setColor(0.20f, 0.50f, 0.80f, 0.90f);
+        shapes.rect(mmX, mmY, mmW, mmH);
+
+        // Subtle crosshairs
+        shapes.setColor(0.20f, 0.50f, 0.80f, 0.25f);
+        shapes.line(mmX, mmY + mmH / 2f, mmX + mmW, mmY + mmH / 2f);
+        shapes.line(mmX + mmW / 2f, mmY, mmX + mmW / 2f, mmY + mmH);
+        shapes.end();
+
+        // 4. Entity blips
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+
+        // A. Exit Beacon (Stairs / Tunnel)
+        LevelExit.forLevel(levelNumber).ifPresent(exit -> {
+            float ex = mmX + (exit.tileX() / mapTilesW) * mmW;
+            float ey = mmY + (exit.tileY() / mapTilesH) * mmH;
+            boolean unlocked = levelNumber != 1 || (hasStairsKey && isAmbushDefeated);
+            shapes.setColor(unlocked ? Color.LIME : Color.ORANGE);
+            float pulse = 3.5f + (float) Math.sin(minimapStateTime * 5.0f) * 1.2f;
+            shapes.circle(ex, ey, pulse, 10);
+        });
+
+        // B. Key Blip (Level 1 only, when not yet collected)
+        if (levelNumber == 1 && !hasStairsKey) {
+            float kx = mmX + (keyX / mapTilesW) * mmW;
+            float ky = mmY + (keyY / mapTilesH) * mmH;
+            shapes.setColor(Color.GOLD);
+            float pulse = 3.2f + (float) Math.sin(minimapStateTime * 6.0f) * 1.0f;
+            shapes.circle(kx, ky, pulse, 8);
+        }
+
+        // C. Middle Zombie
+        if (!isZombieDead) {
+            float zx = mmX + (middleZombieX / mapTilesW) * mmW;
+            float zy = mmY + (middleZombieY / mapTilesH) * mmH;
+            shapes.setColor(Color.RED);
+            shapes.circle(zx, zy, 2.6f, 8);
+        }
+
+        // D. Ambush Zombies & Mutated Boss
+        if (isAmbushActive) {
+            for (AmbushZombie az : ambushZombies) {
+                if (az.dead) continue;
+                float ax = mmX + (az.x / mapTilesW) * mmW;
+                float ay = mmY + (az.y / mapTilesH) * mmH;
+                if (az.isBoss) {
+                    shapes.setColor(Color.MAGENTA);
+                    float pulse = 4.5f + (float) Math.sin(minimapStateTime * 5.0f) * 1.2f;
+                    shapes.circle(ax, ay, pulse, 10);
+                } else {
+                    shapes.setColor(Color.RED);
+                    shapes.circle(ax, ay, 2.6f, 8);
+                }
+            }
+        }
+
+        // E. Campaign Features (Level 2)
+        if (levelNumber == 2 && levelFeatures != null) {
+            for (CampaignLevelPlan.Feature feat : levelFeatures) {
+                if (completedFeatureIds.contains(feat.actionId())) continue;
+                float fx = mmX + (feat.tileX() / mapTilesW) * mmW;
+                float fy = mmY + (feat.tileY() / mapTilesH) * mmH;
+                shapes.setColor(Color.YELLOW);
+                shapes.circle(fx, fy, 2.8f, 8);
+            }
+        }
+
+        // F. Players
+        if (snapshot != null && snapshot.players != null) {
+            WorldSnapshot.PlayerState me = client != null ? client.findLocalPlayer(snapshot) : null;
+            for (WorldSnapshot.PlayerState player : snapshot.players) {
+                if (player.downed || player.hp <= 0f) continue;
+                float px = mmX + (player.x / mapTilesW) * mmW;
+                float py = mmY + (player.y / mapTilesH) * mmH;
+                boolean isLocal = me != null && player.playerId == me.playerId;
+
+                shapes.setColor(isLocal ? Color.LIME : Color.CYAN);
+                shapes.circle(px, py, 3.5f, 10);
+
+                shapes.setColor(Color.WHITE);
+                shapes.circle(px, py, 1.4f, 6);
+            }
+        }
+
+        shapes.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
     }
 
     private static String objectiveLabel(String objectiveId) {
@@ -1929,5 +2426,6 @@ public class GameScreen implements Screen {
         if (idleMeleeTexture != null && idleMeleeTexture != idleTexture) idleMeleeTexture.dispose();
         if (meleeInventoryTexture != null) meleeInventoryTexture.dispose();
         if (meleeHitTexture != null) meleeHitTexture.dispose();
+        if (keyTexture != null) keyTexture.dispose();
     }
 }

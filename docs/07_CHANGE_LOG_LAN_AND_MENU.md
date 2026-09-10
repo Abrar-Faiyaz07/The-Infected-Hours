@@ -689,3 +689,23 @@ Files changed:
 - `shared/src/main/java/com/infectedhour/shared/constants/GameConstants.java`
 - `shared/src/main/java/com/infectedhour/shared/level/CheckpointRegistry.java`
 - `shared/src/test/java/com/infectedhour/shared/level/CheckpointRegistryTest.java`
+
+### 8.11 Boss-combat reference study and implementation roadmap
+
+**Request:** study the gameplay and boss implementation in the team's reference
+repository, with special attention to input/key handling and boss combat, then
+preserve the findings so the Level 3 implementation is easier to complete.
+
+**Change:** added a revision-specific engineering reference covering the other
+project's ECS architecture, semantic input handling, collectible-key/chest flow,
+melee and projectile damage rules, four-stage boss state machine, attack
+telegraphs, phase safety, encounter cleanup, and HUD flow. The guide separates
+reusable design patterns from code/assets that must not be copied, documents the
+gaps in the current Virus Heart prototype, and provides a host-authoritative LAN
+design, concrete three-phase encounter proposal, implementation sequence, and
+test matrix. The inspected reference core module was also compiled successfully.
+
+Files changed:
+
+- `README.md`
+- `docs/09_PROMISE_BENEATH_THE_STORM_REFERENCE.md`
