@@ -218,7 +218,7 @@ public class StoryPanelScreen implements Screen {
         }
         if (sequence == Sequence.ENDING) {
             bridge.notifyMatchEnded(new GameBridge.MatchOutcome("VICTORY", GameConstants.BOSS_LEVEL_NUMBER));
-            Gdx.app.exit();
+            game.setScreen(new MainMenuScreen(game, client, bridge));
             return;
         }
         if (sequence == Sequence.INTRO) {

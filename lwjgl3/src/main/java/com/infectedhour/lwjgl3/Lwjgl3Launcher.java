@@ -55,11 +55,9 @@ public class Lwjgl3Launcher {
     public static void boot(SessionConfig session, GameBridge bridge, boolean fullscreen) {
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
         config.setTitle("The Infected Hour");
-        if (fullscreen) {
-            config.setFullscreenMode(Lwjgl3ApplicationConfiguration.getDisplayMode());
-        } else {
-            config.setWindowedMode(1280, 720);
-        }
+        config.setWindowedMode(1280, 720);
+        config.setMaximized(true);
+        config.setResizable(true);
         config.useVsync(true);
 
         new Lwjgl3Application(new InfectedHourGame(session, bridge), config);
