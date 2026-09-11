@@ -74,7 +74,10 @@ public class CharacterSelectView {
         backBtn.getStyleClass().add("menu-btn");
         backBtn.setOnAction(e -> stage.getScene().setRoot(new MainMenuView(stage, backendClient).getRoot()));
 
-        root.getChildren().addAll(title, subtitle, cardsBox, backBtn);
+        Label streamTip = new Label("Stream Tip: In Discord screen share, select 'Screens -> Screen 1' for seamless streaming.");
+        streamTip.setStyle("-fx-text-fill: #64748B; -fx-font-size: 11px;");
+
+        root.getChildren().addAll(title, subtitle, cardsBox, backBtn, streamTip);
     }
 
     private VBox createCharacterCard(String name, String role, String roleColor,

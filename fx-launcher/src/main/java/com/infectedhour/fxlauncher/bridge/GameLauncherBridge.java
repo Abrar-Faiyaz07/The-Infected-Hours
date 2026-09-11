@@ -103,6 +103,9 @@ public class GameLauncherBridge {
                 onReturnToLauncher.run();
             }
             primaryStage.show();
+            if (SessionState.get().isFullscreen()) {
+                primaryStage.setFullScreen(true);
+            }
             primaryStage.toFront();
             primaryStage.requestFocus();
         };
@@ -141,6 +144,9 @@ public class GameLauncherBridge {
             launcherRestored.set(true);
             removeLoadingScreen();
             primaryStage.show();
+            if (SessionState.get().isFullscreen()) {
+                primaryStage.setFullScreen(true);
+            }
             ResultsView view = new ResultsView(primaryStage, backendClient,
                     outcome.result(), outcome.finalLevelReached());
             primaryStage.getScene().setRoot(view.getRoot());
