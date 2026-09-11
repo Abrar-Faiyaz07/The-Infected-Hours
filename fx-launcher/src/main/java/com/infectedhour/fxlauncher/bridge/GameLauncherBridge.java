@@ -47,17 +47,26 @@ public class GameLauncherBridge {
      * starting a fresh one.
      */
     public void startAsHost(Runnable onReturnToLauncher) {
-        startAsHost(displayName(), onReturnToLauncher);
+        startAsHost(displayName(), com.infectedhour.shared.network.CharacterType.ELRIC, onReturnToLauncher);
+    }
+
+    public void startAsHost(com.infectedhour.shared.network.CharacterType character, Runnable onReturnToLauncher) {
+        startAsHost(displayName(), character, onReturnToLauncher);
     }
 
     public void startAsHost(String customName, Runnable onReturnToLauncher) {
+        startAsHost(customName, com.infectedhour.shared.network.CharacterType.ELRIC, onReturnToLauncher);
+    }
+
+    public void startAsHost(String customName, com.infectedhour.shared.network.CharacterType character, Runnable onReturnToLauncher) {
         String name = (customName != null && !customName.isBlank()) ? customName.trim() : displayName();
         var slot = SessionState.get().getLoadedSlot();
+        com.infectedhour.shared.network.CharacterType preferred = character != null ? character : com.infectedhour.shared.network.CharacterType.ELRIC;
         SessionConfig config = slot != null && slot.occupied()
                 ? SessionConfig.hostingFromSave(playerId(), name,
-                        SessionState.get().getBackendUrl(), slot)
+                        SessionState.get().getBackendUrl(), slot, preferred)
                 : SessionConfig.hosting(playerId(), name,
-                        SessionState.get().getBackendUrl());
+                        SessionState.get().getBackendUrl(), preferred);
         // Consumed once — returning to the menu must not silently reload the
         // same save the next time the player presses Play.
         SessionState.get().clearLoadedSlot();

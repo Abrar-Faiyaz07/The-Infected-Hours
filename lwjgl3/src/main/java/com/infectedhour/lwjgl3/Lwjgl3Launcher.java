@@ -37,6 +37,9 @@ public class Lwjgl3Launcher {
             String host = args.length > 1 ? args[1] : "localhost";
             return SessionConfig.joining(host, "dev-client", "Dev Jane");
         }
+        if (args != null && args.length > 0 && "jane".equalsIgnoreCase(args[0])) {
+            return SessionConfig.hosting("dev-host", "Dev Host", null, com.infectedhour.shared.network.CharacterType.JANE);
+        }
         return SessionConfig.devSolo();
     }
 

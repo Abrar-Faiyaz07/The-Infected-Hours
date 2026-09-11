@@ -84,6 +84,12 @@ public class GameScreen implements Screen {
     private TextureRegion[][] idleFrames;
     private int idleFrameWidth, idleFrameHeight;
 
+    // Female Player (Jane) Textures & Frames
+    private Texture femalePlayerTexture;
+    private TextureRegion[][] femaleFrames;
+    private int femaleFrameWidth, femaleFrameHeight;
+    private static final float FEMALE_SPRITE_SCALE = 0.82f;
+
     // Sprint Texture
     private Texture playerSprintTexture;
     private TextureRegion[][] playerSprintFrames;
@@ -489,6 +495,14 @@ public class GameScreen implements Screen {
         idleFrameWidth = idleTexture.getWidth() / 8;
         idleFrameHeight = idleTexture.getHeight() / 4;
         idleFrames = TextureRegion.split(idleTexture, idleFrameWidth, idleFrameHeight);
+
+        femalePlayerTexture = loadTextureSafely("map_player.png");
+        if (femalePlayerTexture != null) {
+            femalePlayerTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            femaleFrameWidth = femalePlayerTexture.getWidth() / 8;
+            femaleFrameHeight = femalePlayerTexture.getHeight() / 4;
+            femaleFrames = TextureRegion.split(femalePlayerTexture, femaleFrameWidth, femaleFrameHeight);
+        }
 
         playerSprintTexture = loadTextureSafely("sprint.png");
         if (playerSprintTexture != null) {
@@ -1489,6 +1503,7 @@ public class GameScreen implements Screen {
                 boolean moving = Math.abs(dx) > 0.001f || Math.abs(dy) > 0.001f;
                 TextureRegion currentFrame;
 
+                boolean isFemale = (player.character == CharacterType.JANE);
                 int characterOffset = (player.character == CharacterType.ELRIC) ? 0 : 4;
 
                 boolean isLocalPlayer = me != null && player.playerId.equals(me.playerId);
@@ -1506,8 +1521,18 @@ public class GameScreen implements Screen {
                 int idleAnimFrames = 2;
                 int activeOffset = characterOffset;
 
+                if (isFemale && femaleFrames != null) {
+                    activeRunFrames = femaleFrames;
+                    activeIdleFrames = femaleFrames;
+                    animFrames = 4;
+                    idleAnimFrames = 1;
+                    activeOffset = moving ? 4 : 0;
+                }
+
                 if (showMacheteSprite) {
-                    activeIdleFrames = idleMeleeFrames;
+                    if (!isFemale) {
+                        activeIdleFrames = idleMeleeFrames;
+                    }
                 } else if (showBombSprite) {
                     activeIdleFrames = playerBombIdleFrames;
                     idleAnimFrames = (playerBombIdleFrames[0].length >= 8) ? 8 : 2;
@@ -1515,11 +1540,15 @@ public class GameScreen implements Screen {
                 }
 
                 if (isSprintingAnim) {
-                    activeRunFrames = playerSprintFrames;
-                    animFrames = (playerSprintFrames[0].length >= 8) ? 8 : 4;
-                    activeOffset = 0;
+                    if (!isFemale) {
+                        activeRunFrames = playerSprintFrames;
+                        animFrames = (playerSprintFrames[0].length >= 8) ? 8 : 4;
+                        activeOffset = 0;
+                    }
                 } else if (showMacheteSprite) {
-                    activeRunFrames = playerMeleeFrames;
+                    if (!isFemale) {
+                        activeRunFrames = playerMeleeFrames;
+                    }
                 } else if (showBombSprite) {
                     activeRunFrames = playerBombFrames;
                     animFrames = (playerBombFrames[0].length >= 8) ? 8 : 4;
@@ -1529,8 +1558,12 @@ public class GameScreen implements Screen {
                 anim.currentColumn = anim.currentColumn % animFrames;
 
                 if (moving) {
-                    if (Math.abs(dx) > 0.005f) anim.currentRow = dx > 0 ? 2 : 1;
-                    else anim.currentRow = dy > 0 ? 3 : 0;
+                    if (Math.abs(dx) > 0.005f) {
+                        if (isFemale) anim.currentRow = dx > 0 ? 1 : 2;
+                        else anim.currentRow = dx > 0 ? 2 : 1;
+                    } else {
+                        anim.currentRow = dy > 0 ? 3 : 0;
+                    }
 
                     anim.stateTime += delta;
                     float runSpeed = isSprintingAnim ? 0.07f : 0.15f;
@@ -1557,6 +1590,12 @@ public class GameScreen implements Screen {
 
                 float currentDrawWidth = currentFrame.getRegionWidth();
                 float currentDrawHeight = currentFrame.getRegionHeight();
+
+                // ── FEMALE CHARACTER IN-GAME SCALING ──
+                if (isFemale) {
+                    currentDrawWidth *= FEMALE_SPRITE_SCALE;
+                    currentDrawHeight *= FEMALE_SPRITE_SCALE;
+                }
 
                 // ── UPDATED: Bomb sprites scaled down to 0.9x ──
                 if (showBombSprite && !isSprintingAnim) {
@@ -1632,6 +1671,10 @@ public class GameScreen implements Screen {
                         currentFrame = meleeHitFrames[safeRow][safeCol];
                         currentDrawWidth = meleeHitFrameWidth * 0.8f;
                         currentDrawHeight = meleeHitFrameHeight * 0.8f;
+                        if (isFemale) {
+                            currentDrawWidth *= FEMALE_SPRITE_SCALE;
+                            currentDrawHeight *= FEMALE_SPRITE_SCALE;
+                        }
                     }
                 } else if (anim.isAttacking && showBombSprite) {
                     anim.attackTime += delta;
@@ -1648,6 +1691,10 @@ public class GameScreen implements Screen {
 
                         currentDrawWidth = currentFrame.getRegionWidth() * 0.6f;
                         currentDrawHeight = currentFrame.getRegionHeight() * 0.6f;
+                        if (isFemale) {
+                            currentDrawWidth *= FEMALE_SPRITE_SCALE;
+                            currentDrawHeight *= FEMALE_SPRITE_SCALE;
+                        }
                     }
                 }
 
@@ -2626,6 +2673,7 @@ public class GameScreen implements Screen {
         if (markerTexture != null) markerTexture.dispose();
         if (playerTexture != null) playerTexture.dispose();
         if (idleTexture != null) idleTexture.dispose();
+        if (femalePlayerTexture != null) femalePlayerTexture.dispose();
         if (playerSprintTexture != null && playerSprintTexture != playerTexture) playerSprintTexture.dispose();
         if (zombieTexture != null) zombieTexture.dispose();
         if (zombieIdleTexture != null && zombieIdleTexture != zombieTexture) zombieIdleTexture.dispose();

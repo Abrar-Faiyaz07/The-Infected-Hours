@@ -129,6 +129,16 @@ public class GameServer {
         }
     }
 
+    private volatile CharacterType hostCharacter = CharacterType.ELRIC;
+
+    public void setHostCharacter(CharacterType hostCharacter) {
+        this.hostCharacter = hostCharacter != null ? hostCharacter : CharacterType.ELRIC;
+    }
+
+    public CharacterType getHostCharacter() {
+        return hostCharacter;
+    }
+
     public void start(String hostDisplayName, String backendUrl) throws IOException {
         if (running) {
             return;
@@ -165,12 +175,12 @@ public class GameServer {
         LOG.info(() -> "GameServer listening on TCP " + GameConstants.KRYONET_TCP_PORT
                 + " / UDP " + GameConstants.KRYONET_UDP_PORT + " as \"" + this.hostDisplayName + "\"");
 
-        // Spawn test machete to the right
+        // Spawn test machete to the right of host
         WorldSnapshot.ItemState testMachete = new WorldSnapshot.ItemState();
         testMachete.id = "machete_1";
         testMachete.type = "MELEE";
-        testMachete.x = spawnX(CharacterType.ELRIC) + 1.5f;
-        testMachete.y = spawnY(CharacterType.ELRIC);
+        testMachete.x = spawnX(hostCharacter) + 1.5f;
+        testMachete.y = spawnY(hostCharacter);
         addItem(testMachete);
     }
 
@@ -213,7 +223,9 @@ public class GameServer {
                 return;
             }
 
-            CharacterType character = playersByConnectionId.isEmpty() ? CharacterType.ELRIC : CharacterType.JANE;
+            CharacterType character = playersByConnectionId.isEmpty()
+                    ? hostCharacter
+                    : (hostCharacter == CharacterType.ELRIC ? CharacterType.JANE : CharacterType.ELRIC);
             String playerId = joinRequest.playerId != null && !joinRequest.playerId.isBlank()
                     ? joinRequest.playerId
                     : character.name().toLowerCase() + "-" + connection.getID();

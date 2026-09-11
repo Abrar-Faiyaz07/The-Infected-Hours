@@ -42,6 +42,7 @@ public class InfectedHourGame extends Game {
     public void create() {
         if (session.host()) {
             server = new GameServer();
+            server.setHostCharacter(session.preferredCharacter());
             try {
                 server.start(session.displayName(), session.advertisedBackendUrl());
             } catch (IOException e) {

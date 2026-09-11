@@ -45,7 +45,7 @@ public class MainMenuController {
 
     @FXML
     private void onSinglePlayer() {
-        new GameLauncherBridge(stage, backendClient).startAsHost(() -> { });
+        navigate(new CharacterSelectView(stage, backendClient).getRoot());
     }
 
     @FXML
