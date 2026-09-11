@@ -106,6 +106,10 @@ public class MainMenuScreen implements Screen {
 
     @Override
     public void render(float delta) {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F11)) {
+            com.infectedhour.core.display.DisplayManager.toggleDisplayMode();
+        }
+
         game.stepSimulation(delta);
 
         camera.update();
@@ -161,10 +165,10 @@ public class MainMenuScreen implements Screen {
         batch.end();
 
         // Menu Buttons
-        float btnW = 380f;
-        float btnH = 54f;
-        float startY = VIRTUAL_HEIGHT - 260f;
-        float spacing = 72f;
+        float btnW = 420f;
+        float btnH = 50f;
+        float startY = VIRTUAL_HEIGHT - 240f;
+        float spacing = 62f;
 
         if (drawButton(centerX - btnW / 2f, startY, btnW, btnH, "1.  STORY MODE (NEW RUN)", mouse, clicked)
                 || Gdx.input.isKeyJustPressed(Input.Keys.NUM_1) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_1)) {
@@ -182,15 +186,21 @@ public class MainMenuScreen implements Screen {
             state = MenuState.CONTROLS;
         }
 
-        if (drawButton(centerX - btnW / 2f, startY - spacing * 3, btnW, btnH, "4.  QUIT GAME", mouse, clicked)
+        String displayBtnText = "4.  DISPLAY: [ " + com.infectedhour.core.display.DisplayManager.getModeLabel() + " ] (F11)";
+        if (drawButton(centerX - btnW / 2f, startY - spacing * 3, btnW, btnH, displayBtnText, mouse, clicked)
                 || Gdx.input.isKeyJustPressed(Input.Keys.NUM_4) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_4)) {
+            com.infectedhour.core.display.DisplayManager.toggleDisplayMode();
+        }
+
+        if (drawButton(centerX - btnW / 2f, startY - spacing * 4, btnW, btnH, "5.  QUIT GAME", mouse, clicked)
+                || Gdx.input.isKeyJustPressed(Input.Keys.NUM_5) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_5)) {
             Gdx.app.exit();
         }
 
         // Footer Info
         batch.begin();
         font.setColor(Color.GRAY);
-        font.draw(batch, "Native Single-Window Mode  |  v1.0  |  Press [1-4] or Click to Select", 40f, 40f);
+        font.draw(batch, "Mode: " + com.infectedhour.core.display.DisplayManager.getModeLabel() + "  |  Press [1-5] or Click  |  [F11] Toggle Fullscreen", 40f, 40f);
         batch.end();
     }
 
@@ -411,10 +421,10 @@ public class MainMenuScreen implements Screen {
         titleFont.draw(batch, "CONTROLS & HOW TO PLAY", centerX - (layout.width / 2f), VIRTUAL_HEIGHT - 70f);
         batch.end();
 
-        float boxW = 680f;
-        float boxH = 420f;
+        float boxW = 720f;
+        float boxH = 460f;
         float boxX = centerX - boxW / 2f;
-        float boxY = 160f;
+        float boxY = 135f;
 
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
@@ -431,8 +441,8 @@ public class MainMenuScreen implements Screen {
 
         batch.begin();
         float textX = boxX + 40f;
-        float textY = boxY + boxH - 40f;
-        float lineGap = 42f;
+        float textY = boxY + boxH - 35f;
+        float lineGap = 40f;
 
         buttonFont.setColor(0.910f, 0.690f, 0.165f, 1f);
         buttonFont.draw(batch, "KEYBOARD & MOUSE CONTROLS:", textX, textY);
@@ -445,6 +455,7 @@ public class MainMenuScreen implements Screen {
         font.draw(batch, "•  H  or  [3]            — Healing Surge (+35 HP & 15s immunity, 12s cooldown)", textX, textY - lineGap * 5);
         font.draw(batch, "•  ESC                   — Pause Game & Open Save Slots Overlay", textX, textY - lineGap * 6);
         font.draw(batch, "•  1 / 2 (Keys)          — Switch between Machete & Bomb in gameplay", textX, textY - lineGap * 7);
+        font.draw(batch, "•  F11                   — Toggle Display Mode (Windows Fit / Full Screen)", textX, textY - lineGap * 8);
         batch.end();
 
         // Back Button

@@ -25,7 +25,7 @@ public class SettingsView {
 
         Slider musicVolume = new Slider(0, 100, 80);
         Slider sfxVolume = new Slider(0, 100, 80);
-        CheckBox fullscreen = new CheckBox("Fullscreen (applies when the game starts)");
+        CheckBox fullscreen = new CheckBox("Fullscreen (Default: Windows Fit)");
         fullscreen.setSelected(SessionState.get().isFullscreen());
         fullscreen.setOnAction(e -> SessionState.get().setFullscreen(fullscreen.isSelected()));
 

@@ -803,6 +803,10 @@ public class GameScreen implements Screen {
             }
         }
 
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F11)) {
+            com.infectedhour.core.display.DisplayManager.toggleDisplayMode();
+        }
+
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
             if (isSaveOverlayOpen) {
                 isSaveOverlayOpen = false;
@@ -2232,7 +2236,7 @@ public class GameScreen implements Screen {
         }
 
         font.setColor(Color.GRAY);
-        font.draw(batch, "WASD move   E interact   SPACE attack / LMB   SHIFT sprint   M map   H heal (+35 HP)   ESC pause   I inventory   F3 debug", 20f, 30f);
+        font.draw(batch, "WASD move   E interact   SPACE attack   SHIFT sprint   M map   H heal (+35 HP)   ESC pause   I inventory   F11 fullscreen", 20f, 30f);
         batch.end();
 
         drawMinimap(snapshot, hudMatrix, delta);
@@ -2422,7 +2426,7 @@ public class GameScreen implements Screen {
         shapes.setColor(0.04f, 0.06f, 0.1f, 0.85f);
         shapes.rect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
 
-        float panelW = 420f, panelH = 240f;
+        float panelW = 460f, panelH = 290f;
         float panelX = (VIRTUAL_WIDTH - panelW) / 2f, panelY = (VIRTUAL_HEIGHT - panelH) / 2f;
 
         shapes.setColor(0.08f, 0.12f, 0.2f, 0.95f);
@@ -2438,24 +2442,22 @@ public class GameScreen implements Screen {
         viewport.unproject(mouseCoords);
         boolean mouseJustPressed = Gdx.input.isButtonJustPressed(Input.Buttons.LEFT);
 
-        float btnW = 320f, btnH = 45f, btnX = (VIRTUAL_WIDTH - btnW) / 2f, btn1Y = panelY + 120f;
+        float btnW = 380f, btnH = 44f, btnX = (VIRTUAL_WIDTH - btnW) / 2f;
+
+        float btn1Y = panelY + 165f;
         boolean btn1Hovered = mouseCoords.x >= btnX && mouseCoords.x <= btnX + btnW && mouseCoords.y >= btn1Y && mouseCoords.y <= btn1Y + btnH;
         if (btn1Hovered && mouseJustPressed) {
             paused = false;
             client.sendEvent(GameConstants.EVENT_RESUME, "");
         }
 
-        shapes.begin(ShapeRenderer.ShapeType.Filled);
-        shapes.setColor(btn1Hovered ? new Color(0.25f, 0.35f, 0.5f, 1f) : new Color(0.15f, 0.2f, 0.3f, 1f));
-        shapes.rect(btnX, btn1Y, btnW, btnH);
-        shapes.end();
+        float btnDisplayY = panelY + 105f;
+        boolean btnDisplayHovered = mouseCoords.x >= btnX && mouseCoords.x <= btnX + btnW && mouseCoords.y >= btnDisplayY && mouseCoords.y <= btnDisplayY + btnH;
+        if ((btnDisplayHovered && mouseJustPressed) || Gdx.input.isKeyJustPressed(Input.Keys.F)) {
+            com.infectedhour.core.display.DisplayManager.toggleDisplayMode();
+        }
 
-        shapes.begin(ShapeRenderer.ShapeType.Line);
-        shapes.setColor(btn1Hovered ? new Color(0.91f, 0.69f, 0.16f, 1f) : new Color(0.4f, 0.5f, 0.65f, 1f));
-        shapes.rect(btnX, btn1Y, btnW, btnH);
-        shapes.end();
-
-        float btn2Y = panelY + 50f;
+        float btn2Y = panelY + 45f;
         boolean btn2Hovered = mouseCoords.x >= btnX && mouseCoords.x <= btnX + btnW && mouseCoords.y >= btn2Y && mouseCoords.y <= btn2Y + btnH;
         if (!returningToLauncher
                 && ((btn2Hovered && mouseJustPressed)
@@ -2467,11 +2469,23 @@ public class GameScreen implements Screen {
         }
 
         shapes.begin(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(btn1Hovered ? new Color(0.25f, 0.35f, 0.5f, 1f) : new Color(0.15f, 0.2f, 0.3f, 1f));
+        shapes.rect(btnX, btn1Y, btnW, btnH);
+
+        shapes.setColor(btnDisplayHovered ? new Color(0.20f, 0.38f, 0.32f, 1f) : new Color(0.12f, 0.24f, 0.20f, 1f));
+        shapes.rect(btnX, btnDisplayY, btnW, btnH);
+
         shapes.setColor(btn2Hovered ? new Color(0.5f, 0.18f, 0.18f, 1f) : new Color(0.28f, 0.12f, 0.12f, 1f));
         shapes.rect(btnX, btn2Y, btnW, btnH);
         shapes.end();
 
         shapes.begin(ShapeRenderer.ShapeType.Line);
+        shapes.setColor(btn1Hovered ? new Color(0.91f, 0.69f, 0.16f, 1f) : new Color(0.4f, 0.5f, 0.65f, 1f));
+        shapes.rect(btnX, btn1Y, btnW, btnH);
+
+        shapes.setColor(btnDisplayHovered ? new Color(0.20f, 0.83f, 0.60f, 1f) : new Color(0.3f, 0.6f, 0.45f, 1f));
+        shapes.rect(btnX, btnDisplayY, btnW, btnH);
+
         shapes.setColor(btn2Hovered ? new Color(1f, 0.4f, 0.4f, 1f) : new Color(0.65f, 0.25f, 0.25f, 1f));
         shapes.rect(btnX, btn2Y, btnW, btnH);
         shapes.end();
@@ -2483,13 +2497,17 @@ public class GameScreen implements Screen {
         font.setColor(new Color(0.91f, 0.69f, 0.16f, 1f));
         font.draw(batch, returningToLauncher ? "RETURNING TO MAIN MENU…" : "GAME PAUSED",
                 returningToLauncher ? VIRTUAL_WIDTH / 2f - 112f : VIRTUAL_WIDTH / 2f - 60f,
-                panelY + panelH - 25f);
+                panelY + panelH - 22f);
 
         font.setColor(btn1Hovered ? Color.WHITE : Color.LIGHT_GRAY);
-        font.draw(batch, "Resume Game (ESC)", btnX + 70f, btn1Y + 28f);
+        font.draw(batch, "Resume Game (ESC)", btnX + 115f, btn1Y + 28f);
+
+        font.setColor(btnDisplayHovered ? Color.WHITE : new Color(0.85f, 0.95f, 0.88f, 1f));
+        String modeText = "Display Mode: [ " + com.infectedhour.core.display.DisplayManager.getModeLabel() + " ] (Click/F11)";
+        font.draw(batch, modeText, btnX + 50f, btnDisplayY + 28f);
 
         font.setColor(btn2Hovered ? Color.WHITE : new Color(0.95f, 0.6f, 0.6f, 1f));
-        font.draw(batch, "Exit to Main Menu (Q)", btnX + 60f, btn2Y + 28f);
+        font.draw(batch, "Exit to Main Menu (Q)", btnX + 105f, btn2Y + 28f);
         batch.end();
     }
 
