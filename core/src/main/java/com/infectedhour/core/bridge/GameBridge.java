@@ -24,6 +24,7 @@ import java.util.function.Supplier;
  */
 public class GameBridge {
 
+    private volatile boolean hasLauncher = false;
     private volatile Consumer<MatchOutcome> onMatchEnded = outcome -> {
     };
     private volatile Runnable onGameReady = () -> {
@@ -109,8 +110,19 @@ public class GameBridge {
         this.onGameWindowClosed = callback != null ? callback : () -> {};
     }
 
+    public boolean hasLauncher() {
+        return hasLauncher;
+    }
+
+    public void setHasLauncher(boolean hasLauncher) {
+        this.hasLauncher = hasLauncher;
+    }
+
     public void setOnReturnToLauncherRequested(Consumer<Runnable> callback) {
         this.onReturnToLauncherRequested = callback != null ? callback : completion -> completion.run();
+        if (callback != null) {
+            this.hasLauncher = true;
+        }
     }
 
     public void setOnJoinFailed(Consumer<String> callback) {

@@ -80,10 +80,10 @@ public class InfectedHourGame extends Game {
             });
         });
 
-        if (session.host() && !session.isLoadingSave()) {
-            setScreen(new com.infectedhour.core.screens.MainMenuScreen(this, client, bridge));
-        } else {
+        if (bridge.hasLauncher() || session.isLoadingSave()) {
             setScreen(new LevelBriefingScreen(this, client, bridge, session.startingLevel()));
+        } else {
+            setScreen(new com.infectedhour.core.screens.MainMenuScreen(this, client, bridge));
         }
     }
 

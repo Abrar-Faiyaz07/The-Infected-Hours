@@ -792,7 +792,11 @@ public class GameScreen implements Screen {
                 if (!returningToLauncher && (Gdx.input.isKeyJustPressed(Input.Keys.ANY_KEY) || Gdx.input.isButtonPressed(Input.Buttons.LEFT))) {
                     returningToLauncher = true;
                     bridge.notifyMatchEnded(new GameBridge.MatchOutcome("DEFEAT", levelNumber));
-                    game.setScreen(new MainMenuScreen(game, client, bridge));
+                    if (bridge.hasLauncher()) {
+                        bridge.requestReturnToLauncher(() -> Gdx.app.postRunnable(Gdx.app::exit));
+                    } else {
+                        game.setScreen(new MainMenuScreen(game, client, bridge));
+                    }
                 }
                 return;
             }
@@ -2464,7 +2468,11 @@ public class GameScreen implements Screen {
                 || Gdx.input.isKeyJustPressed(Input.Keys.Q)
                 || Gdx.input.isKeyJustPressed(Input.Keys.M))) {
             returningToLauncher = true;
-            game.setScreen(new MainMenuScreen(game, client, bridge));
+            if (bridge.hasLauncher()) {
+                bridge.requestReturnToLauncher(() -> Gdx.app.postRunnable(Gdx.app::exit));
+            } else {
+                game.setScreen(new MainMenuScreen(game, client, bridge));
+            }
             return;
         }
 

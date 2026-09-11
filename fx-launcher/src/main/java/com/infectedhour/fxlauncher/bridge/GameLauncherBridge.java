@@ -85,6 +85,7 @@ public class GameLauncherBridge {
 
     public void startMatch(SessionConfig session, Runnable onReturnToLauncher) {
         GameBridge bridge = new GameBridge();
+        bridge.setHasLauncher(true);
 
         final boolean[] matchEnded = new boolean[]{false};
         AtomicBoolean launcherRestored = new AtomicBoolean(false);
