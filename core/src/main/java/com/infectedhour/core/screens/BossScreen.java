@@ -5,6 +5,7 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
@@ -31,6 +32,7 @@ public class BossScreen implements Screen {
     private BitmapFont font;
     private BitmapFont titleFont;
     private Matrix4 projection;
+    private Texture mapTexture;
     private boolean titleCardDismissed;
     private int injectedSamples;
     private float coreHoldSeconds;
@@ -51,6 +53,12 @@ public class BossScreen implements Screen {
         titleFont = new BitmapFont();
         titleFont.getData().setScale(2.6f);
         projection = new Matrix4().setToOrtho2D(0f, 0f, WIDTH, HEIGHT);
+        if (Gdx.files.internal("map3.png").exists()) {
+            try {
+                mapTexture = new Texture(Gdx.files.internal("map3.png"));
+                mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            } catch (Exception ignored) { }
+        }
         if (game.isHost() && game.getServer() != null) {
             game.getServer().configureLevel(LevelDefinition.level3Boss());
         }
@@ -70,6 +78,15 @@ public class BossScreen implements Screen {
                 titleCardDismissed = true;
             }
             return;
+        }
+
+        if (mapTexture != null) {
+            batch.setProjectionMatrix(projection);
+            batch.begin();
+            batch.setColor(0.40f, 0.45f, 0.48f, 1f);
+            batch.draw(mapTexture, 0f, 0f, WIDTH, HEIGHT);
+            batch.setColor(Color.WHITE);
+            batch.end();
         }
 
         updateEncounter(delta);
@@ -219,5 +236,6 @@ public class BossScreen implements Screen {
         if (shapes != null) shapes.dispose();
         if (font != null) font.dispose();
         if (titleFont != null) titleFont.dispose();
+        if (mapTexture != null) mapTexture.dispose();
     }
 }

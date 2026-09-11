@@ -131,6 +131,14 @@ public class GameScreen implements Screen {
     private int bombEffectFrameWidth;
     private final List<ActiveExplosion> activeExplosions = new ArrayList<>();
 
+    // Healing Ability
+    private float healCooldown = 0f;
+    private static final float MAX_HEAL_COOLDOWN = 12.0f;
+    private float healEffectTimer = 0f;
+    private float healFloatingTextTimer = 0f;
+    private Texture healIconTexture;
+    private Texture healEffectTexture;
+
     // HUD Damage Screen Tracking
     private Texture damagedScreen1Texture;
     private Texture damagedScreen2Texture;
@@ -414,6 +422,20 @@ public class GameScreen implements Screen {
                         middleZombieX = feature.tileX();
                         middleZombieY = feature.tileY();
                     });
+        } else if (levelNumber == 3) {
+            isZombieDead = true;
+            isAmbushActive = true;
+            isAmbushDefeated = false;
+            ambushZombies.clear();
+            AmbushZombie titanBoss = new AmbushZombie(30.5f, 20.5f, true);
+            titanBoss.maxHp = 600f;
+            titanBoss.hp = 600f;
+            ambushZombies.add(titanBoss);
+
+            ambushZombies.add(new AmbushZombie(24.5f, 18.5f, false));
+            ambushZombies.add(new AmbushZombie(36.5f, 22.5f, false));
+            ambushZombies.add(new AmbushZombie(28.5f, 26.5f, false));
+            ambushZombies.add(new AmbushZombie(32.5f, 14.5f, false));
         }
 
         this.collisionSystem = new CollisionSystem(tileMap);
@@ -534,6 +556,8 @@ public class GameScreen implements Screen {
 
         damagedScreen1Texture = loadTextureSafely("damaged_screen1.png");
         damagedScreen2Texture = loadTextureSafely("damaged_screen2.png");
+        healIconTexture = loadTextureSafely("heal_icon.png");
+        healEffectTexture = loadTextureSafely("heal_effect.png");
 
         timerTexture = loadTextureSafely("timer.png");
         if (timerTexture != null) {
@@ -702,17 +726,43 @@ public class GameScreen implements Screen {
             bombCooldown -= delta;
         }
 
+        if (healCooldown > 0f) {
+            healCooldown = Math.max(0f, healCooldown - delta);
+        }
+        if (healEffectTimer > 0f) {
+            healEffectTimer = Math.max(0f, healEffectTimer - delta);
+        }
+        if (healFloatingTextTimer > 0f) {
+            healFloatingTextTimer = Math.max(0f, healFloatingTextTimer - delta);
+        }
+
         if (!paused && currentImmunityTime > 0f) {
             currentImmunityTime = Math.max(0f, currentImmunityTime - delta);
         }
 
-        if (Gdx.input.isKeyJustPressed(Input.Keys.H)) {
-            currentImmunityTime = Math.min(maxImmunityTime, currentImmunityTime + 30f);
-            showBanner("Immunity +30s");
+        if (snapshot != null) {
+            me = client.findLocalPlayer(snapshot);
+        }
+
+        boolean healPressed = Gdx.input.isKeyJustPressed(Input.Keys.H) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_3);
+        if (healPressed && !paused && !isInventoryOpen && me != null && !me.downed && me.hp > 0f) {
+            if (healCooldown <= 0f) {
+                if (me.hp < 100f || currentImmunityTime < maxImmunityTime) {
+                    healCooldown = MAX_HEAL_COOLDOWN;
+                    healEffectTimer = 1.5f;
+                    healFloatingTextTimer = 1.5f;
+                    currentImmunityTime = Math.min(maxImmunityTime, currentImmunityTime + 15f);
+                    client.sendEvent("PLAYER_HEAL", "35.0");
+                    showBanner("Used First Aid! (+35 HP)");
+                } else {
+                    showBanner("Health is already full (100 HP)!");
+                }
+            } else {
+                showBanner("First Aid on cooldown (" + String.format("%.1f", healCooldown) + "s)");
+            }
         }
 
         if (snapshot != null) {
-            me = client.findLocalPlayer(snapshot);
             if (me != null && (me.downed || me.hp <= 0f || currentImmunityTime <= 0f)) {
                 Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
                 Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
@@ -1105,7 +1155,14 @@ public class GameScreen implements Screen {
         long remaining = ambushZombies.stream().filter(z -> !z.dead).count();
         if (remaining == 0) {
             isAmbushDefeated = true;
-            showBanner("MUTATED BOSS & HORDE DEFEATED! The stairs to Ground Floor are unlocked!");
+            if (levelNumber == 3) {
+                showBanner("VIRUS HEART DESTROYED! ASHGROVE IS SAVED!");
+                Gdx.app.postRunnable(() -> {
+                    game.setScreen(new StoryPanelScreen(game, client, bridge, StoryPanelScreen.Sequence.ENDING, 3));
+                });
+            } else {
+                showBanner("MUTATED BOSS & HORDE DEFEATED! The stairs to Ground Floor are unlocked!");
+            }
         }
     }
 
@@ -1600,6 +1657,26 @@ public class GameScreen implements Screen {
                 float drawX = Math.round((player.x * PIXELS_PER_TILE) - (currentDrawWidth / 2f));
                 float drawY = Math.round((player.y * PIXELS_PER_TILE) - SPRITE_FEET_INSET_PX);
                 batch.draw(currentFrame, drawX, drawY, currentDrawWidth, currentDrawHeight);
+
+                // Healing Aura & Floating Text
+                if (isLocalPlayer && healEffectTimer > 0f && healEffectTexture != null) {
+                    float effSize = 72f + (float) Math.sin((1.5f - healEffectTimer) * 8.0f) * 10f;
+                    float effX = Math.round((player.x * PIXELS_PER_TILE) - (effSize / 2f));
+                    float effY = Math.round((player.y * PIXELS_PER_TILE) - (effSize / 2f) + 12f);
+                    float alpha = Math.min(1.0f, healEffectTimer / 0.5f);
+                    batch.setColor(0.3f, 1.0f, 0.5f, alpha * 0.85f);
+                    batch.draw(healEffectTexture, effX, effY, effSize, effSize);
+                    batch.setColor(Color.WHITE);
+                }
+
+                if (isLocalPlayer && healFloatingTextTimer > 0f) {
+                    float lift = (1.5f - healFloatingTextTimer) * 28f;
+                    float tx = Math.round((player.x * PIXELS_PER_TILE) - 22f);
+                    float ty = Math.round((player.y * PIXELS_PER_TILE) + 42f + lift);
+                    font.setColor(0.2f, 1.0f, 0.4f, Math.min(1f, healFloatingTextTimer / 0.4f));
+                    font.draw(batch, "+35 HP", tx, ty);
+                    font.setColor(Color.WHITE);
+                }
             }
         }
     }
@@ -1882,6 +1959,28 @@ public class GameScreen implements Screen {
         font.setColor(Color.WHITE);
         font.draw(batch, "LEVEL " + levelNumber + "   |   " + client.getMatchMode() + "   |   " + (game.isHost() ? "HOST" : "CLIENT"), 20f, top);
 
+        // Draw Heal Ability HUD Slot
+        if (healIconTexture != null) {
+            float badgeX = timerX + scaledTW + 180f;
+            float badgeY = timerY + scaledTH - 32f;
+            float bSize = 32f;
+
+            batch.setColor(healCooldown > 0f ? new Color(0.6f, 0.6f, 0.6f, 0.7f) : Color.WHITE);
+            batch.draw(healIconTexture, badgeX, badgeY, bSize, bSize);
+            batch.setColor(Color.WHITE);
+
+            font.setColor(0.910f, 0.690f, 0.165f, 1f);
+            font.draw(batch, "[H]", badgeX + 6f, badgeY + bSize + 14f);
+
+            if (healCooldown > 0f) {
+                font.setColor(Color.YELLOW);
+                font.draw(batch, String.format("%.1fs", healCooldown), badgeX + bSize + 6f, badgeY + 20f);
+            } else {
+                font.setColor(new Color(0.2f, 1.0f, 0.4f, 1f));
+                font.draw(batch, "READY", badgeX + bSize + 6f, badgeY + 20f);
+            }
+        }
+
         float objectiveX = 1010f;
         float objectiveY = isMinimapOpen ? 556f : top;
 
@@ -1925,6 +2024,41 @@ public class GameScreen implements Screen {
             boolean canEscape = hasStairsKey && isAmbushDefeated;
             font.setColor(canEscape ? Color.GREEN : Color.GRAY);
             font.draw(batch, (canEscape ? "[READY] " : "[LOCKED] ") + "Escape to Ground Floor", objectiveX, objectiveY);
+        } else if (levelNumber == 3) {
+            font.setColor(0.910f, 0.690f, 0.165f, 1f);
+            font.draw(batch, "VIRUS HEART ANTECHAMBER", objectiveX, objectiveY);
+            objectiveY -= 22f;
+
+            if (isAmbushActive) {
+                AmbushZombie boss = null;
+                long minionsAlive = 0;
+                for (AmbushZombie az : ambushZombies) {
+                    if (az.dead) continue;
+                    if (az.isBoss) boss = az;
+                    else minionsAlive++;
+                }
+
+                if (boss != null) {
+                    font.setColor(Color.CORAL);
+                    font.draw(batch, "[!] Outbreak Titan: " + (int) boss.hp + "/" + (int) boss.maxHp + " HP", objectiveX, objectiveY);
+                } else {
+                    font.setColor(Color.GREEN);
+                    font.draw(batch, "[DONE] Titan Defeated", objectiveX, objectiveY);
+                }
+                objectiveY -= 20f;
+
+                if (minionsAlive > 0) {
+                    font.setColor(Color.FIREBRICK);
+                    font.draw(batch, "[!] Minions: " + minionsAlive + " remaining", objectiveX, objectiveY);
+                } else {
+                    font.setColor(Color.GREEN);
+                    font.draw(batch, "[DONE] Minions Cleared", objectiveX, objectiveY);
+                }
+                objectiveY -= 20f;
+            }
+
+            font.setColor(isAmbushDefeated ? Color.GREEN : Color.GRAY);
+            font.draw(batch, (isAmbushDefeated ? "[VICTORY] " : "[OBJECTIVE] ") + "Defeat Outbreak Source", objectiveX, objectiveY);
         } else if (snapshot != null && snapshot.objectives != null && !snapshot.objectives.isEmpty()) {
             font.setColor(0.910f, 0.690f, 0.165f, 1f);
             font.draw(batch, "ROADSIDE OBJECTIVES", objectiveX, objectiveY);
@@ -2051,7 +2185,7 @@ public class GameScreen implements Screen {
         }
 
         font.setColor(Color.GRAY);
-        font.draw(batch, "WASD move   E interact   SPACE attack / LMB   SHIFT sprint   M map   ESC pause   I inventory   F3 debug   H immunity", 20f, 30f);
+        font.draw(batch, "WASD move   E interact   SPACE attack / LMB   SHIFT sprint   M map   H heal (+35 HP)   ESC pause   I inventory   F3 debug", 20f, 30f);
         batch.end();
 
         drawMinimap(snapshot, hudMatrix, delta);
@@ -2512,5 +2646,7 @@ public class GameScreen implements Screen {
         if (meleeInventoryTexture != null) meleeInventoryTexture.dispose();
         if (meleeHitTexture != null) meleeHitTexture.dispose();
         if (keyTexture != null) keyTexture.dispose();
+        if (healIconTexture != null) healIconTexture.dispose();
+        if (healEffectTexture != null) healEffectTexture.dispose();
     }
 }

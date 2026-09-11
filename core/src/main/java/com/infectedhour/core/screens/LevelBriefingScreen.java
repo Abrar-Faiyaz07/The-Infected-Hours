@@ -176,8 +176,6 @@ public class LevelBriefingScreen implements Screen {
     private void advance() {
         if (levelNumber == 1) {
             game.setScreen(new StoryPanelScreen(game, client, bridge, StoryPanelScreen.Sequence.INTRO, levelNumber));
-        } else if (levelNumber == GameConstants.BOSS_LEVEL_NUMBER) {
-            game.setScreen(new BossScreen(game, client, bridge));
         } else {
             game.setScreen(new GameScreen(game, client, bridge, levelNumber));
         }

@@ -276,6 +276,19 @@ public class GameServer {
             return;
         }
 
+        // Handle healing ability
+        if ("PLAYER_HEAL".equals(event.type)) {
+            if (sender.entity.getHp() > 0f && !sender.entity.isDowned()) {
+                float healAmount = 35f;
+                try {
+                    healAmount = Float.parseFloat(event.payload);
+                } catch (NumberFormatException ignored) {}
+                sender.entity.heal(healAmount);
+                LOG.info(() -> sender.displayName + " healed (" + sender.entity.getHp() + " HP)");
+            }
+            return;
+        }
+
         // Level exits use TCP because a one-frame E press must never disappear
         // as a dropped/rate-limited UDP input packet. Position and objective
         // completion are still validated by the authoritative host.
