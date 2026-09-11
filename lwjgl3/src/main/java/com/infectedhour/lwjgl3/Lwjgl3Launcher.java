@@ -55,10 +55,14 @@ public class Lwjgl3Launcher {
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
         config.setTitle("The Infected Hour");
         if (fullscreen) {
-            config.setFullscreenMode(Lwjgl3ApplicationConfiguration.getDisplayMode());
+            com.badlogic.gdx.Graphics.DisplayMode displayMode = Lwjgl3ApplicationConfiguration.getDisplayMode();
+            config.setWindowedMode(displayMode.width, displayMode.height);
+            config.setWindowPosition(0, 0);
+            config.setDecorated(false);
+            config.setResizable(false);
         } else {
             config.setWindowedMode(1280, 720);
-            config.setMaximized(true);
+            config.setDecorated(true);
             config.setResizable(true);
         }
         config.useVsync(true);

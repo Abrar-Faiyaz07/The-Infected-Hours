@@ -3,15 +3,18 @@ package com.infectedhour.core.screens;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.PixmapIO;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
@@ -32,7 +35,9 @@ import com.infectedhour.shared.network.CharacterType;
 import com.infectedhour.shared.network.InputCommand;
 import com.infectedhour.shared.network.WorldSnapshot;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -809,6 +814,10 @@ public class GameScreen implements Screen {
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.F11)) {
             com.infectedhour.core.display.DisplayManager.toggleDisplayMode();
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F12)) {
+            takeInGameScreenshot();
         }
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
@@ -2240,7 +2249,7 @@ public class GameScreen implements Screen {
         }
 
         font.setColor(Color.GRAY);
-        font.draw(batch, "WASD move   E interact   SPACE attack   SHIFT sprint   M map   H heal (+35 HP)   ESC pause   I inventory   F11 fullscreen", 20f, 30f);
+        font.draw(batch, "WASD move   E interact   SPACE attack   SHIFT sprint   M map   H heal (+35 HP)   ESC pause   I inventory   F11 fullscreen   F12 screenshot", 20f, 30f);
         batch.end();
 
         drawMinimap(snapshot, hudMatrix, delta);
@@ -2688,6 +2697,25 @@ public class GameScreen implements Screen {
         font.draw(batch, "Close (ESC)", btnX + 60f, btnY + 26f);
 
         batch.end();
+    }
+
+    private void takeInGameScreenshot() {
+        try {
+            int w = Gdx.graphics.getBackBufferWidth();
+            int h = Gdx.graphics.getBackBufferHeight();
+            Pixmap pixmap = ScreenUtils.getFrameBufferPixmap(0, 0, w, h);
+            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+            FileHandle dir = Gdx.files.local("screenshots");
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+            FileHandle file = dir.child("screenshot_" + timestamp + ".png");
+            PixmapIO.writePNG(file, pixmap);
+            pixmap.dispose();
+            showBanner("Screenshot saved: " + file.name());
+        } catch (Throwable t) {
+            showBanner("Screenshot failed: " + t.getMessage());
+        }
     }
 
     @Override
