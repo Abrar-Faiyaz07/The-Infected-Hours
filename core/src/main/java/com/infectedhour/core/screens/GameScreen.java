@@ -71,7 +71,7 @@ public class GameScreen implements Screen {
     private Texture markerTexture;
     private List<CampaignLevelPlan.Feature> levelFeatures = List.of();
     private final Set<String> completedFeatureIds = new HashSet<>();
-    private boolean zombieObjectiveSent;
+    private boolean zombieObjectiveSent = false;
 
     private CollisionSystem collisionSystem;
 
@@ -83,6 +83,10 @@ public class GameScreen implements Screen {
     private Texture idleTexture;
     private TextureRegion[][] idleFrames;
     private int idleFrameWidth, idleFrameHeight;
+
+    // Sprint Texture
+    private Texture playerSprintTexture;
+    private TextureRegion[][] playerSprintFrames;
 
     // Melee Textures
     private Texture playerMeleeTexture;
@@ -212,6 +216,7 @@ public class GameScreen implements Screen {
 
         boolean isAttacking = false;
         float attackTime = 0f;
+        boolean damageApplied = false;
     }
 
     private static class ZombieAnimState {
@@ -277,6 +282,17 @@ public class GameScreen implements Screen {
         Gdx.gl.glDisable(GL20.GL_BLEND);
     }
 
+    private void drawMapAlignedToCollisionGrid() {
+        float scale = PIXELS_PER_TILE / MAP_ART_TILE_PX;
+        float gridBottomFromTexBottomPx = mapTexture.getHeight() - (MAP_ART_ORIGIN_Y_TOP_PX + MAP_ART_ROWS * MAP_ART_TILE_PX);
+
+        batch.draw(mapTexture,
+                -MAP_ART_ORIGIN_X_PX * scale,
+                -gridBottomFromTexBottomPx * scale,
+                mapTexture.getWidth() * scale,
+                mapTexture.getHeight() * scale);
+    }
+
     private void drawLevelMap() {
         if (levelNumber != 1) {
             batch.draw(mapTexture, 0f, 0f,
@@ -294,7 +310,6 @@ public class GameScreen implements Screen {
                 mapTexture.getHeight() * scale);
     }
 
-    /** Temporary top-down village art generated from the Level 2 collision grid. */
     private Texture createRoadsideVillageTexture() {
         final int pixelsPerTile = 16;
         int width = tileMap.getWidth() * pixelsPerTile;
@@ -331,7 +346,6 @@ public class GameScreen implements Screen {
             }
         }
 
-        // Road markings lead visually toward the hidden-lab tunnel at the east edge.
         pixmap.setColor(0.70f, 0.58f, 0.24f, 0.75f);
         int roadY = (tileMap.getHeight() - 1 - 20) * pixelsPerTile + 7;
         for (int x = 1; x < tileMap.getWidth() - 1; x += 4) {
@@ -385,7 +399,6 @@ public class GameScreen implements Screen {
         }
         markerTexture = createColorTexture(1, 1, Color.WHITE);
 
-        // Core player textures
         playerTexture = new Texture(Gdx.files.internal("player.png"));
         playerTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         frameWidth = playerTexture.getWidth() / 8;
@@ -398,7 +411,13 @@ public class GameScreen implements Screen {
         idleFrameHeight = idleTexture.getHeight() / 4;
         idleFrames = TextureRegion.split(idleTexture, idleFrameWidth, idleFrameHeight);
 
-        // Optional melee character textures (fallback to standard player frames)
+        playerSprintTexture = loadTextureSafely("sprint.png");
+        if (playerSprintTexture != null) {
+            playerSprintFrames = TextureRegion.split(playerSprintTexture, playerSprintTexture.getWidth() / 8, playerSprintTexture.getHeight() / 4);
+        } else {
+            playerSprintFrames = playerFrames;
+        }
+
         playerMeleeTexture = loadTextureSafely("player_melee.png");
         if (playerMeleeTexture != null) {
             playerMeleeFrames = TextureRegion.split(playerMeleeTexture, frameWidth, frameHeight);
@@ -413,7 +432,6 @@ public class GameScreen implements Screen {
             idleMeleeFrames = idleFrames;
         }
 
-        // Optional bomb character textures (fallback to standard player frames)
         playerBombTexture = loadTextureSafely("player_bomb.png");
         if (playerBombTexture != null) {
             pbFrameWidth = playerBombTexture.getWidth() / 8;
@@ -443,7 +461,6 @@ public class GameScreen implements Screen {
             playerBombThrowFrames = playerFrames;
         }
 
-        // Projectile & effect textures (safe fallbacks)
         bombTexture = loadTextureSafely("bomb.png");
         if (bombTexture == null) {
             bombTexture = createColorTexture(16 * 8, 16, new Color(0.25f, 0.25f, 0.3f, 1f));
@@ -468,7 +485,6 @@ public class GameScreen implements Screen {
             timerFrames = tSplit[0];
         }
 
-        // Zombie textures
         zombieTexture = new Texture(Gdx.files.internal("zombie.png"));
         zombieTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         zombieFrameWidth = zombieTexture.getWidth() / 8;
@@ -669,6 +685,8 @@ public class GameScreen implements Screen {
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
             if (isSaveOverlayOpen) {
                 isSaveOverlayOpen = false;
+            } else if (isInventoryOpen) {
+                isInventoryOpen = false;
             } else {
                 paused = !paused;
                 client.sendEvent(paused ? GameConstants.EVENT_PAUSE : GameConstants.EVENT_RESUME, "");
@@ -721,29 +739,7 @@ public class GameScreen implements Screen {
                 if (isMacheteEquipped && !anim.isAttacking) {
                     anim.isAttacking = true;
                     anim.attackTime = 0f;
-
-                    if (!isZombieDead) {
-                        float distX = middleZombieX - me.x;
-                        float distY = middleZombieY - me.y;
-                        float distanceToZombie = (float) Math.sqrt(distX * distX + distY * distY);
-
-                        if (distanceToZombie <= 1.5f) {
-                            boolean validHit = false;
-                            if (anim.currentRow == 3 && distY > 0 && Math.abs(distX) <= 1.0f) validHit = true;
-                            else if (anim.currentRow == 0 && distY < 0 && Math.abs(distX) <= 1.0f) validHit = true;
-                            else if (anim.currentRow == 2 && distX > 0 && Math.abs(distY) <= 1.0f) validHit = true;
-                            else if (anim.currentRow == 1 && distX < 0 && Math.abs(distY) <= 1.0f) validHit = true;
-
-                            if (validHit) {
-                                middleZombieHp -= 100f;
-                                if (middleZombieHp <= 0f) {
-                                    isZombieDead = true;
-                                    isBeingBitten = false;
-                                    bloodPools.add(new Vector2(middleZombieX, middleZombieY));
-                                }
-                            }
-                        }
-                    }
+                    anim.damageApplied = false;
                 } else if (isBombEquipped && bombCooldown <= 0f) {
                     anim.isAttacking = true;
                     anim.attackTime = 0f;
@@ -752,7 +748,7 @@ public class GameScreen implements Screen {
                     b.startX = me.x;
                     b.startY = me.y;
 
-                    float throwDistance = 5.0f;
+                    float throwDistance = 6.0f;
                     if (anim.currentRow == 3) { b.targetX = me.x; b.targetY = me.y + throwDistance; }
                     else if (anim.currentRow == 0) { b.targetX = me.x; b.targetY = me.y - throwDistance; }
                     else if (anim.currentRow == 1) { b.targetX = me.x - throwDistance; b.targetY = me.y; }
@@ -779,9 +775,15 @@ public class GameScreen implements Screen {
 
         if (!paused) client.sendInputIfDue(readLocalInput(me, delta), delta);
 
-        boolean isSprinting = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT);
-        if (isSprinting && stamina > 0f) stamina = Math.max(0f, stamina - (45f * delta));
-        else if (!isSprinting && stamina < maxStamina) stamina = Math.min(maxStamina, stamina + (30f * delta));
+        boolean movementKeysPressed = Gdx.input.isKeyPressed(Input.Keys.W) || Gdx.input.isKeyPressed(Input.Keys.A) ||
+                Gdx.input.isKeyPressed(Input.Keys.S) || Gdx.input.isKeyPressed(Input.Keys.D);
+        boolean wantsToSprint = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT) && movementKeysPressed;
+
+        if (wantsToSprint && stamina > 0f) {
+            stamina = Math.max(0f, stamina - (45f * delta));
+        } else if (!wantsToSprint && stamina < maxStamina) {
+            stamina = Math.min(maxStamina, stamina + (30f * delta));
+        }
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
             isDualViewDebugMode = !isDualViewDebugMode;
@@ -799,7 +801,6 @@ public class GameScreen implements Screen {
                 int screenH = Gdx.graphics.getHeight();
                 int halfW = screenW / 2;
 
-                // LEFT HALF (P1)
                 Gdx.gl.glViewport(0, 0, halfW, screenH);
                 camera.position.set(Math.round(p1.x * PIXELS_PER_TILE), Math.round(p1.y * PIXELS_PER_TILE), 0);
                 camera.update();
@@ -810,7 +811,6 @@ public class GameScreen implements Screen {
                 drawWorld(snapshot, delta, zombieFrame, me);
                 batch.end();
 
-                // RIGHT HALF (P2)
                 Gdx.gl.glViewport(halfW, 0, halfW, screenH);
                 camera.position.set(Math.round(p2.x * PIXELS_PER_TILE), Math.round(p2.y * PIXELS_PER_TILE), 0);
                 camera.update();
@@ -821,7 +821,6 @@ public class GameScreen implements Screen {
                 drawWorld(snapshot, delta, zombieFrame, me);
                 batch.end();
 
-                // RESTORE VIEWPORT
                 Gdx.gl.glViewport(0, 0, screenW, screenH);
 
                 Matrix4 hudMatrix = new Matrix4().setToOrtho2D(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
@@ -850,7 +849,6 @@ public class GameScreen implements Screen {
                 batch.end();
             }
 
-            // Draw Health Bars over heads in World coordinates
             Gdx.gl.glEnable(GL20.GL_BLEND);
             shapes.setProjectionMatrix(camera.combined);
             shapes.begin(ShapeRenderer.ShapeType.Filled);
@@ -982,9 +980,45 @@ public class GameScreen implements Screen {
     private void drawWorld(WorldSnapshot snapshot, float delta, TextureRegion zombieFrame, WorldSnapshot.PlayerState me) {
         drawCampaignFeatures();
 
-        // 1. Blood pools
+        batch.end();
+
+        Gdx.gl.glEnable(GL20.GL_STENCIL_TEST);
+        Gdx.gl.glClear(GL20.GL_STENCIL_BUFFER_BIT);
+
+        Gdx.gl.glColorMask(false, false, false, false);
+        Gdx.gl.glDepthMask(false);
+        Gdx.gl.glStencilFunc(GL20.GL_ALWAYS, 1, 0xFF);
+        Gdx.gl.glStencilOp(GL20.GL_REPLACE, GL20.GL_REPLACE, GL20.GL_REPLACE);
+
+        shapes.setProjectionMatrix(camera.combined);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+
+        float cell = PIXELS_PER_TILE * (tileMap != null ? tileMap.getCellSize() : 1f);
+        float halfW = camera.viewportWidth * 0.5f + cell;
+        float halfH = camera.viewportHeight * 0.5f + cell;
+        int minCellX = Math.max(0, tileMap.toCell((camera.position.x - halfW) / PIXELS_PER_TILE));
+        int maxCellX = Math.min(tileMap.getCollisionWidth() - 1, tileMap.toCell((camera.position.x + halfW) / PIXELS_PER_TILE));
+        int minCellY = Math.max(0, tileMap.toCell((camera.position.y - halfH) / PIXELS_PER_TILE));
+        int maxCellY = Math.min(tileMap.getCollisionHeight() - 1, tileMap.toCell((camera.position.y + halfH) / PIXELS_PER_TILE));
+
+        for (int cellY = minCellY; cellY <= maxCellY; cellY++) {
+            for (int cellX = minCellX; cellX <= maxCellX; cellX++) {
+                if (tileMap.isCellWalkable(cellX, cellY)) {
+                    shapes.rect(cellX * cell, cellY * cell, cell, cell);
+                }
+            }
+        }
+        shapes.end();
+
+        Gdx.gl.glColorMask(true, true, true, true);
+        Gdx.gl.glDepthMask(true);
+        Gdx.gl.glStencilFunc(GL20.GL_EQUAL, 1, 0xFF);
+        Gdx.gl.glStencilOp(GL20.GL_KEEP, GL20.GL_KEEP, GL20.GL_KEEP);
+
+        batch.begin();
+
         if (bloodTexture != null) {
-            float bloodScale = 0.5f;
+            float bloodScale = 0.3f;
             float bw = bloodTexture.getWidth() * bloodScale;
             float bh = bloodTexture.getHeight() * bloodScale;
             for (Vector2 pool : bloodPools) {
@@ -994,7 +1028,42 @@ public class GameScreen implements Screen {
             }
         }
 
-        // 2. Active bombs
+        if (snapshot.items != null) {
+            for (WorldSnapshot.ItemState item : snapshot.items) {
+                if (mockBombX == -1f) {
+                    mockBombX = item.x + 1.0f;
+                    mockBombY = item.y;
+                }
+            }
+
+            if (!hasBomb && mockBombX != -1f) {
+                float bScale = 0.1f;
+                float scaledW = bombFrameWidth * bScale;
+                float scaledH = bombTexture.getHeight() * bScale;
+                float drawBX = Math.round((mockBombX * PIXELS_PER_TILE) - (scaledW / 2f));
+                float drawBY = Math.round((mockBombY * PIXELS_PER_TILE) - (scaledH / 2f));
+                batch.draw(bombFrames[0][0], drawBX, drawBY, scaledW, scaledH);
+            }
+
+            groundItemStateTime += delta;
+            int currentMacheteFrame = (int) (groundItemStateTime / 0.35f) % 7;
+            TextureRegion currentGroundFrame = meleeGroundFrames[0][currentMacheteFrame % meleeGroundFrames[0].length];
+
+            float itemScale = 0.35f;
+            float displayWidth = meleeFrameWidth * itemScale;
+            float displayHeight = meleeTexture.getHeight() * itemScale;
+
+            for (WorldSnapshot.ItemState item : snapshot.items) {
+                float drawX = Math.round((item.x * PIXELS_PER_TILE) - (displayWidth / 2f));
+                float drawY = Math.round((item.y * PIXELS_PER_TILE) - (displayHeight / 2f));
+                batch.draw(currentGroundFrame, drawX, drawY, displayWidth, displayHeight);
+            }
+        }
+
+        batch.end();
+        Gdx.gl.glDisable(GL20.GL_STENCIL_TEST);
+        batch.begin();
+
         for (int i = activeBombs.size() - 1; i >= 0; i--) {
             ActiveBomb b = activeBombs.get(i);
             b.timeElapsed += delta;
@@ -1003,7 +1072,10 @@ public class GameScreen implements Screen {
             float currX = b.startX + (b.targetX - b.startX) * t;
             float currY = b.startY + (b.targetY - b.startY) * t;
 
-            boolean hitWall = !isWalkable(currX, currY, 0.05f);
+            boolean hitWall = false;
+            if (!isWalkable(currX, currY, 0.05f)) {
+                hitWall = true;
+            }
 
             if (t >= 1.0f || hitWall) {
                 float expX = hitWall ? currX : b.targetX;
@@ -1013,6 +1085,8 @@ public class GameScreen implements Screen {
                 exp.x = expX;
                 exp.y = expY;
                 activeExplosions.add(exp);
+
+                float blastRadius = 1.5f;
 
                 if (!isZombieDead) {
                     float distZ = (float) Math.sqrt(Math.pow(middleZombieX - exp.x, 2) + Math.pow(middleZombieY - exp.y, 2));
@@ -1049,6 +1123,7 @@ public class GameScreen implements Screen {
 
             float maxArcHeightTiles = 2.0f;
             float arcHeightPx = 4.0f * maxArcHeightTiles * t * (1.0f - t) * PIXELS_PER_TILE;
+
             int frameIdx = (int) ((b.timeElapsed / 0.05f) % 8);
 
             float bScale = 0.2f;
@@ -1058,11 +1133,9 @@ public class GameScreen implements Screen {
             float bombDrawX = Math.round((currX * PIXELS_PER_TILE) - (scaledW / 2f));
             float bombDrawY = Math.round((currY * PIXELS_PER_TILE) - (scaledH / 2f) + arcHeightPx);
 
-            int safeCol = frameIdx % bombFrames[0].length;
-            batch.draw(bombFrames[0][safeCol], bombDrawX, bombDrawY, scaledW, scaledH);
+            batch.draw(bombFrames[0][frameIdx], bombDrawX, bombDrawY, scaledW, scaledH);
         }
 
-        // 3. Active explosions
         for (int i = activeExplosions.size() - 1; i >= 0; i--) {
             ActiveExplosion exp = activeExplosions.get(i);
             exp.timeElapsed += delta;
@@ -1082,44 +1155,9 @@ public class GameScreen implements Screen {
             float drawX = Math.round((exp.x * PIXELS_PER_TILE) - (expW / 2f));
             float drawY = Math.round((exp.y * PIXELS_PER_TILE) - (expH / 2f));
 
-            int safeCol = frameIdx % bombEffectFrames[0].length;
-            batch.draw(bombEffectFrames[0][safeCol], drawX, drawY, expW, expH);
+            batch.draw(bombEffectFrames[0][frameIdx], drawX, drawY, expW, expH);
         }
 
-        // 4. Ground items
-        if (snapshot.items != null) {
-            for (WorldSnapshot.ItemState item : snapshot.items) {
-                if (mockBombX == -1f) {
-                    mockBombX = item.x + 1.0f;
-                    mockBombY = item.y;
-                }
-            }
-
-            if (!hasBomb && mockBombX != -1f) {
-                float bScale = 0.1f;
-                float scaledW = bombFrameWidth * bScale;
-                float scaledH = bombTexture.getHeight() * bScale;
-                float drawBX = Math.round((mockBombX * PIXELS_PER_TILE) - (scaledW / 2f));
-                float drawBY = Math.round((mockBombY * PIXELS_PER_TILE) - (scaledH / 2f));
-                batch.draw(bombFrames[0][0], drawBX, drawBY, scaledW, scaledH);
-            }
-
-            groundItemStateTime += delta;
-            int currentMacheteFrame = (int) (groundItemStateTime / 0.35f) % 7;
-            TextureRegion currentGroundFrame = meleeGroundFrames[0][currentMacheteFrame % meleeGroundFrames[0].length];
-
-            float itemScale = 0.35f;
-            float displayWidth = meleeFrameWidth * itemScale;
-            float displayHeight = meleeTexture.getHeight() * itemScale;
-
-            for (WorldSnapshot.ItemState item : snapshot.items) {
-                float drawX = Math.round((item.x * PIXELS_PER_TILE) - (displayWidth / 2f));
-                float drawY = Math.round((item.y * PIXELS_PER_TILE) - (displayHeight / 2f));
-                batch.draw(currentGroundFrame, drawX, drawY, displayWidth, displayHeight);
-            }
-        }
-
-        // 5. Middle Zombie
         if (!isZombieDead && zombieFrame != null) {
             float currentZDrawWidth = isBeingBitten ? zombieBiteFrameWidth : zombieFrameWidth;
             float currentZDrawHeight = isBeingBitten ? zombieBiteFrameHeight : zombieFrameHeight;
@@ -1128,7 +1166,6 @@ public class GameScreen implements Screen {
             batch.draw(zombieFrame, midDrawX, midDrawY, currentZDrawWidth, currentZDrawHeight);
         }
 
-        // 6. Players
         if (snapshot.players != null) {
             for (WorldSnapshot.PlayerState player : snapshot.players) {
                 PlayerAnimState anim = animStates.computeIfAbsent(player.playerId, k -> new PlayerAnimState());
@@ -1149,6 +1186,10 @@ public class GameScreen implements Screen {
                 boolean showMacheteSprite = isLocalPlayer ? isMacheteEquipped : "MELEE".equals(player.equippedWeapon);
                 boolean showBombSprite = isLocalPlayer && isBombEquipped;
 
+                boolean localSprint = isLocalPlayer && Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT) && stamina > 0f && moving;
+                boolean remoteSprint = !isLocalPlayer && (Math.abs(dx) > 0.08f || Math.abs(dy) > 0.08f);
+                boolean isSprintingAnim = localSprint || remoteSprint;
+
                 TextureRegion[][] activeRunFrames = playerFrames;
                 TextureRegion[][] activeIdleFrames = idleFrames;
 
@@ -1157,13 +1198,22 @@ public class GameScreen implements Screen {
                 int activeOffset = characterOffset;
 
                 if (showMacheteSprite) {
-                    activeRunFrames = playerMeleeFrames;
                     activeIdleFrames = idleMeleeFrames;
                 } else if (showBombSprite) {
-                    activeRunFrames = playerBombFrames;
                     activeIdleFrames = playerBombIdleFrames;
-                    animFrames = (playerBombFrames[0].length >= 8) ? 8 : 4;
                     idleAnimFrames = (playerBombIdleFrames[0].length >= 8) ? 8 : 2;
+                    activeOffset = 0;
+                }
+
+                if (isSprintingAnim) {
+                    activeRunFrames = playerSprintFrames;
+                    animFrames = (playerSprintFrames[0].length >= 8) ? 8 : 4;
+                    activeOffset = 0;
+                } else if (showMacheteSprite) {
+                    activeRunFrames = playerMeleeFrames;
+                } else if (showBombSprite) {
+                    activeRunFrames = playerBombFrames;
+                    animFrames = (playerBombFrames[0].length >= 8) ? 8 : 4;
                     activeOffset = 0;
                 }
 
@@ -1174,7 +1224,8 @@ public class GameScreen implements Screen {
                     else anim.currentRow = dy > 0 ? 3 : 0;
 
                     anim.stateTime += delta;
-                    if (anim.stateTime > 0.15f) {
+                    float runSpeed = isSprintingAnim ? 0.07f : 0.15f;
+                    if (anim.stateTime > runSpeed) {
                         anim.currentColumn = (anim.currentColumn + 1) % animFrames;
                         anim.stateTime = 0f;
                     }
@@ -1198,7 +1249,8 @@ public class GameScreen implements Screen {
                 float currentDrawWidth = currentFrame.getRegionWidth();
                 float currentDrawHeight = currentFrame.getRegionHeight();
 
-                if (showBombSprite) {
+                // ── UPDATED: Bomb sprites scaled down to 0.9x ──
+                if (showBombSprite && !isSprintingAnim) {
                     currentDrawWidth *= 0.9f;
                     currentDrawHeight *= 0.9f;
                 }
@@ -1207,6 +1259,32 @@ public class GameScreen implements Screen {
                     anim.attackTime += delta;
                     float attackSpeed = 0.25f;
                     int attackFrame = (int) (anim.attackTime / attackSpeed);
+
+                    if (attackFrame >= 1 && !anim.damageApplied && isLocalPlayer) {
+                        anim.damageApplied = true;
+                        if (!isZombieDead) {
+                            float distX = middleZombieX - player.x;
+                            float distY = middleZombieY - player.y;
+                            float distanceToZombie = (float) Math.sqrt(distX * distX + distY * distY);
+
+                            if (distanceToZombie <= 2.2f) {
+                                boolean validHit = false;
+                                if (anim.currentRow == 3 && distY > 0 && Math.abs(distX) <= 1.5f) validHit = true;
+                                else if (anim.currentRow == 0 && distY < 0 && Math.abs(distX) <= 1.5f) validHit = true;
+                                else if (anim.currentRow == 2 && distX > 0 && Math.abs(distY) <= 1.5f) validHit = true;
+                                else if (anim.currentRow == 1 && distX < 0 && Math.abs(distY) <= 1.5f) validHit = true;
+
+                                if (validHit) {
+                                    middleZombieHp -= 100f;
+                                    if (middleZombieHp <= 0f) {
+                                        isZombieDead = true;
+                                        isBeingBitten = false;
+                                        bloodPools.add(new Vector2(middleZombieX, middleZombieY));
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     if (attackFrame >= 2) {
                         anim.isAttacking = false;
@@ -1230,8 +1308,9 @@ public class GameScreen implements Screen {
                         int safeCol = attackFrame % playerBombThrowFrames[0].length;
 
                         currentFrame = playerBombThrowFrames[safeRow][safeCol];
-                        currentDrawWidth = currentFrame.getRegionWidth() * 0.5f;
-                        currentDrawHeight = currentFrame.getRegionHeight() * 0.5f;
+
+                        currentDrawWidth = currentFrame.getRegionWidth() * 0.6f;
+                        currentDrawHeight = currentFrame.getRegionHeight() * 0.6f;
                     }
                 }
 
@@ -1763,7 +1842,10 @@ public class GameScreen implements Screen {
 
         input.interactHeld = Gdx.input.isKeyPressed(Input.Keys.E);
         input.interactPressed = Gdx.input.isKeyJustPressed(Input.Keys.E);
-        input.abilityPressed = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT);
+
+        boolean movingCommand = proposedMoveX != 0f || proposedMoveY != 0f;
+        input.abilityPressed = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT) && stamina > 0f && movingCommand;
+
         input.dropPressed = Gdx.input.isKeyJustPressed(Input.Keys.Q);
         return input;
     }
@@ -1911,6 +1993,7 @@ public class GameScreen implements Screen {
         if (markerTexture != null) markerTexture.dispose();
         if (playerTexture != null) playerTexture.dispose();
         if (idleTexture != null) idleTexture.dispose();
+        if (playerSprintTexture != null && playerSprintTexture != playerTexture) playerSprintTexture.dispose();
         if (zombieTexture != null) zombieTexture.dispose();
         if (zombieIdleTexture != null && zombieIdleTexture != zombieTexture) zombieIdleTexture.dispose();
         if (zombieBiteTexture != null && zombieBiteTexture != zombieTexture) zombieBiteTexture.dispose();
@@ -1921,9 +2004,9 @@ public class GameScreen implements Screen {
         if (damagedScreen1Texture != null) damagedScreen1Texture.dispose();
         if (damagedScreen2Texture != null) damagedScreen2Texture.dispose();
         if (timerTexture != null) timerTexture.dispose();
-        if (playerBombTexture != null) playerBombTexture.dispose();
-        if (playerBombIdleTexture != null) playerBombIdleTexture.dispose();
-        if (playerBombThrowTexture != null) playerBombThrowTexture.dispose();
+        if (playerBombTexture != null && playerBombTexture != playerTexture) playerBombTexture.dispose();
+        if (playerBombIdleTexture != null && playerBombIdleTexture != idleTexture) playerBombIdleTexture.dispose();
+        if (playerBombThrowTexture != null && playerBombThrowTexture != playerTexture) playerBombThrowTexture.dispose();
         if (meleeTexture != null) meleeTexture.dispose();
         if (playerMeleeTexture != null && playerMeleeTexture != playerTexture) playerMeleeTexture.dispose();
         if (idleMeleeTexture != null && idleMeleeTexture != idleTexture) idleMeleeTexture.dispose();
