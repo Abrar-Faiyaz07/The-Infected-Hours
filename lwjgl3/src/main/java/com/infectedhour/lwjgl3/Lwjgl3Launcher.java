@@ -44,7 +44,7 @@ public class Lwjgl3Launcher {
     }
 
     public static void boot(SessionConfig session, GameBridge bridge) {
-        boot(session, bridge, false);
+        boot(session, bridge, true);
     }
 
     /**
