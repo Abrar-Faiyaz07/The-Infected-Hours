@@ -1,6 +1,7 @@
 package com.infectedhour.core.net;
 
 import com.infectedhour.shared.constants.GameConstants;
+import com.infectedhour.shared.dto.SaveSlotDto;
 import com.infectedhour.shared.net.LanDiscovery;
 
 /**
@@ -17,7 +18,8 @@ import com.infectedhour.shared.net.LanDiscovery;
  *                    ships it to the client inside JoinAccept (TRD §6)
  */
 public record SessionConfig(boolean host, String hostAddress, String playerId,
-                            String displayName, String backendUrl) {
+                            String displayName, String backendUrl,
+                            SaveSlotDto loadedSlot) {
 
     public SessionConfig {
         playerId = playerId == null || playerId.isBlank() ? "player-" + System.nanoTime() : playerId;
@@ -29,17 +31,33 @@ public record SessionConfig(boolean host, String hostAddress, String playerId,
 
     /** This laptop hosts: the client connects to its own loopback. */
     public static SessionConfig hosting(String playerId, String displayName, String backendUrl) {
-        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl);
+        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null);
+    }
+
+    /** Host a run restored from a save slot (Load Game). */
+    public static SessionConfig hostingFromSave(String playerId, String displayName,
+                                                String backendUrl, SaveSlotDto slot) {
+        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, slot);
     }
 
     /** This laptop joins the host at {@code hostAddress}; the backend URL arrives in JoinAccept. */
     public static SessionConfig joining(String hostAddress, String playerId, String displayName) {
-        return new SessionConfig(false, hostAddress, playerId, displayName, null);
+        return new SessionConfig(false, hostAddress, playerId, displayName, null, null);
     }
 
     /** Dev shortcut used by {@code ./gradlew lwjgl3:run} — host-solo, no launcher. */
     public static SessionConfig devSolo() {
         return hosting("dev-host", "Dev Host", null);
+    }
+
+    /** True when this session should resume a stored checkpoint rather than start fresh. */
+    public boolean isLoadingSave() {
+        return loadedSlot != null && loadedSlot.occupied();
+    }
+
+    /** Level to boot into: the save's level, or 1 for a new run. */
+    public int startingLevel() {
+        return isLoadingSave() ? Math.max(1, loadedSlot.levelNumber()) : 1;
     }
 
     /** The address the client should actually dial. */

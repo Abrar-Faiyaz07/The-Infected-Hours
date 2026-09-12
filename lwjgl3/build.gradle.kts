@@ -16,9 +16,3 @@ dependencies {
 application {
     mainClass.set("com.infectedhour.lwjgl3.Lwjgl3Launcher")
 }
-
-// Gdx.files.internal(...) resolves against the working directory. Without this
-// it defaults to this module's folder and every texture load fails.
-tasks.named<JavaExec>("run") {
-    workingDir = rootProject.file("assets")
-}

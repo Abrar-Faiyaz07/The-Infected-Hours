@@ -24,6 +24,11 @@ subprojects {
             showStandardStreams = false
         }
     }
+
+    // MOVED HERE: This ensures the rule is actually applied to the :core module!
+    tasks.withType<ProcessResources> {
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    }
 }
 
 // NOTE: junit-platform-launcher is declared per-module, not here. Adding it from

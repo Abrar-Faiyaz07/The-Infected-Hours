@@ -23,9 +23,3 @@ dependencies {
 application {
     mainClass.set("com.infectedhour.fxlauncher.LauncherApplication")
 }
-
-// The launcher boots libGDX in-process, so it needs the same asset working
-// directory as :lwjgl3 — see that module's build file.
-tasks.named<JavaExec>("run") {
-    workingDir = rootProject.file("assets")
-}

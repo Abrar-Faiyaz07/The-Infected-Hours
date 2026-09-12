@@ -29,7 +29,3 @@ replay_pid*.log
 
 # --- Local player data (App Flow §6 offline cache) ---
 .infectedhour/
-
-# --- Local Claude Code tooling / working artifacts ---
-.claude/
-assets/collision_mask.png

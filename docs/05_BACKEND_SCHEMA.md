@@ -43,6 +43,36 @@ Player 1───* MatchParticipant *───1 Match
 | settings_json | TEXT | volumes, fullscreen (optional cloud settings) |
 | updated_at | TIMESTAMP | conflict resolution: latest wins |
 
+### save_slot  (nine per player — manual saves, Resident Evil style)
+| Column | Type | Notes |
+|---|---|---|
+| id | UUID PK | |
+| player_id | UUID FK → player | |
+| slot_number | INT | 1–9; UNIQUE together with `player_id` |
+| level_number | INT | which level the save is in |
+| level_name | VARCHAR(64) | shown on the slot card |
+| checkpoint_id | VARCHAR(64) | where in the level to resume |
+| checkpoint_name | VARCHAR(96) | human label for the card |
+| story_progress | INT | |
+| playtime_sec | BIGINT | shown as "1h 04m" on the card |
+| character_type | VARCHAR(16) | ELRIC or JANE |
+| player_hp | FLOAT | carried resources ↓ |
+| personal_contamination_pct | FLOAT | |
+| global_contamination_pct | FLOAT | |
+| inventory_json | TEXT | carried items |
+| objectives_json | TEXT | objective progress at save time |
+| saved_at | TIMESTAMP | |
+
+**Why this is separate from `save_state`.** `save_state` is permanent account
+progression and only moves forward; a `save_slot` is a restorable point in time
+that can be overwritten, deleted and reloaded. Merging them would make it
+impossible to load an old slot without also rolling back unlocks the player has
+legitimately earned — so loading a slot deliberately never touches `save_state`.
+
+Inventory and objectives are JSON text rather than child tables: the data is only
+ever read and written whole, and a relational breakdown would force a schema
+migration every time an item type is added.
+
 ### match
 | Column | Type | Notes |
 |---|---|---|
@@ -110,6 +140,17 @@ Base path `/api/v1`. All except `/auth/**` and `/health` require `Authorization:
 | GET | `/players/me` | profile + aggregate stats |
 | GET | `/players/me/save` | current SaveState (used by both laptops to sync after match) |
 | PUT | `/players/me/save` | upload save (offline-mode reconciliation); server keeps latest `updatedAt` |
+
+### Manual save slots (Load Game screen)
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/players/me/slots` | all 9 slots, empty ones included, in slot order |
+| GET | `/players/me/slots/{n}` | one slot (1..9) |
+| PUT | `/players/me/slots/{n}` | save / overwrite that slot |
+| DELETE | `/players/me/slots/{n}` | clear that slot (no-op if already empty) |
+
+The player id always comes from the JWT, never the request body — otherwise one
+player could read or overwrite another's saves by sending a different id.
 
 ### Matches (host calls these)
 | Method | Path | Purpose |

@@ -5,9 +5,20 @@ import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
 
-/** `match` table — Backend Schema §3. */
+/**
+ * `match` table — Backend Schema §3.
+ *
+ * <p>The table name is backtick-quoted because MATCH is a <b>reserved word in
+ * MySQL 8</b> (it introduces {@code MATCH ... AGAINST} full-text search), so
+ * unquoted DDL fails with "You have an error in your SQL syntax ... near
+ * 'match ('". The H2 tests never caught this: H2's MySQL compatibility mode is
+ * more permissive about reserved identifiers than real MySQL.
+ *
+ * <p>Quoting rather than renaming keeps the table name matching
+ * docs/05_BACKEND_SCHEMA.md, which is the authoritative contract.
+ */
 @Entity
-@Table(name = "match")
+@Table(name = "`match`")
 public class Match {
 
     @Id

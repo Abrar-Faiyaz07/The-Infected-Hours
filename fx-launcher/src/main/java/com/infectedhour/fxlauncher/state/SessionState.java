@@ -21,6 +21,8 @@ public class SessionState {
     private PlayerDto currentPlayer;
     private String backendUrl = "http://localhost:8080"; // overridden once host IP is known (Settings screen, advanced)
     private boolean offlineMode = false;
+    /** Set by the Load Game screen; the game reads it on boot to restore a checkpoint. Null = new run. */
+    private com.infectedhour.shared.dto.SaveSlotDto loadedSlot;
 
     private SessionState() {
     }
@@ -63,5 +65,18 @@ public class SessionState {
 
     public boolean isAuthenticated() {
         return jwtToken != null;
+    }
+
+    /** The slot the player chose in Load Game, or null for a fresh run. */
+    public com.infectedhour.shared.dto.SaveSlotDto getLoadedSlot() {
+        return loadedSlot;
+    }
+
+    public void setLoadedSlot(com.infectedhour.shared.dto.SaveSlotDto loadedSlot) {
+        this.loadedSlot = loadedSlot;
+    }
+
+    public void clearLoadedSlot() {
+        this.loadedSlot = null;
     }
 }

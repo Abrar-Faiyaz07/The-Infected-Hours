@@ -3,18 +3,21 @@ package com.infectedhour.core.net;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
-import com.infectedhour.core.entities.Collidable;
 import com.infectedhour.core.entities.ContaminationZone;
 import com.infectedhour.core.entities.Enemy;
 import com.infectedhour.core.entities.Player;
 import com.infectedhour.core.level.TileMap;
 import com.infectedhour.core.systems.AISystem;
+import com.infectedhour.core.systems.CheckpointSystem;
 import com.infectedhour.core.systems.CollisionSystem;
 import com.infectedhour.core.systems.CombatSystem;
 import com.infectedhour.core.systems.ContaminationSystem;
 import com.infectedhour.core.systems.MovementSystem;
 import com.infectedhour.core.systems.ObjectiveSystem;
 import com.infectedhour.shared.constants.GameConstants;
+import com.infectedhour.shared.dto.SaveSlotDto;
+import com.infectedhour.shared.level.Checkpoint;
+import com.infectedhour.shared.level.CheckpointRegistry;
 import com.infectedhour.shared.network.CharacterType;
 import com.infectedhour.shared.network.EventMessage;
 import com.infectedhour.shared.network.InputCommand;
@@ -33,6 +36,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
@@ -48,23 +52,22 @@ public class GameServer {
     private final Map<Integer, ConnectedPlayer> playersByConnectionId = new ConcurrentHashMap<>();
     private final Object rosterLock = new Object();
 
-    /** Open field used until a level pushes its real grid in via {@link #loadTileMap}. */
-    private static final TileMap DEFAULT_TILE_MAP = TileMap.allWalkable(60, 40);
-
-    // One CollisionSystem shared by movement and AI, so players and enemies can
-    // never drift apart on what counts as a wall (TRD §4).
-    private final CollisionSystem collisionSystem = new CollisionSystem(DEFAULT_TILE_MAP);
+    /**
+     * One collision system shared by movement and AI, so players and enemies
+     * obey exactly one set of rules. It starts with no grid — {@link #loadTileMap}
+     * supplies the level's once GameScreen has parsed it.
+     */
+    private final CollisionSystem collisionSystem = new CollisionSystem();
     private final MovementSystem movementSystem = new MovementSystem(collisionSystem);
     private final CombatSystem combatSystem = new CombatSystem();
     private final ContaminationSystem contaminationSystem = new ContaminationSystem();
     private final ObjectiveSystem objectiveSystem = new ObjectiveSystem();
     private final AISystem aiSystem = new AISystem(collisionSystem);
+    private final CheckpointSystem checkpointSystem = new CheckpointSystem();
 
     private final List<Enemy> enemies = new ArrayList<>();
     private final List<ContaminationZone> zones = new ArrayList<>();
-    private TileMap tileMap = DEFAULT_TILE_MAP;
-    /** Reusable scratch list for the per-tick separation pass — avoids allocating 60x/second. */
-    private final List<Collidable> collidableScratch = new ArrayList<>();
+    private int mapWidthInTiles = 64;
 
     private final Map<String, Set<Integer>> sentCloudTiles = new LinkedHashMap<>();
 
@@ -205,7 +208,7 @@ public class GameServer {
             sentCloudTiles.clear();
         }
 
-        seatAtSpawn(joined.entity);
+        joined.entity.setPosition(spawnX(joined.entity.getCharacter()), spawnY(joined.entity.getCharacter()));
 
         connection.sendTCP(new JoinAccept(backendUrl, hostDisplayName,
                 joined.entity.getCharacter(), joined.playerId, mode));
@@ -328,14 +331,9 @@ public class GameServer {
         }
         enemies.removeIf(Enemy::isDead);
 
-        // Push apart anything left overlapping. Runs after BOTH movement and AI
-        // so it resolves against final positions for this tick — separating
-        // earlier would just let the AI step back into a player.
-        resolveEntityOverlaps(players);
-
         for (ContaminationZone zone : zones) {
             if (zone.tickAndCheckShouldExpand(delta)) {
-                zone.addTiles(contaminationSystem.computeFrontierExpansion(zone, tileMap.getWidth()));
+                zone.addTiles(contaminationSystem.computeFrontierExpansion(zone, mapWidthInTiles));
             }
             for (Player player : players) {
                 if (zone.contains(tileIndexOf(player))) {
@@ -343,6 +341,14 @@ public class GameServer {
                 }
             }
         }
+
+        // Only the host tracks checkpoints, for the same reason it owns everything
+        // else: two machines deciding independently when a checkpoint was reached
+        // would disagree, and the save would depend on who pressed the button.
+        checkpointSystem.updateAndDetectNew(players).ifPresent(reached -> {
+            LOG.info(() -> "Checkpoint reached: " + reached.qualifiedName());
+            broadcastEvent(GameConstants.EVENT_CHECKPOINT_REACHED, reached.id());
+        });
 
         broadcastSnapshotIfDue(delta);
     }
@@ -449,37 +455,155 @@ public class GameServer {
         zones.add(zone);
     }
 
-    /**
-     * Installs the collision grid for the level being played. Called by the host
-     * as it enters a level; until then the sim runs on an open field.
-     */
-    public void loadTileMap(TileMap tileMap) {
-        this.tileMap = tileMap != null ? tileMap : DEFAULT_TILE_MAP;
-        this.collisionSystem.setTileMap(this.tileMap);
+    public void setMapWidthInTiles(int mapWidthInTiles) {
+        this.mapWidthInTiles = Math.max(1, mapWidthInTiles);
     }
 
-    public TileMap getTileMap() {
-        return tileMap;
+    /**
+     * Hands the level's collision grid to the simulation. Called by
+     * {@code GameScreen} once {@code LevelLoader} has parsed the {@code .map}
+     * resource — until it lands, movement is unblocked.
+     */
+    public void loadTileMap(TileMap tileMap) {
+        collisionSystem.setTileMap(tileMap);
+        if (tileMap != null) {
+            this.mapWidthInTiles = tileMap.getWidth();
+            LOG.info(() -> "Collision grid active: " + tileMap.getWidth() + "x" + tileMap.getHeight());
+        }
     }
 
     public CollisionSystem getCollisionSystem() {
         return collisionSystem;
     }
 
+    // ------------------------------------------------------------------
+    // Save / load
+    // ------------------------------------------------------------------
+
     /**
-     * Downed players are skipped: a body on the floor should not shove a
-     * teammate away from the revive they are trying to perform.
+     * Freeze the current run into a save slot.
+     *
+     * <p>Only the host can do this, and that is the point: it owns the only
+     * authoritative copy of the world, so a save taken here is guaranteed
+     * consistent. Letting a client build its own save would capture an
+     * interpolated view that is ~100 ms stale and missing anything outside its
+     * snapshot.
+     *
+     * @param slotNumber 1..9
+     * @return the slot, ready to PUT to the backend, or null if the run has not
+     *         reached a checkpoint yet
      */
-    private void resolveEntityOverlaps(List<Player> players) {
-        collidableScratch.clear();
-        for (Player player : players) {
-            if (!player.isDowned() && player.getHp() > 0f) {
-                collidableScratch.add(player);
+    public SaveSlotDto captureSave(int slotNumber) {
+        Checkpoint checkpoint = checkpointSystem.getLastReachedCheckpoint();
+        if (checkpoint == null) {
+            LOG.warning("Refusing to save: the run has not reached a checkpoint yet");
+            return null;
+        }
+
+        // Save the host's own player — in co-op each machine saves its own run.
+        Player player = playersByConnectionId.values().stream()
+                .map(connected -> connected.entity)
+                .findFirst()
+                .orElse(null);
+
+        float hp = player == null ? 100f : player.getHp();
+        float personalContamination = player == null ? 0f : player.getPersonalContaminationPct();
+        String character = player == null ? null : player.getCharacter().name();
+
+        return new SaveSlotDto(
+                slotNumber,
+                true,
+                checkpoint.levelNumber(),
+                levelNameFor(checkpoint.levelNumber()),
+                checkpoint.id(),
+                checkpoint.name(),
+                checkpointSystem.reachedCount(),
+                elapsedPlaytimeSeconds(),
+                character,
+                hp,
+                personalContamination,
+                contaminationSystem.getGlobalContaminationPct(),
+                serialiseInventory(player),
+                serialiseObjectives(),
+                java.time.Instant.now().toString());
+    }
+
+    /**
+     * Rebuild the run from a save slot. Applied before the first tick, so the
+     * first snapshot clients receive already reflects the restored state and
+     * nobody ever renders the pre-load world.
+     */
+    public void restoreFrom(SaveSlotDto slot) {
+        if (slot == null || !slot.occupied()) {
+            return;
+        }
+        Checkpoint checkpoint = CheckpointRegistry.byId(slot.checkpointId()).orElse(null);
+        if (checkpoint == null) {
+            // An unknown id means the save predates a checkpoint rename. Falling
+            // back to the level's start is far better than refusing to load.
+            LOG.warning(() -> "Save references unknown checkpoint '" + slot.checkpointId()
+                    + "'; starting the level from its first checkpoint instead");
+            checkpoint = CheckpointRegistry.firstOf(Math.max(1, slot.levelNumber()));
+        }
+        checkpointSystem.restoreTo(checkpoint.id());
+        contaminationSystem.setGlobalContaminationPct(slot.globalContaminationPct());
+
+        for (ConnectedPlayer connected : playersByConnectionId.values()) {
+            connected.entity.setPosition(checkpoint.spawnTileX(), checkpoint.spawnTileY());
+            connected.entity.restoreVitals(slot.playerHp(), slot.personalContaminationPct());
+        }
+        LOG.info(() -> "Restored save at " + slot.checkpointId());
+    }
+
+    public CheckpointSystem getCheckpointSystem() {
+        return checkpointSystem;
+    }
+
+    /** Whether any connected player is standing close enough to save right now. */
+    public Optional<Checkpoint> checkpointInRange() {
+        for (ConnectedPlayer connected : playersByConnectionId.values()) {
+            Optional<Checkpoint> found = checkpointSystem.checkpointInRange(connected.entity);
+            if (found.isPresent()) {
+                return found;
             }
         }
-        collidableScratch.addAll(enemies);
-        collisionSystem.separateAll(collidableScratch);
-        collidableScratch.clear();
+        return Optional.empty();
+    }
+
+    private long elapsedPlaytimeSeconds() {
+        return (long) (serverTick / (float) GameConstants.SIMULATION_TICK_HZ);
+    }
+
+    private static String levelNameFor(int levelNumber) {
+        return switch (levelNumber) {
+            case 1 -> "Village Outskirts";
+            case 2 -> "Market District";
+            case 3 -> "The Virus Heart";
+            default -> "Level " + levelNumber;
+        };
+    }
+
+    /**
+     * TEAMMATE TASK (inventory): serialise the player's real carried items once
+     * {@code Player.inventory} holds a proper Item type. The save column and the
+     * whole round trip are already in place — only this method needs changing.
+     */
+    private static String serialiseInventory(Player player) {
+        return "[]";
+    }
+
+    /** Objective progress as a flat {@code {"id": progress}} map. */
+    private String serialiseObjectives() {
+        StringBuilder json = new StringBuilder("{");
+        boolean first = true;
+        for (ObjectiveSystem.ObjectiveState state : objectiveSystem.getObjectives().values()) {
+            if (!first) {
+                json.append(',');
+            }
+            json.append('"').append(state.id).append("\":").append(state.progress);
+            first = false;
+        }
+        return json.append('}').toString();
     }
 
     public ContaminationSystem getContaminationSystem() {
@@ -524,64 +648,30 @@ public class GameServer {
     }
 
     private int tileIndexOf(Player player) {
-        return tileMap.tileIndex(TileMap.toTile(player.getX()), TileMap.toTile(player.getY()));
+        int tileX = (int) Math.floor(player.getX());
+        int tileY = (int) Math.floor(player.getY());
+        return tileY * mapWidthInTiles + tileX;
     }
 
     /**
-     * Places a player at their spawn point, or at the nearest free tile if that
-     * point is inside geometry. Without this, editing a map so a wall covers a
-     * spawn would wedge a player permanently — they would be stuck inside a
-     * blocked tile with every direction refusing to move them out.
+     * Spawn points, validated against {@code maps/level1.map} by
+     * {@code CheckpointPlacementTest}.
+     *
+     * <p>These were originally (4,4) and (6,4). Tile (4,4) is <b>inside a wall</b>
+     * in the real hospital layout, so once collision was switched on the player
+     * spawned embedded in geometry and {@code moveWithCollision} correctly
+     * refused every step — the character simply would not move.
+     *
+     * <p>Coordinates are tile centres (x.5): an integer coordinate sits on the
+     * boundary between two tiles, so a 0.25-radius collider straddles both and
+     * can clip a wall that touches only one of them.
      */
-    private void seatAtSpawn(Player player) {
-        float x = spawnX(player.getCharacter());
-        float y = spawnY(player.getCharacter());
-
-        if (collisionSystem.overlapsBlockedTile(x, y, player.getCollisionRadius())) {
-            LOG.warning(() -> "Spawn (" + spawnX(player.getCharacter()) + ", " + spawnY(player.getCharacter())
-                    + ") for " + player.getCharacter() + " is blocked — relocating to the nearest free tile");
-            float[] free = findNearestFreeTileCentre(x, y, player.getCollisionRadius());
-            if (free != null) {
-                x = free[0];
-                y = free[1];
-            }
-        }
-        player.setPosition(x, y);
-    }
-
-    /** Outward ring search for a tile centre the collider fits in. Returns null if the map is fully blocked. */
-    private float[] findNearestFreeTileCentre(float originX, float originY, float radius) {
-        int originTileX = TileMap.toTile(originX);
-        int originTileY = TileMap.toTile(originY);
-        int maxRadius = Math.max(tileMap.getWidth(), tileMap.getHeight());
-
-        for (int ring = 1; ring <= maxRadius; ring++) {
-            for (int offsetY = -ring; offsetY <= ring; offsetY++) {
-                for (int offsetX = -ring; offsetX <= ring; offsetX++) {
-                    // Only the perimeter of this ring; the interior was covered already.
-                    if (Math.abs(offsetX) != ring && Math.abs(offsetY) != ring) {
-                        continue;
-                    }
-                    float centreX = originTileX + offsetX + 0.5f;
-                    float centreY = originTileY + offsetY + 0.5f;
-                    if (!collisionSystem.overlapsBlockedTile(centreX, centreY, radius)) {
-                        return new float[] { centreX, centreY };
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    // Tile CENTRES, not corners. A position on a tile corner puts the collider
-    // across four tiles at once, so a spawn point only reads as clear if all
-    // four happen to be walkable. Centres keep the body inside one tile.
     private static float spawnX(CharacterType character) {
-        return character == CharacterType.ELRIC ? 5.5f : 6.5f;
+        return character == CharacterType.ELRIC ? 9.5f : 10.5f;
     }
 
     private static float spawnY(CharacterType character) {
-        return 4.5f;
+        return 8.5f;
     }
 
     private static String orDefault(String value, String fallback) {

@@ -88,6 +88,25 @@ public class Player implements Collidable {
     }
 
     /**
+     * Restore HP and contamination from a save slot.
+     *
+     * <p>Assigns directly rather than going through {@link #heal} or
+     * {@link #addContamination}, because those apply game rules (clamping to the
+     * current value, Elric's resistance) that would distort a value the host has
+     * already simulated and stored. Loading a save is not a gameplay event.
+     */
+    public void restoreVitals(float hp, float personalContaminationPct) {
+        this.hp = Math.max(0f, Math.min(100f, hp));
+        this.personalContaminationPct = Math.max(0f,
+                Math.min(com.infectedhour.shared.constants.GameConstants.PERSONAL_CONTAMINATION_MAX,
+                        personalContaminationPct));
+        this.downed = this.hp <= 0f;
+        this.reviveSecondsRemaining = this.downed
+                ? com.infectedhour.shared.constants.GameConstants.REVIVE_WINDOW_SECONDS
+                : 0;
+    }
+
+    /**
      * Raw displacement with no collision check. Gameplay code must go through
      * {@code CollisionSystem.moveWithCollision} instead — this exists for the
      * collision system itself to call once a move has been validated.
