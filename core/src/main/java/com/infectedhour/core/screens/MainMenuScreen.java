@@ -97,7 +97,10 @@ public class MainMenuScreen implements Screen {
         }
 
         elricTexture = loadTextureSafely("male_character_select.jpg");
-        janeTexture = loadTextureSafely("female_character_select.jpg");
+        janeTexture = loadTextureSafely("female/female_character_select.jpg");
+        if (janeTexture == null) {
+            janeTexture = loadTextureSafely("female_character_select.jpg");
+        }
 
         if (bridge != null) {
             saveSlots = bridge.getSaveSlots();
