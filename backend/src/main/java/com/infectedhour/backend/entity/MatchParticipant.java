@@ -21,7 +21,12 @@ public class MatchParticipant {
     @JoinColumn(name = "player_id", nullable = false)
     private Player player;
 
-    @Column(nullable = false, length = 8)
+    /**
+     * Backtick-quoted: CHARACTER is a reserved word in MySQL 8, so unquoted DDL
+     * fails with "error in your SQL syntax ... near 'character varchar(8)'".
+     * H2's MySQL mode accepts it, which is why the tests passed.
+     */
+    @Column(name = "`character`", nullable = false, length = 8)
     private String character; // ELRIC | JANE
 
     private int damageDealt;

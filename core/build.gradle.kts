@@ -1,5 +1,13 @@
 // core: platform-agnostic libGDX game logic (TRD §3).
 // Depends on :shared for DTOs/network messages. No Spring, no JavaFX here.
+
+// Put the repo-root assets/ folder on core's runtime classpath.
+// Gdx.files.internal("map.png") resolves against the classpath, so declaring it
+// here makes art load identically in BOTH run modes — `:lwjgl3:run` (working
+// directory = lwjgl3/) and `:fx-launcher:run` (working directory = fx-launcher/).
+// Relying on the working directory instead only ever works for one of them.
+sourceSets["main"].resources.srcDir(rootProject.file("assets"))
+
 dependencies {
     implementation(project(":shared"))
 

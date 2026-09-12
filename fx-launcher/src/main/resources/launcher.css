@@ -171,3 +171,61 @@
     -fx-border-color: #E85A4F;
     -fx-border-width: 2;
 }
+/* ── Load Game: 9 save slots (3x3 grid) ─────────────────────────────
+   Occupied and empty cards are visually distinct at a glance so the player
+   can see free slots without reading every card.                          */
+.slot-card {
+    -fx-background-color: #1C2536;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: #2E3A50;
+    -fx-border-width: 1;
+}
+
+.slot-card:hover {
+    -fx-border-color: #E8B02A;
+    -fx-border-width: 2;
+}
+
+.slot-card-empty {
+    -fx-background-color: rgba(28, 37, 54, 0.45);
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: #2E3A50;
+    -fx-border-width: 1;
+    -fx-border-style: dashed;
+}
+
+.slot-number {
+    -fx-text-fill: #E8B02A;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.slot-title {
+    -fx-text-fill: #F2F0E9;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+}
+
+.slot-detail {
+    -fx-text-fill: #C9CEDA;
+    -fx-font-size: 12px;
+}
+
+.slot-detail-muted {
+    -fx-text-fill: #8A93A6;
+    -fx-font-size: 11px;
+}
+
+.slot-empty-text {
+    -fx-text-fill: #8A93A6;
+    -fx-font-size: 14px;
+    -fx-font-style: italic;
+}
+
+/* Compact buttons inside a slot card — the menu padding is far too tall here. */
+.slot-card .menu-btn {
+    -fx-font-size: 12px;
+    -fx-padding: 5 14 5 14;
+}

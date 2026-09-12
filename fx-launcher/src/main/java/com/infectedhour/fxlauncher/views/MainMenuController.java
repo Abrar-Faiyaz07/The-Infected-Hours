@@ -55,7 +55,7 @@ public class MainMenuController {
 
     @FXML
     private void onLoadGame() {
-        navigate(new ProfileView(stage, backendClient).getRoot());
+        navigate(new LoadGameView(stage, backendClient).getRoot());
     }
 
     @FXML

@@ -63,7 +63,22 @@ public class InfectedHourGame extends Game {
             return;
         }
 
-        setScreen(new LevelBriefingScreen(this, client, bridge, 1));
+        // Applied before the first tick, so the very first snapshot clients
+        // receive already reflects the restored world — nobody ever sees the
+        // pre-load state flash on screen.
+        if (server != null && session.isLoadingSave()) {
+            server.restoreFrom(session.loadedSlot());
+        }
+
+        bridge.setOnSaveConfirmed(slotNumber -> {
+            com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+                if (server != null) {
+                    server.broadcastEvent(GameConstants.EVENT_GAME_SAVED, String.valueOf(slotNumber));
+                }
+            });
+        });
+
+        setScreen(new LevelBriefingScreen(this, client, bridge, session.startingLevel()));
     }
 
     public boolean isHost() {

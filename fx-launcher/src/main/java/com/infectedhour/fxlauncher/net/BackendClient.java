@@ -65,6 +65,27 @@ public class BackendClient {
         return putAsync("/players/me/save", save, Void.class, true);
     }
 
+    // --- manual save slots (Load Game screen) ---
+
+    /** All 9 slots, empty ones included, so the grid renders without null checks. */
+    public CompletableFuture<List<SaveSlotDto>> getSaveSlots() {
+        return getAsync("/players/me/slots", List.class, true)
+                .thenApply(raw -> mapper.convertValue(raw, mapper.getTypeFactory()
+                        .constructCollectionType(List.class, SaveSlotDto.class)));
+    }
+
+    public CompletableFuture<SaveSlotDto> putSaveSlot(int slotNumber, SaveSlotDto slot) {
+        return putAsync("/players/me/slots/" + slotNumber, slot, SaveSlotDto.class, true);
+    }
+
+    public CompletableFuture<Void> deleteSaveSlot(int slotNumber) {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(
+                        URI.create(baseUrl() + "/players/me/slots/" + slotNumber))
+                .DELETE();
+        applyAuth(builder, true);
+        return send(builder, Void.class);
+    }
+
     public CompletableFuture<List<LeaderboardEntryDto>> getLeaderboard(String board, int limit) {
         return getAsync("/leaderboards/" + board + "?limit=" + limit, List.class, true)
                 .thenApply(raw -> mapper.convertValue(raw, mapper.getTypeFactory()

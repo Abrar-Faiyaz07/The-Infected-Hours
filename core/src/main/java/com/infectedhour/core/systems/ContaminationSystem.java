@@ -44,6 +44,16 @@ public class ContaminationSystem {
         globalContaminationPct = Math.max(0f, globalContaminationPct - amount);
     }
 
+    /**
+     * Set the meter outright when loading a save. Distinct from
+     * {@link #reduceGlobal} on purpose: that one is a gameplay reward and is
+     * relative, this one restores a value the host already simulated.
+     */
+    public void setGlobalContaminationPct(float pct) {
+        this.globalContaminationPct = Math.max(0f,
+                Math.min(GameConstants.GLOBAL_CONTAMINATION_MAX, pct));
+    }
+
     /** Call each tick for a player standing inside a ContaminationZone. */
     public void tickPlayerInZone(Player player, float delta) {
         float resistance = player.getCharacter() == com.infectedhour.shared.network.CharacterType.ELRIC

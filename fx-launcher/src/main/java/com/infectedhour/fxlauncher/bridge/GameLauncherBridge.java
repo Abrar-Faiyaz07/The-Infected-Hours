@@ -3,6 +3,7 @@ package com.infectedhour.fxlauncher.bridge;
 import com.infectedhour.core.bridge.GameBridge;
 import com.infectedhour.core.net.SessionConfig;
 import com.infectedhour.fxlauncher.net.BackendClient;
+import com.infectedhour.fxlauncher.save.LocalSaveSlots;
 import com.infectedhour.fxlauncher.state.SessionState;
 import com.infectedhour.fxlauncher.views.ResultsView;
 import com.infectedhour.lwjgl3.Lwjgl3Launcher;
@@ -28,10 +29,22 @@ public class GameLauncherBridge {
         this.backendClient = backendClient;
     }
 
-    /** This laptop hosts the session (solo, or waiting for a partner to join). */
+    /**
+     * This laptop hosts the session (solo, or waiting for a partner to join).
+     * If the player picked a slot in Load Game, that run is resumed instead of
+     * starting a fresh one.
+     */
     public void startAsHost(Runnable onReturnToLauncher) {
-        startMatch(SessionConfig.hosting(playerId(), displayName(), SessionState.get().getBackendUrl()),
-                onReturnToLauncher);
+        var slot = SessionState.get().getLoadedSlot();
+        SessionConfig config = slot != null && slot.occupied()
+                ? SessionConfig.hostingFromSave(playerId(), displayName(),
+                        SessionState.get().getBackendUrl(), slot)
+                : SessionConfig.hosting(playerId(), displayName(),
+                        SessionState.get().getBackendUrl());
+        // Consumed once — returning to the menu must not silently reload the
+        // same save the next time the player presses Play.
+        SessionState.get().clearLoadedSlot();
+        startMatch(config, onReturnToLauncher);
     }
 
     /** This laptop joins a host already running on the LAN. */
@@ -42,17 +55,40 @@ public class GameLauncherBridge {
     public void startMatch(SessionConfig session, Runnable onReturnToLauncher) {
         GameBridge bridge = new GameBridge();
 
+        final boolean[] matchEnded = new boolean[]{false};
+
+        bridge.setSlotProvider(LocalSaveSlots::load);
+
         bridge.setOnGameWindowClosed(() -> Platform.runLater(() -> {
             primaryStage.show();
-            onReturnToLauncher.run();
+            if (!matchEnded[0]) {
+                onReturnToLauncher.run();
+            }
         }));
 
         bridge.setOnMatchEnded(outcome -> Platform.runLater(() -> {
+            matchEnded[0] = true;
             primaryStage.show();
             ResultsView view = new ResultsView(primaryStage, backendClient,
                     outcome.result(), outcome.finalLevelReached());
             primaryStage.getScene().setRoot(view.getRoot());
         }));
+
+        bridge.setOnSaveRequested((slotNumber, slotDto) -> {
+            // 1. Save to local disk mirror (~/.infectedhour/slots.json) immediately
+            LocalSaveSlots.saveSlot(slotDto);
+            bridge.notifySaveConfirmed(slotNumber);
+
+            // 2. Sync to Spring Boot backend database if authenticated & online
+            if (!SessionState.get().isOfflineMode() && SessionState.get().isAuthenticated()) {
+                backendClient.putSaveSlot(slotNumber, slotDto)
+                        .thenAccept(saved -> LocalSaveSlots.saveSlot(saved))
+                        .exceptionally(ex -> {
+                            System.err.println("Backend save sync failed (saved locally): " + ex.getMessage());
+                            return null;
+                        });
+            }
+        });
 
         // Join/connection failures must never leave the player staring at a
         // hidden stage — re-show the launcher and explain what happened
