@@ -1,11 +1,17 @@
 package com.infectedhour.fxlauncher;
 
 import com.infectedhour.fxlauncher.net.BackendClient;
+import com.infectedhour.fxlauncher.state.SessionState;
 import com.infectedhour.fxlauncher.views.MainMenuView;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCombination;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 
 /**
  * JavaFX entry point (TRD §2 step 1). Owns the single Stage that every view
@@ -36,6 +42,7 @@ public class LauncherApplication extends Application {
         backendClient = new BackendClient();
 
         primaryStage.setTitle("The Infected Hour");
+        primaryStage.initStyle(StageStyle.UNDECORATED);
 
         // DEV SHORTCUT: skip login and open the main menu directly.
         // Swap to `new LoginView(primaryStage, backendClient).getRoot()` for the real flow.
@@ -44,9 +51,25 @@ public class LauncherApplication extends Application {
         scene.getStylesheets().add(getClass().getResource("/launcher.css").toExternalForm());
 
         primaryStage.setScene(scene);
-        primaryStage.setMinWidth(960);
-        primaryStage.setMinHeight(640);
-        primaryStage.setMaximized(true);
+
+        Rectangle2D bounds = Screen.getPrimary().getBounds();
+        primaryStage.setX(bounds.getMinX());
+        primaryStage.setY(bounds.getMinY());
+        primaryStage.setWidth(bounds.getWidth());
+        primaryStage.setHeight(bounds.getHeight());
+
+        primaryStage.setFullScreen(true);
+        primaryStage.setFullScreenExitHint("");
+        primaryStage.setFullScreenExitKeyCombination(KeyCombination.NO_MATCH);
+
+        scene.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.F11) {
+                boolean next = !primaryStage.isFullScreen();
+                primaryStage.setFullScreen(next);
+                SessionState.get().setFullscreen(next);
+            }
+        });
+
         primaryStage.show();
     }
 

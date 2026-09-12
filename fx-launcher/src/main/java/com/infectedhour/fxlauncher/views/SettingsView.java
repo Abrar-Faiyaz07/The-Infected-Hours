@@ -26,6 +26,12 @@ public class SettingsView {
         Slider musicVolume = new Slider(0, 100, 80);
         Slider sfxVolume = new Slider(0, 100, 80);
         CheckBox fullscreen = new CheckBox("Fullscreen");
+        fullscreen.setSelected(SessionState.get().isFullscreen());
+        fullscreen.setOnAction(e -> {
+            boolean isFull = fullscreen.isSelected();
+            SessionState.get().setFullscreen(isFull);
+            stage.setFullScreen(isFull);
+        });
 
         TextField backendUrl = new TextField(SessionState.get().getBackendUrl());
         backendUrl.setPromptText("Backend URL (advanced)");

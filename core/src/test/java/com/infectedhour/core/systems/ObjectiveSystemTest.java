@@ -48,4 +48,15 @@ class ObjectiveSystemTest {
         ObjectiveSystem system = new ObjectiveSystem();
         assertThrows(IllegalArgumentException.class, () -> system.incrementProgress("nope"));
     }
+
+    @Test
+    void clearRemovesObjectivesBetweenLevels() {
+        ObjectiveSystem system = new ObjectiveSystem();
+        system.register("old-level", ObjectiveSystem.ObjectiveType.ISOLATE_ZONE, 1);
+
+        system.clear();
+
+        assertTrue(system.getObjectives().isEmpty());
+        assertTrue(system.areAllObjectivesComplete());
+    }
 }

@@ -14,6 +14,7 @@ public class WorldSnapshot {
     public List<CloudFrontierDelta> cloudDeltas;
     public float globalContaminationPct;
     public List<ObjectiveState> objectives;
+    public List<ItemState> items;
 
     public WorldSnapshot() {
     }
@@ -26,6 +27,7 @@ public class WorldSnapshot {
         public float personalContaminationPct;
         public boolean downed;
         public int reviveSecondsRemaining;
+        public String equippedWeapon = "NONE";
 
         public PlayerState() {
         }
@@ -58,6 +60,16 @@ public class WorldSnapshot {
         public boolean complete;
 
         public ObjectiveState() {
+        }
+    }
+
+    public static class ItemState {
+        public String id;
+        public float x;
+        public float y;
+        public String type;
+
+        public ItemState() {
         }
     }
 }

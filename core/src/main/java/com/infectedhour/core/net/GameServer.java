@@ -6,7 +6,11 @@ import com.esotericsoftware.kryonet.Server;
 import com.infectedhour.core.entities.ContaminationZone;
 import com.infectedhour.core.entities.Enemy;
 import com.infectedhour.core.entities.Player;
+import com.infectedhour.core.level.CampaignLevelPlan;
+import com.infectedhour.core.level.LevelDefinition;
+import com.infectedhour.core.level.LevelLoader;
 import com.infectedhour.core.level.TileMap;
+import com.infectedhour.core.level.LevelExit;
 import com.infectedhour.core.systems.AISystem;
 import com.infectedhour.core.systems.CheckpointSystem;
 import com.infectedhour.core.systems.CollisionSystem;
@@ -67,7 +71,12 @@ public class GameServer {
 
     private final List<Enemy> enemies = new ArrayList<>();
     private final List<ContaminationZone> zones = new ArrayList<>();
+    private final List<WorldSnapshot.ItemState> items = new ArrayList<>();
     private int mapWidthInTiles = 64;
+    private volatile int currentLevelNumber = 1;
+    private volatile LevelExit activeLevelExit = LevelExit.forLevel(1).orElse(null);
+    private volatile boolean levelTransitionBroadcast;
+    private final Set<String> completedObjectiveActions = new HashSet<>();
 
     private final Map<String, Set<Integer>> sentCloudTiles = new LinkedHashMap<>();
 
@@ -110,6 +119,7 @@ public class GameServer {
         final String displayName;
         final Player entity;
         volatile InputCommand latestInput = new InputCommand();
+        volatile String equippedWeapon = "NONE";
 
         ConnectedPlayer(int connectionId, String playerId, String displayName, CharacterType character) {
             this.connectionId = connectionId;
@@ -117,6 +127,16 @@ public class GameServer {
             this.displayName = displayName;
             this.entity = new Player(playerId, character);
         }
+    }
+
+    private volatile CharacterType hostCharacter = CharacterType.ELRIC;
+
+    public void setHostCharacter(CharacterType hostCharacter) {
+        this.hostCharacter = hostCharacter != null ? hostCharacter : CharacterType.ELRIC;
+    }
+
+    public CharacterType getHostCharacter() {
+        return hostCharacter;
     }
 
     public void start(String hostDisplayName, String backendUrl) throws IOException {
@@ -154,6 +174,14 @@ public class GameServer {
         running = true;
         LOG.info(() -> "GameServer listening on TCP " + GameConstants.KRYONET_TCP_PORT
                 + " / UDP " + GameConstants.KRYONET_UDP_PORT + " as \"" + this.hostDisplayName + "\"");
+
+        // Spawn test machete to the right of host
+        WorldSnapshot.ItemState testMachete = new WorldSnapshot.ItemState();
+        testMachete.id = "machete_1";
+        testMachete.type = "MELEE";
+        testMachete.x = spawnX(hostCharacter) + 1.5f;
+        testMachete.y = spawnY(hostCharacter);
+        addItem(testMachete);
     }
 
     public void start() throws IOException {
@@ -195,13 +223,20 @@ public class GameServer {
                 return;
             }
 
-            CharacterType character = playersByConnectionId.isEmpty() ? CharacterType.ELRIC : CharacterType.JANE;
+            CharacterType character = playersByConnectionId.isEmpty()
+                    ? hostCharacter
+                    : (hostCharacter == CharacterType.ELRIC ? CharacterType.JANE : CharacterType.ELRIC);
             String playerId = joinRequest.playerId != null && !joinRequest.playerId.isBlank()
                     ? joinRequest.playerId
                     : character.name().toLowerCase() + "-" + connection.getID();
 
+            String displayName = orDefault(joinRequest.displayName, character.name());
+            if (displayName.equalsIgnoreCase(hostDisplayName)) {
+                displayName = displayName + " (P2)";
+            }
+
             joined = new ConnectedPlayer(connection.getID(), playerId,
-                    orDefault(joinRequest.displayName, character.name()), character);
+                    displayName, character);
             playersByConnectionId.put(connection.getID(), joined);
             mode = currentMatchMode();
 
@@ -250,6 +285,32 @@ public class GameServer {
                     LOG.warning("Invalid zombie bite damage payload: " + event.payload);
                 }
             }
+            return;
+        }
+
+        // Handle healing ability
+        if ("PLAYER_HEAL".equals(event.type)) {
+            if (sender.entity.getHp() > 0f && !sender.entity.isDowned()) {
+                float healAmount = 35f;
+                try {
+                    healAmount = Float.parseFloat(event.payload);
+                } catch (NumberFormatException ignored) {}
+                sender.entity.heal(healAmount);
+                LOG.info(() -> sender.displayName + " healed (" + sender.entity.getHp() + " HP)");
+            }
+            return;
+        }
+
+        // Level exits use TCP because a one-frame E press must never disappear
+        // as a dropped/rate-limited UDP input packet. Position and objective
+        // completion are still validated by the authoritative host.
+        if (GameConstants.EVENT_LEVEL_EXIT_REQUEST.equals(event.type)) {
+            tryUseLevelExit(sender);
+            return;
+        }
+
+        if (GameConstants.EVENT_OBJECTIVE_PROGRESS.equals(event.type)) {
+            tryAdvanceLevelObjective(sender, event.payload);
             return;
         }
 
@@ -314,12 +375,29 @@ public class GameServer {
         if (allPlayersDead && !players.isEmpty()) {
             broadcastSnapshotIfDue(delta);
             return;
-        }
-
-        for (ConnectedPlayer connected : playersByConnectionId.values()) {
+        }        for (ConnectedPlayer connected : playersByConnectionId.values()) {
             InputCommand input = connected.latestInput;
             if (input != null && !connected.entity.isDowned() && connected.entity.getHp() > 0f) {
                 movementSystem.apply(connected.entity, input, delta);
+
+                if (input.interactPressed) {
+                    java.util.Iterator<WorldSnapshot.ItemState> iterator = items.iterator();
+                    while (iterator.hasNext()) {
+                        WorldSnapshot.ItemState item = iterator.next();
+
+                        float distX = connected.entity.getX() - item.x;
+                        float distY = connected.entity.getY() - item.y;
+                        float distance = (float) Math.sqrt(distX * distX + distY * distY);
+
+                        if (distance <= 1.0f) {
+                            iterator.remove();
+                            connected.equippedWeapon = item.type;
+                            LOG.info(() -> connected.displayName + " picked up: " + item.type);
+                            break;
+                        }
+                    }
+                    input.interactPressed = false;
+                }
             }
             connected.entity.update(delta);
         }
@@ -368,6 +446,8 @@ public class GameServer {
         snapshot.serverTick = serverTick;
         snapshot.globalContaminationPct = contaminationSystem.getGlobalContaminationPct();
 
+        snapshot.items = new ArrayList<>(this.items);
+
         snapshot.players = new ArrayList<>();
         for (ConnectedPlayer connected : playersByConnectionId.values()) {
             Player entity = connected.entity;
@@ -380,6 +460,7 @@ public class GameServer {
             state.personalContaminationPct = entity.getPersonalContaminationPct();
             state.downed = entity.isDowned();
             state.reviveSecondsRemaining = entity.getReviveSecondsRemaining();
+            state.equippedWeapon = connected.equippedWeapon;
             snapshot.players.add(state);
         }
 
@@ -410,13 +491,10 @@ public class GameServer {
             if (added.isEmpty()) {
                 continue;
             }
-            WorldSnapshot.CloudFrontierDelta delta = new WorldSnapshot.CloudFrontierDelta();
-            delta.cloudId = zone.getCloudId();
-            delta.addedTileIndices = new int[added.size()];
-            for (int i = 0; i < added.size(); i++) {
-                delta.addedTileIndices[i] = added.get(i);
-            }
-            snapshot.cloudDeltas.add(delta);
+            WorldSnapshot.CloudFrontierDelta deltaMsg = new WorldSnapshot.CloudFrontierDelta();
+            deltaMsg.cloudId = zone.getCloudId();
+            deltaMsg.addedTileIndices = added.stream().mapToInt(Integer::intValue).toArray();
+            snapshot.cloudDeltas.add(deltaMsg);
             alreadySent.addAll(added);
         }
 
@@ -451,12 +529,91 @@ public class GameServer {
         enemies.add(enemy);
     }
 
+    public void addItem(WorldSnapshot.ItemState item) {
+        items.add(item);
+    }
+
     public void addContaminationZone(ContaminationZone zone) {
         zones.add(zone);
     }
 
     public void setMapWidthInTiles(int mapWidthInTiles) {
         this.mapWidthInTiles = Math.max(1, mapWidthInTiles);
+    }
+
+    /** Configures exits and objectives from the campaign's single source of truth. */
+    public void configureLevel(int levelNumber) {
+        configureLevel(new LevelLoader().loadDefinition(levelNumber));
+    }
+
+    public synchronized void configureLevel(LevelDefinition definition) {
+        boolean enteringNewLevel = this.currentLevelNumber != definition.levelNumber();
+        this.currentLevelNumber = definition.levelNumber();
+        this.activeLevelExit = LevelExit.forLevel(definition.levelNumber()).orElse(null);
+        this.levelTransitionBroadcast = false;
+        this.completedObjectiveActions.clear();
+
+        objectiveSystem.clear();
+        for (LevelDefinition.ObjectiveSpec spec : definition.objectives()) {
+            objectiveSystem.register(spec.id(), ObjectiveSystem.ObjectiveType.valueOf(spec.type()), spec.target());
+        }
+        if (enteringNewLevel) {
+            Checkpoint start = CheckpointRegistry.firstOf(definition.levelNumber());
+            int playerIndex = 0;
+            for (ConnectedPlayer connected : playersByConnectionId.values()) {
+                connected.entity.setPosition(start.spawnTileX() + playerIndex * 0.5f, start.spawnTileY());
+                playerIndex++;
+            }
+        }
+        LOG.info(() -> "Configured " + definition.name() + " with "
+                + definition.objectives().size() + " objectives");
+    }
+
+    /**
+     * Accepts one interaction only once and only while the sender is standing
+     * at the matching landmark.  This keeps co-op clients from double-counting
+     * the same survivor or relay.
+     */
+    private synchronized void tryAdvanceLevelObjective(ConnectedPlayer sender, String actionId) {
+        CampaignLevelPlan.Feature feature = CampaignLevelPlan.findFeature(currentLevelNumber, actionId).orElse(null);
+        if (sender == null || feature == null || completedObjectiveActions.contains(actionId)) {
+            return;
+        }
+        if (!feature.contains(sender.entity.getX(), sender.entity.getY())) {
+            return;
+        }
+        if (!objectiveSystem.getObjectives().containsKey(feature.objectiveId())) {
+            return;
+        }
+
+        completedObjectiveActions.add(actionId);
+        objectiveSystem.incrementProgress(feature.objectiveId());
+        broadcastEvent(GameConstants.EVENT_OBJECTIVE_PROGRESS, actionId);
+        if (objectiveSystem.isObjectiveComplete(feature.objectiveId())) {
+            broadcastEvent(GameConstants.EVENT_OBJECTIVE_COMPLETE, feature.objectiveId());
+        }
+    }
+
+    private synchronized void tryUseLevelExit(ConnectedPlayer sender) {
+        if (sender == null || activeLevelExit == null || levelTransitionBroadcast) {
+            return;
+        }
+        if (!activeLevelExit.contains(sender.entity.getX(), sender.entity.getY())) {
+            return;
+        }
+        if (!objectiveSystem.areAllObjectivesComplete()) {
+            return;
+        }
+
+        int nextLevelNumber = currentLevelNumber + 1;
+        if (nextLevelNumber > GameConstants.LEVEL_COUNT) {
+            return;
+        }
+
+        levelTransitionBroadcast = true;
+        LOG.info(() -> sender.displayName + " activated the level exit: "
+                + currentLevelNumber + " -> " + nextLevelNumber);
+        broadcastLevelTransition(nextLevelNumber);
     }
 
     /**
@@ -546,6 +703,7 @@ public class GameServer {
             checkpoint = CheckpointRegistry.firstOf(Math.max(1, slot.levelNumber()));
         }
         checkpointSystem.restoreTo(checkpoint.id());
+        currentLevelNumber = checkpoint.levelNumber();
         contaminationSystem.setGlobalContaminationPct(slot.globalContaminationPct());
 
         for (ConnectedPlayer connected : playersByConnectionId.values()) {
@@ -576,9 +734,9 @@ public class GameServer {
 
     private static String levelNameFor(int levelNumber) {
         return switch (levelNumber) {
-            case 1 -> "Village Outskirts";
-            case 2 -> "Market District";
-            case 3 -> "The Virus Heart";
+            case 1 -> "Ashgrove Hospital";
+            case 2 -> "Roadside Village";
+            case 3 -> "Hidden Laboratory";
             default -> "Level " + levelNumber;
         };
     }

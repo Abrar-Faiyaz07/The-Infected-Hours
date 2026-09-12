@@ -37,13 +37,34 @@ public class Lwjgl3Launcher {
             String host = args.length > 1 ? args[1] : "localhost";
             return SessionConfig.joining(host, "dev-client", "Dev Jane");
         }
+        if (args != null && args.length > 0 && "jane".equalsIgnoreCase(args[0])) {
+            return SessionConfig.hosting("dev-host", "Dev Host", null, com.infectedhour.shared.network.CharacterType.JANE);
+        }
         return SessionConfig.devSolo();
     }
 
     public static void boot(SessionConfig session, GameBridge bridge) {
+        boot(session, bridge, true);
+    }
+
+    /**
+     * Starts the native game window. Windows fit (maximized desktop window)
+     * is the universal default. Fullscreen can be opted into via game settings or F11.
+     */
+    public static void boot(SessionConfig session, GameBridge bridge, boolean fullscreen) {
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
         config.setTitle("The Infected Hour");
-        config.setWindowedMode(1280, 720); // base virtual resolution, UI/UX doc §1
+        if (fullscreen) {
+            com.badlogic.gdx.Graphics.DisplayMode displayMode = Lwjgl3ApplicationConfiguration.getDisplayMode();
+            config.setWindowedMode(displayMode.width, displayMode.height);
+            config.setWindowPosition(0, 0);
+            config.setDecorated(false);
+            config.setResizable(false);
+        } else {
+            config.setWindowedMode(1280, 720);
+            config.setDecorated(true);
+            config.setResizable(true);
+        }
         config.useVsync(true);
 
         new Lwjgl3Application(new InfectedHourGame(session, bridge), config);

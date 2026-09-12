@@ -36,6 +36,7 @@ public class JoinLobbyView {
     private final VBox root = new VBox(12);
 
     private final ListView<LanDiscovery.DiscoveredHost> discoveredHosts = new ListView<>();
+    private final TextField clientUsername = new TextField();
     private final TextField manualIp = new TextField();
     private final Label status = new Label();
     private final Button refreshBtn = new Button("Search the LAN");
@@ -54,7 +55,11 @@ public class JoinLobbyView {
         Label title = new Label("JOIN A MATCH");
         title.getStyleClass().add("title-gold");
 
-        discoveredHosts.setPrefHeight(180);
+        clientUsername.setPromptText("Your Unique Username");
+        clientUsername.setText(defaultUsername());
+        clientUsername.setMaxWidth(460);
+
+        discoveredHosts.setPrefHeight(150);
         discoveredHosts.setPlaceholder(new Label("No hosts found yet."));
 
         status.getStyleClass().add("version-label");
@@ -76,8 +81,15 @@ public class JoinLobbyView {
         backBtn.getStyleClass().add("menu-btn");
         backBtn.setOnAction(e -> stage.getScene().setRoot(new CoopModeView(stage, backendClient).getRoot()));
 
-        root.getChildren().addAll(title, discoveredHosts, refreshBtn, status,
-                new Label("…or connect directly:"), manualIp, joinBtn, backBtn);
+        root.getChildren().addAll(title,
+                new Label("Your Username:"), clientUsername,
+                new Label("Discovered Hosts:"), discoveredHosts, refreshBtn, status,
+                new Label("…or connect directly by IP:"), manualIp, joinBtn, backBtn);
+    }
+
+    private static String defaultUsername() {
+        com.infectedhour.shared.dto.PlayerDto player = com.infectedhour.fxlauncher.state.SessionState.get().getCurrentPlayer();
+        return player != null ? player.displayName() : System.getProperty("user.name", "Jane");
     }
 
     /** Broadcast + listen on a daemon thread, then publish results on the FX thread. */
@@ -104,6 +116,12 @@ public class JoinLobbyView {
     }
 
     private void joinMatch() {
+        String username = clientUsername.getText() == null ? "" : clientUsername.getText().trim();
+        if (username.isBlank()) {
+            warn("Please enter your unique username before joining.");
+            return;
+        }
+
         LanDiscovery.DiscoveredHost selected = discoveredHosts.getSelectionModel().getSelectedItem();
         String typed = manualIp.getText() == null ? "" : manualIp.getText().trim();
 
@@ -121,7 +139,7 @@ public class JoinLobbyView {
             return;
         }
 
-        new GameLauncherBridge(stage, backendClient).startAsClient(targetIp, () ->
+        new GameLauncherBridge(stage, backendClient).startAsClient(targetIp, username, () ->
                 stage.getScene().setRoot(new MainMenuView(stage, backendClient).getRoot()));
     }
 
