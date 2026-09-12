@@ -11,6 +11,7 @@ import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
@@ -35,6 +36,7 @@ public class HostLobbyView {
     private final BackendClient backendClient;
     private final VBox root = new VBox(12);
 
+    private final TextField hostUsername = new TextField();
     private final Label connectionStatusChip = new Label("⬤  waiting for player…");
     private final Label discoveryStatus = new Label();
     private final ComboBox<Integer> levelSelect = new ComboBox<>();
@@ -65,6 +67,10 @@ public class HostLobbyView {
                         + "into the Join screen's manual IP field.");
         manualHint.getStyleClass().add("brand-subtitle");
 
+        hostUsername.setPromptText("Your Host Username");
+        hostUsername.setText(displayName());
+        hostUsername.setMaxWidth(460);
+
         connectionStatusChip.getStyleClass().setAll("chip-searching");
         discoveryStatus.getStyleClass().add("version-label");
 
@@ -89,6 +95,8 @@ public class HostLobbyView {
                 title,
                 hostIpLabel,
                 manualHint,
+                new Label("Host Username:"),
+                hostUsername,
                 new HBox(10, new Label("Start at level:"), levelSelect),
                 connectionStatusChip,
                 discoveryStatus,
@@ -142,7 +150,10 @@ public class HostLobbyView {
         // The KryoNet server binds inside the game window; free the discovery
         // socket first so nothing races over UDP on this machine.
         stopDiscoveryResponder();
-        new GameLauncherBridge(stage, backendClient).startAsHost(() ->
+        String name = hostUsername.getText() != null && !hostUsername.getText().isBlank()
+                ? hostUsername.getText().trim()
+                : displayName();
+        new GameLauncherBridge(stage, backendClient).startAsHost(name, () ->
                 stage.getScene().setRoot(new MainMenuView(stage, backendClient).getRoot()));
     }
 

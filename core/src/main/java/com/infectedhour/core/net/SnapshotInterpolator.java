@@ -112,6 +112,7 @@ public class SnapshotInterpolator {
         out.globalContaminationPct = lerp(from.globalContaminationPct, to.globalContaminationPct, alpha);
         out.objectives = to.objectives;
         out.cloudDeltas = to.cloudDeltas;
+        out.items = to.items;
 
         out.players = new ArrayList<>();
         if (to.players != null) {
@@ -125,6 +126,7 @@ public class SnapshotInterpolator {
                 blended.personalContaminationPct = target.personalContaminationPct;
                 blended.downed = target.downed;
                 blended.reviveSecondsRemaining = target.reviveSecondsRemaining;
+                blended.equippedWeapon = target.equippedWeapon;
                 blended.x = start == null ? target.x : lerp(start.x, target.x, alpha);
                 blended.y = start == null ? target.y : lerp(start.y, target.y, alpha);
                 out.players.add(blended);

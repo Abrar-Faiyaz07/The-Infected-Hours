@@ -55,7 +55,7 @@ class CheckpointRegistryTest {
     @DisplayName("lookup by id resolves, and unknown ids do not")
     void lookupWorks() {
         assertTrue(CheckpointRegistry.byId("l2_cp03_clinic").isPresent());
-        assertEquals("Clinic Sanitation Post",
+        assertEquals("Clinic Power Relay",
                 CheckpointRegistry.byId("l2_cp03_clinic").orElseThrow().name());
 
         assertFalse(CheckpointRegistry.exists("does_not_exist"));

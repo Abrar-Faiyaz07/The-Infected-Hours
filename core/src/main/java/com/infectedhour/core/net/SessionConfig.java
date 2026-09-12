@@ -3,23 +3,26 @@ package com.infectedhour.core.net;
 import com.infectedhour.shared.constants.GameConstants;
 import com.infectedhour.shared.dto.SaveSlotDto;
 import com.infectedhour.shared.net.LanDiscovery;
+import com.infectedhour.shared.network.CharacterType;
 
 /**
  * Everything the game needs to know about the session it is booting into,
  * handed across the JavaFX → libGDX thread boundary as one immutable value.
  *
- * @param host        true when this machine runs the authoritative {@link GameServer}
- * @param hostAddress address to connect the {@link GameClient} to; ignored (and
- *                    replaced with loopback) when {@code host} is true
- * @param playerId    stable identity — the backend player id when logged in, a
- *                    generated one when playing offline
- * @param displayName name the partner sees in the lobby
- * @param backendUrl  Spring Boot instance BOTH laptops must write to; the host
- *                    ships it to the client inside JoinAccept (TRD §6)
+ * @param host               true when this machine runs the authoritative {@link GameServer}
+ * @param hostAddress        address to connect the {@link GameClient} to; ignored (and
+ *                           replaced with loopback) when {@code host} is true
+ * @param playerId           stable identity — the backend player id when logged in, a
+ *                           generated one when playing offline
+ * @param displayName        name the partner sees in the lobby
+ * @param backendUrl         Spring Boot instance BOTH laptops must write to; the host
+ *                           ships it to the client inside JoinAccept (TRD §6)
+ * @param loadedSlot         save slot to restore, or null for a fresh game
+ * @param preferredCharacter character requested by the host (ELRIC or JANE)
  */
 public record SessionConfig(boolean host, String hostAddress, String playerId,
                             String displayName, String backendUrl,
-                            SaveSlotDto loadedSlot) {
+                            SaveSlotDto loadedSlot, CharacterType preferredCharacter) {
 
     public SessionConfig {
         playerId = playerId == null || playerId.isBlank() ? "player-" + System.nanoTime() : playerId;
@@ -27,27 +30,49 @@ public record SessionConfig(boolean host, String hostAddress, String playerId,
         backendUrl = backendUrl == null || backendUrl.isBlank()
                 ? "http://localhost:" + GameConstants.DEFAULT_BACKEND_PORT
                 : backendUrl;
+        preferredCharacter = preferredCharacter == null ? CharacterType.ELRIC : preferredCharacter;
+    }
+
+    public SessionConfig(boolean host, String hostAddress, String playerId,
+                         String displayName, String backendUrl, SaveSlotDto loadedSlot) {
+        this(host, hostAddress, playerId, displayName, backendUrl, loadedSlot,
+                (loadedSlot != null && "JANE".equalsIgnoreCase(loadedSlot.characterType()))
+                        ? CharacterType.JANE : CharacterType.ELRIC);
     }
 
     /** This laptop hosts: the client connects to its own loopback. */
     public static SessionConfig hosting(String playerId, String displayName, String backendUrl) {
-        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null);
+        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null, CharacterType.ELRIC);
+    }
+
+    public static SessionConfig hosting(String playerId, String displayName, String backendUrl, CharacterType preferredCharacter) {
+        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null, preferredCharacter);
     }
 
     /** Host a run restored from a save slot (Load Game). */
     public static SessionConfig hostingFromSave(String playerId, String displayName,
                                                 String backendUrl, SaveSlotDto slot) {
-        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, slot);
+        CharacterType charType = (slot != null && "JANE".equalsIgnoreCase(slot.characterType()))
+                ? CharacterType.JANE : CharacterType.ELRIC;
+        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, slot, charType);
+    }
+
+    public static SessionConfig hostingFromSave(String playerId, String displayName,
+                                                String backendUrl, SaveSlotDto slot, CharacterType overrideCharacter) {
+        CharacterType charType = overrideCharacter != null ? overrideCharacter
+                : ((slot != null && "JANE".equalsIgnoreCase(slot.characterType()))
+                        ? CharacterType.JANE : CharacterType.ELRIC);
+        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, slot, charType);
     }
 
     /** This laptop joins the host at {@code hostAddress}; the backend URL arrives in JoinAccept. */
     public static SessionConfig joining(String hostAddress, String playerId, String displayName) {
-        return new SessionConfig(false, hostAddress, playerId, displayName, null, null);
+        return new SessionConfig(false, hostAddress, playerId, displayName, null, null, CharacterType.JANE);
     }
 
     /** Dev shortcut used by {@code ./gradlew lwjgl3:run} — host-solo, no launcher. */
     public static SessionConfig devSolo() {
-        return hosting("dev-host", "Dev Host", null);
+        return hosting("dev-host", "Dev Host", null, CharacterType.ELRIC);
     }
 
     /** True when this session should resume a stored checkpoint rather than start fresh. */

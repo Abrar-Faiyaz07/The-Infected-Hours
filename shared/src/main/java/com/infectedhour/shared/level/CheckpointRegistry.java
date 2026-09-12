@@ -40,26 +40,26 @@ public final class CheckpointRegistry {
      * can clip a wall that touches only one of them.
      */
     private static final List<Checkpoint> ORDERED = List.of(
-            // ---- Level 1 — Village Outskirts, 45x33 (7) ----
-            new Checkpoint("l1_cp01_gate",        "Outskirts Gate",           1, 1,  9.5f,  8.5f),
-            new Checkpoint("l1_cp02_well",        "Village Well",             1, 2,  1.5f, 19.5f),
-            new Checkpoint("l1_cp03_barricade",   "First Barricade Line",     1, 3, 15.5f, 22.5f),
-            new Checkpoint("l1_cp04_farmhouse",   "Abandoned Farmhouse",      1, 4, 20.5f,  5.5f),
-            new Checkpoint("l1_cp05_sample",      "Sample Collection Point",  1, 5, 25.5f, 23.5f),
-            new Checkpoint("l1_cp06_chapel",      "Chapel Safe Zone",         1, 6, 30.5f, 14.5f),
-            new Checkpoint("l1_cp07_crossing",    "River Crossing",           1, 7, 35.5f, 17.5f),
+            // ---- Level 1 — Ashgrove Hospital, 45x33 (7) ----
+            new Checkpoint("l1_cp01_gate",        "Hospital Entrance",        1, 1,  9.5f,  8.5f),
+            new Checkpoint("l1_cp02_well",        "Reception Wing",           1, 2,  1.5f, 19.5f),
+            new Checkpoint("l1_cp03_barricade",   "Emergency Ward",           1, 3, 15.5f, 22.5f),
+            new Checkpoint("l1_cp04_farmhouse",   "Records Office",           1, 4, 20.5f,  5.5f),
+            new Checkpoint("l1_cp05_sample",      "Sample Storage",           1, 5, 25.5f, 23.5f),
+            new Checkpoint("l1_cp06_chapel",      "Upper Ward",               1, 6, 30.5f, 14.5f),
+            new Checkpoint("l1_cp07_crossing",    "Evacuation Stairwell",     1, 7, 35.5f, 17.5f),
 
-            // ---- Level 2 — Market District, 60x40 (8) ----
-            new Checkpoint("l2_cp01_checkpoint",  "District Checkpoint",      2, 1,  1.5f,  1.5f),
-            new Checkpoint("l2_cp02_stalls",      "Market Stalls",            2, 2,  7.5f, 21.5f),
-            new Checkpoint("l2_cp03_clinic",      "Clinic Sanitation Post",   2, 3, 14.5f,  4.5f),
-            new Checkpoint("l2_cp04_pharmacy",    "Ransacked Pharmacy",       2, 4, 22.5f, 34.5f),
-            new Checkpoint("l2_cp05_shelter",     "Civilian Shelter",         2, 5, 31.5f, 27.5f),
-            new Checkpoint("l2_cp06_depot",       "Medicine Depot",           2, 6, 39.5f, 21.5f),
-            new Checkpoint("l2_cp07_rooftops",    "Rooftop Route",            2, 7, 46.5f,  4.5f),
+            // ---- Level 2 — Roadside Village, 60x40 (8) ----
+            new Checkpoint("l2_cp01_checkpoint",  "Hospital Service Road",    2, 1,  1.5f,  1.5f),
+            new Checkpoint("l2_cp02_stalls",      "Abandoned Road Market",    2, 2,  7.5f, 21.5f),
+            new Checkpoint("l2_cp03_clinic",      "Clinic Power Relay",       2, 3, 14.5f,  4.5f),
+            new Checkpoint("l2_cp04_pharmacy",    "Infected Roadblock",       2, 4, 22.5f, 34.5f),
+            new Checkpoint("l2_cp05_shelter",     "Villager Shelter",         2, 5, 31.5f, 27.5f),
+            new Checkpoint("l2_cp06_depot",       "Depot Power Relay",        2, 6, 39.5f, 21.5f),
+            new Checkpoint("l2_cp07_rooftops",    "East Village Road",        2, 7, 46.5f,  4.5f),
             new Checkpoint("l2_cp08_tunnel",      "Service Tunnel Mouth",     2, 8, 53.5f, 23.5f),
 
-            // ---- Level 3 — The Virus Heart, 60x40 (7) ----
+            // ---- Level 3 — Hidden Laboratory, 60x40 (7) ----
             new Checkpoint("l3_cp01_descent",     "The Descent",              3, 1,  1.5f,  1.5f),
             new Checkpoint("l3_cp02_labs",        "Flooded Laboratories",     3, 2,  8.5f, 26.5f),
             new Checkpoint("l3_cp03_containment", "Containment Ring",         3, 3, 16.5f, 32.5f),

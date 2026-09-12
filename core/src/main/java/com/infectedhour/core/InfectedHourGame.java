@@ -31,6 +31,7 @@ public class InfectedHourGame extends Game {
 
     private GameServer server; // non-null only on the host
     private GameClient client;
+    private boolean firstFrameReported;
 
     public InfectedHourGame(SessionConfig session, GameBridge bridge) {
         this.session = session;
@@ -41,6 +42,7 @@ public class InfectedHourGame extends Game {
     public void create() {
         if (session.host()) {
             server = new GameServer();
+            server.setHostCharacter(session.preferredCharacter());
             try {
                 server.start(session.displayName(), session.advertisedBackendUrl());
             } catch (IOException e) {
@@ -78,7 +80,20 @@ public class InfectedHourGame extends Game {
             });
         });
 
-        setScreen(new LevelBriefingScreen(this, client, bridge, session.startingLevel()));
+        if (bridge.hasLauncher() || session.isLoadingSave()) {
+            setScreen(new LevelBriefingScreen(this, client, bridge, session.startingLevel()));
+        } else {
+            setScreen(new com.infectedhour.core.screens.MainMenuScreen(this, client, bridge));
+        }
+    }
+
+    @Override
+    public void render() {
+        super.render();
+        if (!firstFrameReported) {
+            firstFrameReported = true;
+            bridge.notifyGameReady();
+        }
     }
 
     public boolean isHost() {

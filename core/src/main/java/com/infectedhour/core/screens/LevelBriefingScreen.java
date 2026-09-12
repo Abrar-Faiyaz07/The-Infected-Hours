@@ -9,6 +9,8 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.infectedhour.core.InfectedHourGame;
 import com.infectedhour.core.bridge.GameBridge;
+import com.infectedhour.core.level.LevelDefinition;
+import com.infectedhour.core.level.LevelLoader;
 import com.infectedhour.core.net.GameClient;
 import com.infectedhour.shared.constants.GameConstants;
 import com.infectedhour.shared.network.MatchMode;
@@ -29,6 +31,7 @@ public class LevelBriefingScreen implements Screen {
     private final GameClient client;
     private final GameBridge bridge;
     private final int levelNumber;
+    private final LevelDefinition definition;
 
     private SpriteBatch batch;
     private BitmapFont font;
@@ -44,6 +47,7 @@ public class LevelBriefingScreen implements Screen {
         this.client = client;
         this.bridge = bridge;
         this.levelNumber = levelNumber;
+        this.definition = new LevelLoader().loadDefinition(levelNumber);
     }
 
     @Override
@@ -92,18 +96,26 @@ public class LevelBriefingScreen implements Screen {
 
         batch.begin();
         titleFont.setColor(0.910f, 0.690f, 0.165f, 1f); // accent-gold #E8B02A
-        titleFont.draw(batch, "LEVEL " + levelNumber + " BRIEFING", 60f, top);
+        titleFont.draw(batch, "LEVEL " + levelNumber + " — " + definition.name().toUpperCase(), 60f, top);
 
         font.setColor(Color.WHITE);
         font.draw(batch, connectionLine(), 60f, top - 60f);
         font.draw(batch, "Controls:  WASD move  |  E interact  |  SPACE attack  |  SHIFT ability  |  ESC pause",
                 60f, top - 90f);
 
+        font.setColor(0.910f, 0.690f, 0.165f, 1f);
+        font.draw(batch, "MISSION", 60f, top - 130f);
+        font.setColor(Color.WHITE);
+        String[] mission = missionLines();
+        for (int i = 0; i < mission.length; i++) {
+            font.draw(batch, "•  " + mission[i], 60f, top - 158f - i * 24f);
+        }
+
         font.setColor(localReady ? Color.LIME : Color.WHITE);
-        font.draw(batch, localReady ? "You: READY" : "Press E / ENTER when you are ready", 60f, top - 140f);
+        font.draw(batch, localReady ? "You: READY" : "Press E / ENTER when you are ready", 60f, top - 260f);
 
         font.setColor(partnerGateOpen ? Color.LIME : Color.LIGHT_GRAY);
-        font.draw(batch, partnerLine(), 60f, top - 170f);
+        font.draw(batch, partnerLine(), 60f, top - 290f);
 
         font.setColor(Color.GRAY);
         font.draw(batch, netDebugLine(), 60f, 40f);
@@ -142,11 +154,28 @@ public class LevelBriefingScreen implements Screen {
                 + (game.isHost() ? "  |  hosting" : "");
     }
 
+    private String[] missionLines() {
+        return switch (levelNumber) {
+            case 1 -> new String[]{
+                    "Search Ashgrove Hospital and reach the upstairs evacuation sign.",
+                    "Survive the infected patients blocking the route."
+            };
+            case 2 -> new String[]{
+                    "Clear the zombie patrol outside the hospital.",
+                    "Rescue two villagers stranded beside the road.",
+                    "Solve both power-relay puzzles and enter the service tunnel."
+            };
+            case 3 -> new String[]{
+                    "Descend into the hidden laboratory.",
+                    "Break the Virus Heart's shield, attack its core, and finish the outbreak."
+            };
+            default -> new String[]{"Survive and complete the operation."};
+        };
+    }
+
     private void advance() {
         if (levelNumber == 1) {
             game.setScreen(new StoryPanelScreen(game, client, bridge, StoryPanelScreen.Sequence.INTRO, levelNumber));
-        } else if (levelNumber == GameConstants.BOSS_LEVEL_NUMBER) {
-            game.setScreen(new BossScreen(game, client, bridge));
         } else {
             game.setScreen(new GameScreen(game, client, bridge, levelNumber));
         }

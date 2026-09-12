@@ -4,6 +4,10 @@
 CSE 4402 Visual Programming Lab, Islamic University of Technology.
 6-day sprint (v2.0) — see `docs/` for the full specs this skeleton was built from.
 
+Boss/combat implementation research and the adaptation plan for the Level 3
+Virus Heart fight are documented in
+[`docs/09_PROMISE_BENEATH_THE_STORM_REFERENCE.md`](docs/09_PROMISE_BENEATH_THE_STORM_REFERENCE.md).
+
 ## Module layout (TRD §3)
 
 ```

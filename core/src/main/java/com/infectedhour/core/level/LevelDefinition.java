@@ -23,27 +23,24 @@ public record LevelDefinition(
     }
 
     public static LevelDefinition level1() {
-        return new LevelDefinition(1, "Village Outskirts",
-                "maps/level1_village_outskirts.tmx", "maps/level1.map",
-                List.of(
-                        new ObjectiveSpec("l1_barricades", "ISOLATE_ZONE", 3),
-                        new ObjectiveSpec("l1_samples", "COLLECT_SAMPLE", 2)
-                ), false);
+        return new LevelDefinition(1, "Ashgrove Hospital",
+                "maps/level1_hospital.tmx", "maps/level1.map",
+                List.of(), false);
     }
 
     public static LevelDefinition level2() {
-        return new LevelDefinition(2, "Market District",
-                "maps/level2_market_district.tmx", "maps/level2.map",
+        return new LevelDefinition(2, "Roadside Village",
+                "maps/level2_roadside_village.tmx", "maps/level2.map",
                 List.of(
-                        new ObjectiveSpec("l2_medicine", "DELIVER_MEDICINE", 3),
-                        new ObjectiveSpec("l2_rescue", "RESCUE_VILLAGER", 4),
-                        new ObjectiveSpec("l2_sanitation", "ACTIVATE_SANITATION", 2)
+                        new ObjectiveSpec("l2_infected", "CLEAR_INFECTED", 1),
+                        new ObjectiveSpec("l2_rescue", "RESCUE_VILLAGER", 2),
+                        new ObjectiveSpec("l2_puzzle", "SOLVE_PUZZLE", 2)
                 ), false);
     }
 
     public static LevelDefinition level3Boss() {
-        return new LevelDefinition(3, "The Virus Heart",
-                "maps/level3_virus_heart.tmx", "maps/level3.map",
+        return new LevelDefinition(3, "Hidden Laboratory",
+                "maps/level3_hidden_laboratory.tmx", "maps/level3.map",
                 List.of(), true);
     }
 }

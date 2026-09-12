@@ -25,7 +25,6 @@ subprojects {
         }
     }
 
-    // MOVED HERE: This ensures the rule is actually applied to the :core module!
     tasks.withType<ProcessResources> {
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
     }

@@ -21,6 +21,8 @@ public class SessionState {
     private PlayerDto currentPlayer;
     private String backendUrl = "http://localhost:8080"; // overridden once host IP is known (Settings screen, advanced)
     private boolean offlineMode = false;
+    /** Fullscreen is the normal presentation; Settings can opt into windowed mode. */
+    private boolean fullscreen = true;
     /** Set by the Load Game screen; the game reads it on boot to restore a checkpoint. Null = new run. */
     private com.infectedhour.shared.dto.SaveSlotDto loadedSlot;
 
@@ -65,6 +67,14 @@ public class SessionState {
 
     public boolean isAuthenticated() {
         return jwtToken != null;
+    }
+
+    public boolean isFullscreen() {
+        return fullscreen;
+    }
+
+    public void setFullscreen(boolean fullscreen) {
+        this.fullscreen = fullscreen;
     }
 
     /** The slot the player chose in Load Game, or null for a fresh run. */
