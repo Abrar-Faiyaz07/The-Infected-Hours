@@ -510,7 +510,10 @@ public class GameScreen implements Screen {
         idleFrameHeight = idleTexture.getHeight() / 4;
         idleFrames = TextureRegion.split(idleTexture, idleFrameWidth, idleFrameHeight);
 
-        femalePlayerTexture = loadTextureSafely("female/female_sprite_sheet_v3.png");
+        femalePlayerTexture = loadTextureSafely("female/female_sprite_sheet_v2.jpg");
+        if (femalePlayerTexture == null) {
+            femalePlayerTexture = loadTextureSafely("female/female_sprite_sheet_v3.png");
+        }
         if (femalePlayerTexture == null) {
             femalePlayerTexture = loadTextureSafely("female/map_player.png");
         }
