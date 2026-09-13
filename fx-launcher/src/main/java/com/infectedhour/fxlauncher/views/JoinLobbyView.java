@@ -68,7 +68,14 @@ public class JoinLobbyView {
         refreshBtn.getStyleClass().add("menu-btn");
         refreshBtn.setOnAction(e -> refresh());
 
-        manualIp.setPromptText("Manual host IP (e.g. 192.168.0.14)");
+        String clientVpn = LanDiscovery.resolveVpnIpv4();
+        Label vpnStatus = null;
+        if (clientVpn != null) {
+            vpnStatus = new Label("✓ Radmin VPN active on this machine (" + clientVpn + "). Connect using Host's 26.x.x.x IP.");
+            vpnStatus.setStyle("-fx-text-fill: #4ade80; -fx-font-size: 11px; -fx-font-weight: bold;");
+        }
+
+        manualIp.setPromptText("Manual host IP (e.g. 192.168.0.14 or 26.x.x.x for Radmin)");
         manualIp.setMaxWidth(460);
 
         Button joinBtn = new Button("Join");
@@ -83,7 +90,11 @@ public class JoinLobbyView {
 
         root.getChildren().addAll(title,
                 new Label("Your Username:"), clientUsername,
-                new Label("Discovered Hosts:"), discoveredHosts, refreshBtn, status,
+                new Label("Discovered Hosts:"), discoveredHosts, refreshBtn, status);
+        if (vpnStatus != null) {
+            root.getChildren().add(vpnStatus);
+        }
+        root.getChildren().addAll(
                 new Label("…or connect directly by IP:"), manualIp, joinBtn, backBtn);
     }
 

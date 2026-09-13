@@ -1,0 +1,149 @@
+================================================================================
+     THE INFECTED HOUR — STEP-BY-STEP GUIDELINE FOR OPTION 2 (VIRTUAL LAN)
+        How Two Teammates Can Play Co-op Live from Separate Houses Online
+================================================================================
+
+CONCEPT:
+Because the game uses local LAN sockets (KryoNet TCP 54555 & UDP 54777), two
+laptops in different houses cannot see each other directly over the public internet.
+Radmin VPN solves this by creating an encrypted, direct Virtual LAN tunnel.
+Both computers act as if they are plugged into the exact same Wi-Fi router!
+
+--------------------------------------------------------------------------------
+PHASE 1: ONE-TIME SETUP (DO THIS THE NIGHT BEFORE THE PRESENTATION!)
+--------------------------------------------------------------------------------
+
+1. Both Teammates download and install Radmin VPN:
+   - Download link: https://www.radmin-vpn.com/
+   - Free, no sign-up, no credit card, takes 30 seconds to install.
+
+2. Teammate 1 (HOST):
+   a. Open Radmin VPN -> Click "Create Network".
+   b. Set a Network Name: e.g. "InfectedHourCSE4402"
+   c. Set a Password: e.g. "infected123"
+   d. Click Create.
+   e. You will see an IP in Radmin at the top (e.g., 26.184.92.10).
+      Send this IP and the network credentials to Teammate 2.
+
+3. Teammate 2 (CLIENT):
+   a. Open Radmin VPN -> Click "Join Network".
+   b. Enter the Network Name: "InfectedHourCSE4402"
+   c. Enter the Password: "infected123"
+   d. Click Join.
+   e. Both teammates will now see each other's PC name in Radmin with a green dot!
+
+4. TEST THE CONNECTION (PING TEST):
+   - Teammate 2: Right-click Teammate 1's name in Radmin VPN -> Click "Ping".
+   - If you see "Reply from 26.xxx.xxx.xxx: bytes=32 time=...ms", YOUR VIRTUAL
+     LAN IS 100% WORKING!
+
+
+--------------------------------------------------------------------------------
+PHASE 2: WINDOWS FIREWALL (CRITICAL STEP — PREVENTS CONNECTION BLOCKS)
+--------------------------------------------------------------------------------
+Windows Firewall often blocks game ports on newly added virtual networks.
+To prevent connection timeouts, BOTH teammates (especially HOST) should do this:
+
+EASY WAY:
+- When you first run the game, if Windows Firewall shows a popup asking:
+  "Windows Defender Firewall has blocked some features of Java(TM) Platform SE binary"
+  -> Check BOTH "Private networks" AND "Public networks" checkboxes!
+  -> Click "Allow access".
+
+GUARANTEED POWERSHELL WAY (Run as Administrator on Host machine):
+New-NetFirewallRule -DisplayName "InfectedHour-KryoNet-TCP" -Direction Inbound -LocalPort 54555 -Protocol TCP -Action Allow
+New-NetFirewallRule -DisplayName "InfectedHour-KryoNet-UDP" -Direction Inbound -LocalPort 54777,54778 -Protocol UDP -Action Allow
+
+
+--------------------------------------------------------------------------------
+PHASE 3: HOW TO START & CONNECT THE GAME
+--------------------------------------------------------------------------------
+
+-------------------------
+METHOD A: FASTEST & 100% RELIABLE (Direct CLI — Highly Recommended)
+-------------------------
+This bypasses launcher menus and boots directly into the co-op match.
+
+1. TEAMMATE 1 (HOST):
+   - Step 1: Open Terminal 1 and start the Backend:
+     .\gradlew.bat :backend:bootRun
+   - Step 2: Open Terminal 2 and start the Host Game:
+     .\gradlew.bat :lwjgl3:run
+   (Host window will open with Elric and start the authoritative server).
+
+2. TEAMMATE 2 (CLIENT):
+   - Open Terminal and run:
+     .\gradlew.bat :lwjgl3:run --args="join 26.xxx.xxx.xxx"
+     *(Replace 26.xxx.xxx.xxx with Host's actual Radmin IP!)*
+   - Client window will open with Jane and connect immediately!
+
+
+-------------------------
+METHOD B: USING THE JAVAFX LAUNCHER UI
+-------------------------
+If you want to show the full custom Launcher UI, Registration, and Lobby:
+
+1. BOTH Teammates start their own local Backend:
+   .\gradlew.bat :backend:bootRun
+
+2. TEAMMATE 1 (HOST):
+   - Run: .\gradlew.bat :fx-launcher:run
+   - Register or Login.
+   - Click "Co-op Mode" -> "Host Game".
+   - Start the match.
+
+3. TEAMMATE 2 (CLIENT):
+   - Run: .\gradlew.bat :fx-launcher:run
+   - Register or Login.
+   - Click "Co-op Mode" -> "Join a Match".
+   - In the box labeled: "…or connect directly by IP":
+     Type the Host's Radmin IP: e.g. 26.184.92.10
+   - Click "Join".
+
+
+--------------------------------------------------------------------------------
+PHASE 4: HOW TO PRESENT DURING THE ONLINE CALL (TEACHER EVALUATION)
+--------------------------------------------------------------------------------
+
+1. SCREEN SHARING STRATEGY:
+   - Option A (Recommended): HOST shares screen on Google Meet / Zoom.
+     Host plays Elric, and the teacher hears Teammate 2 (Jane) communicating on mic:
+     "I'll flank the spitters from the right, cover me while I interact with the generator!"
+     This proves genuine team collaboration.
+   - Option B: If on Discord or a platform allowing dual streams, both can stream.
+
+2. WHAT TO SHOW THE TEACHER:
+   - Show synchronization: Both players walking together, fighting zombies together.
+   - Show co-op mechanics: When one player takes damage, show health bar updating.
+   - Show Revive: Let one character get downed, have the other press 'E' to revive.
+   - Show Objective Sync: One player picks up an item / flips a switch, and it
+     updates on the other's screen.
+
+3. SCRIPT / WHAT TO SAY TO THE TEACHER:
+   "Sir, our multiplayer uses KryoNet with an authoritative server architecture.
+   Critical events like joins, story progress, and objective triggers are sent
+   over reliable TCP on port 54555, while high-frequency movement and entity
+   positions are broadcast using 20Hz UDP snapshots on port 54777 with client-side
+   interpolation. Even though we are at separate houses, our direct socket tunnel
+   maintains sub-30ms state synchronization."
+
+
+--------------------------------------------------------------------------------
+PHASE 5: TROUBLESHOOTING / FAQ
+--------------------------------------------------------------------------------
+
+Q: Client gets "Connection refused" or hangs at "Connecting to host..."
+A: 1. Ensure Host's game is already running before Client presses Join.
+   2. Ensure Radmin VPN is turned ON for both (green icon).
+   3. Ensure Host's Windows Firewall is not blocking TCP port 54555. (Temporarily
+      disable Public Firewall on Host to test).
+   4. Double check the IP typed by Client matches the Host's Radmin IP exactly.
+
+Q: Radmin VPN ping request times out:
+A: Host's Windows Firewall is blocking ICMP echo. Turn off "Domain/Public firewall"
+   in Windows Defender settings for the Radmin VPN adapter.
+
+Q: What if the internet flickers during the presentation?
+A: Keep the 60-second backup video on your Desktop (Option 3). If there's any
+   network lag on Google Meet, immediately switch to the video clip.
+================================================================================
