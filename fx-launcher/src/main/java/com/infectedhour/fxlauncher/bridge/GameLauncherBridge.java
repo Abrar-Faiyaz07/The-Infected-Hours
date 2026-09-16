@@ -83,6 +83,13 @@ public class GameLauncherBridge {
         startMatch(SessionConfig.joining(hostAddress, playerId(), name), onReturnToLauncher);
     }
 
+    /** Boots directly into single-machine local split-screen co-op with Elric (P1) and Jane (P2). */
+    public void startDebugLocalCoop(Runnable onReturnToLauncher) {
+        SessionConfig config = SessionConfig.debugLocalCoop(
+                playerId(), displayName(), SessionState.get().getBackendUrl());
+        startMatch(config, onReturnToLauncher);
+    }
+
     public void startMatch(SessionConfig session, Runnable onReturnToLauncher) {
         GameBridge bridge = new GameBridge();
         bridge.setHasLauncher(true);

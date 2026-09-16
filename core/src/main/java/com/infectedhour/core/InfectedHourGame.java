@@ -5,6 +5,7 @@ import com.infectedhour.core.bridge.GameBridge;
 import com.infectedhour.core.net.GameClient;
 import com.infectedhour.core.net.GameServer;
 import com.infectedhour.core.net.SessionConfig;
+import com.infectedhour.core.screens.GameScreen;
 import com.infectedhour.core.screens.LevelBriefingScreen;
 import com.infectedhour.shared.constants.GameConstants;
 
@@ -72,6 +73,10 @@ public class InfectedHourGame extends Game {
             server.restoreFrom(session.loadedSlot());
         }
 
+        if (server != null && session.debugSplitScreen()) {
+            server.enableLocalCoopDummy(com.infectedhour.shared.network.CharacterType.JANE);
+        }
+
         bridge.setOnSaveConfirmed(slotNumber -> {
             com.badlogic.gdx.Gdx.app.postRunnable(() -> {
                 if (server != null) {
@@ -80,7 +85,9 @@ public class InfectedHourGame extends Game {
             });
         });
 
-        if (bridge.hasLauncher() || session.isLoadingSave()) {
+        if (session.debugSplitScreen()) {
+            setScreen(new GameScreen(this, client, bridge, session.startingLevel()));
+        } else if (bridge.hasLauncher() || session.isLoadingSave()) {
             setScreen(new LevelBriefingScreen(this, client, bridge, session.startingLevel()));
         } else {
             setScreen(new com.infectedhour.core.screens.MainMenuScreen(this, client, bridge));
