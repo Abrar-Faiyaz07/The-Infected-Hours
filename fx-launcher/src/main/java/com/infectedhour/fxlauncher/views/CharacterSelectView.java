@@ -50,9 +50,9 @@ public class CharacterSelectView {
         // ── Card 1: ELRIC ──
         VBox elricCard = createCharacterCard(
                 "ELRIC",
-                "ROLE: FIELD MEDIC",
+                "ROLE: FIELD STRIKER",
                 "#38BDF8",
-                "Specialized in biological containment, sample analysis, and immune recovery. Holds high infection resistance.",
+                "Melee Combat & Containment specialist.\n+20% Attack speed & knockback | 30% slower contamination | 50 DMG/hit | 35 Heal",
                 "male_character_select.jpg",
                 CharacterType.ELRIC
         );
@@ -60,10 +60,10 @@ public class CharacterSelectView {
         // ── Card 2: JANE ──
         VBox janeCard = createCharacterCard(
                 "JANE",
-                "ROLE: LOCAL SCOUT",
+                "ROLE: TACTICAL SCOUT",
                 "#34D399",
-                "Veteran local survivor with high combat instincts, fast evasion, and deadly machete proficiency.",
-                "female_character_select.jpg",
+                "High Agility & Objective Runner.\n+15% Movement speed & fast dash | 35% faster objective interaction | Katana 30 DMG | 50 Heal",
+                "female_character_select_v3.jpg",
                 CharacterType.JANE
         );
 
@@ -152,6 +152,10 @@ public class CharacterSelectView {
     }
 
     private Image loadImage(String name) {
+        var p2Stream = getClass().getResourceAsStream("/assets/player 2/" + name);
+        if (p2Stream != null) {
+            return new Image(p2Stream);
+        }
         var femaleStream = getClass().getResourceAsStream("/assets/female/" + name);
         if (femaleStream != null) {
             return new Image(femaleStream);
@@ -159,6 +163,14 @@ public class CharacterSelectView {
         var stream = getClass().getResourceAsStream("/assets/" + name);
         if (stream != null) {
             return new Image(stream);
+        }
+        File fP2 = new File("assets/player 2/" + name);
+        if (fP2.exists()) {
+            return new Image(fP2.toURI().toString());
+        }
+        File fP2b = new File("../assets/player 2/" + name);
+        if (fP2b.exists()) {
+            return new Image(fP2b.toURI().toString());
         }
         File f0 = new File("assets/female/" + name);
         if (f0.exists()) {

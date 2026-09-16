@@ -37,6 +37,7 @@ public class MainMenuScreen implements Screen {
     private enum MenuState {
         MAIN,
         CHARACTER_SELECT,
+        COLLECTION,
         LOAD_GAME,
         CONTROLS
     }
@@ -97,7 +98,16 @@ public class MainMenuScreen implements Screen {
         }
 
         elricTexture = loadTextureSafely("male_character_select.jpg");
-        janeTexture = loadTextureSafely("female/female_character_select.jpg");
+        janeTexture = loadTextureSafely("player 2/female_character_select_v3.jpg");
+        if (janeTexture == null) {
+            janeTexture = loadTextureSafely("female/female_character_select_v3.jpg");
+        }
+        if (janeTexture == null) {
+            janeTexture = loadTextureSafely("female/female_character_select_v2.jpg");
+        }
+        if (janeTexture == null) {
+            janeTexture = loadTextureSafely("female/female_character_select.jpg");
+        }
         if (janeTexture == null) {
             janeTexture = loadTextureSafely("female_character_select.jpg");
         }
@@ -148,6 +158,7 @@ public class MainMenuScreen implements Screen {
         switch (state) {
             case MAIN -> renderMainMenu(mouse, clicked);
             case CHARACTER_SELECT -> renderCharacterSelect(mouse, clicked);
+            case COLLECTION -> renderCollection(mouse, clicked);
             case LOAD_GAME -> renderLoadGame(mouse, clicked);
             case CONTROLS -> renderControls(mouse, clicked);
         }
@@ -168,10 +179,10 @@ public class MainMenuScreen implements Screen {
         batch.end();
 
         // Menu Buttons
-        float btnW = 420f;
-        float btnH = 50f;
-        float startY = VIRTUAL_HEIGHT - 240f;
-        float spacing = 62f;
+        float btnW = 440f;
+        float btnH = 46f;
+        float startY = VIRTUAL_HEIGHT - 225f;
+        float spacing = 54f;
 
         if (drawButton(centerX - btnW / 2f, startY, btnW, btnH, "1.  STORY MODE (NEW RUN)", mouse, clicked)
                 || Gdx.input.isKeyJustPressed(Input.Keys.NUM_1) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_1)) {
@@ -184,26 +195,31 @@ public class MainMenuScreen implements Screen {
             state = MenuState.LOAD_GAME;
         }
 
-        if (drawButton(centerX - btnW / 2f, startY - spacing * 2, btnW, btnH, "3.  CONTROLS & GUIDE", mouse, clicked)
+        if (drawButton(centerX - btnW / 2f, startY - spacing * 2, btnW, btnH, "3.  COLLECTION (OPERATIVE DOSSIERS)", mouse, clicked)
                 || Gdx.input.isKeyJustPressed(Input.Keys.NUM_3) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_3)) {
+            state = MenuState.COLLECTION;
+        }
+
+        if (drawButton(centerX - btnW / 2f, startY - spacing * 3, btnW, btnH, "4.  CONTROLS & GUIDE", mouse, clicked)
+                || Gdx.input.isKeyJustPressed(Input.Keys.NUM_4) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_4)) {
             state = MenuState.CONTROLS;
         }
 
-        String displayBtnText = "4.  DISPLAY: [ " + com.infectedhour.core.display.DisplayManager.getModeLabel() + " ] (F11)";
-        if (drawButton(centerX - btnW / 2f, startY - spacing * 3, btnW, btnH, displayBtnText, mouse, clicked)
-                || Gdx.input.isKeyJustPressed(Input.Keys.NUM_4) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_4)) {
+        String displayBtnText = "5.  DISPLAY: [ " + com.infectedhour.core.display.DisplayManager.getModeLabel() + " ] (F11)";
+        if (drawButton(centerX - btnW / 2f, startY - spacing * 4, btnW, btnH, displayBtnText, mouse, clicked)
+                || Gdx.input.isKeyJustPressed(Input.Keys.NUM_5) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_5)) {
             com.infectedhour.core.display.DisplayManager.toggleDisplayMode();
         }
 
-        if (drawButton(centerX - btnW / 2f, startY - spacing * 4, btnW, btnH, "5.  QUIT GAME", mouse, clicked)
-                || Gdx.input.isKeyJustPressed(Input.Keys.NUM_5) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_5)) {
+        if (drawButton(centerX - btnW / 2f, startY - spacing * 5, btnW, btnH, "6.  QUIT GAME", mouse, clicked)
+                || Gdx.input.isKeyJustPressed(Input.Keys.NUM_6) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_6)) {
             Gdx.app.exit();
         }
 
         // Footer Info
         batch.begin();
         font.setColor(Color.GRAY);
-        font.draw(batch, "Mode: " + com.infectedhour.core.display.DisplayManager.getModeLabel() + "  |  Press [1-5] or Click  |  [F11] Toggle Fullscreen", 40f, 40f);
+        font.draw(batch, "Mode: " + com.infectedhour.core.display.DisplayManager.getModeLabel() + "  |  Press [1-6] or Click  |  [F11] Toggle Fullscreen", 40f, 35f);
         batch.end();
     }
 
@@ -230,9 +246,9 @@ public class MainMenuScreen implements Screen {
         boolean elricChosen = drawCharacterCard(
                 card1X, cardY, cardW, cardH,
                 "ELRIC",
-                "ROLE: FIELD MEDIC",
+                "ROLE: FIELD STRIKER",
                 new Color(0.22f, 0.74f, 0.97f, 1f),
-                "Bio-containment specialist. Immune response & healing surge.\nHigh toxin resistance and emergency medical kit.",
+                "Melee Combat & Containment Operative.\n+20% Attack Speed & Knockback | 30% Slower Contamination.\n50 Melee DMG per hit | 35 HP Heal Ability.",
                 elricTexture,
                 "[ 1 ] SELECT ELRIC",
                 mouse, clicked
@@ -247,9 +263,9 @@ public class MainMenuScreen implements Screen {
         boolean janeChosen = drawCharacterCard(
                 card2X, cardY, cardW, cardH,
                 "JANE",
-                "ROLE: LOCAL SCOUT",
+                "ROLE: TACTICAL SCOUT",
                 new Color(0.20f, 0.83f, 0.60f, 1f),
-                "Veteran street survivor. High agility and rapid evasion.\nDeadly machete expertise and swift field maneuvers.",
+                "High Agility & Objective Runner.\n+15% Movement Speed & Dash Recovery | 35% Faster Interactions.\nKatana 30 DMG + Knockback | Produces Medkits (50 Heal).",
                 janeTexture,
                 "[ 2 ] SELECT JANE",
                 mouse, clicked
@@ -266,6 +282,150 @@ public class MainMenuScreen implements Screen {
         if (drawButton(centerX - backW / 2f, 50f, backW, backH, "BACK TO MAIN MENU (ESC)", mouse, clicked)
                 || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE) || Gdx.input.isKeyJustPressed(Input.Keys.BACKSPACE)) {
             state = MenuState.MAIN;
+        }
+    }
+
+    private void renderCollection(Vector3 mouse, boolean clicked) {
+        float centerX = VIRTUAL_WIDTH / 2f;
+
+        batch.begin();
+        titleFont.setColor(0.910f, 0.690f, 0.165f, 1f);
+        layout.setText(titleFont, "OPERATIVE ARCHIVE & COLLECTION");
+        titleFont.draw(batch, "OPERATIVE ARCHIVE & COLLECTION", centerX - (layout.width / 2f), VIRTUAL_HEIGHT - 48f);
+
+        subtitleFont.setColor(0.78f, 0.82f, 0.88f, 0.9f);
+        layout.setText(subtitleFont, "DECLASSIFIED FIELD DOSSIERS — OSCORP & GOVERNMENT COALITION");
+        subtitleFont.draw(batch, "DECLASSIFIED FIELD DOSSIERS — OSCORP & GOVERNMENT COALITION", centerX - (layout.width / 2f), VIRTUAL_HEIGHT - 90f);
+        batch.end();
+
+        float cardW = 550f;
+        float cardH = 480f;
+        float cardY = 96f;
+        float gap = 30f;
+        float card1X = centerX - cardW - gap / 2f;
+        float card2X = centerX + gap / 2f;
+
+        // ── Dossier 1: ELRIC ──
+        drawCollectionDossier(
+                card1X, cardY, cardW, cardH,
+                "ELRIC — FIELD STRIKER",
+                "ROLE: MELEE COMBAT & CONTAINMENT",
+                new Color(0.22f, 0.74f, 0.97f, 1f),
+                "Oscorp Private Security Operative",
+                "A resilient survivor who thrives under pressure. Built for close-quarters clearing and holding choke points against infected swarms.",
+                new String[]{
+                        "• Combat Focus: +20% Melee attack speed and knockback",
+                        "• Hazard Resistance: 30% slower contamination meter buildup in toxic zones",
+                        "• Melee Power: 50 Damage per hit",
+                        "• Healing Surge: 35 HP recovery surge"
+                },
+                elricTexture,
+                "[ 1 ] DEPLOY ELRIC",
+                CharacterType.ELRIC,
+                mouse, clicked
+        );
+
+        // ── Dossier 2: JANE ──
+        drawCollectionDossier(
+                card2X, cardY, cardW, cardH,
+                "JANE — TACTICAL SCOUT",
+                "ROLE: HIGH AGILITY & OBJECTIVE RUNNER",
+                new Color(0.20f, 0.83f, 0.60f, 1f),
+                "Undercover Government Agent",
+                "Analytical and razor-sharp. Uses superior agility and tactical blade strikes to secure quarantine zones and rescue survivors before time runs out.",
+                new String[]{
+                        "• Agility Focus: +15% base movement speed and fast dash recovery",
+                        "• Field Expertise: 35% faster sanitation node & objective interactions",
+                        "• Tactical Katana: 30 Damage per strike + knockback",
+                        "• Field Chemist: Produces 1 Medkit every 60s (50 HP heal capacity)"
+                },
+                janeTexture,
+                "[ 2 ] DEPLOY JANE",
+                CharacterType.JANE,
+                mouse, clicked
+        );
+
+        // Back Button
+        float backW = 320f;
+        float backH = 42f;
+        if (drawButton(centerX - backW / 2f, 32f, backW, backH, "BACK TO MAIN MENU (ESC)", mouse, clicked)
+                || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE) || Gdx.input.isKeyJustPressed(Input.Keys.BACKSPACE)) {
+            state = MenuState.MAIN;
+        }
+    }
+
+    private void drawCollectionDossier(float x, float y, float w, float h,
+                                       String title, String role, Color roleColor,
+                                       String affiliation, String bio, String[] perks,
+                                       Texture portrait, String deployLabel,
+                                       CharacterType characterType, Vector3 mouse, boolean clicked) {
+        boolean hovered = mouse.x >= x && mouse.x <= x + w && mouse.y >= y && mouse.y <= y + h;
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(hovered ? new Color(0.11f, 0.16f, 0.25f, 0.95f) : new Color(0.07f, 0.10f, 0.17f, 0.92f));
+        shapes.rect(x, y, w, h);
+        shapes.end();
+
+        shapes.begin(ShapeRenderer.ShapeType.Line);
+        shapes.setColor(hovered ? new Color(0.910f, 0.690f, 0.165f, 1f) : new Color(0.24f, 0.32f, 0.44f, 0.8f));
+        shapes.rect(x, y, w, h);
+        // Header separator line
+        shapes.setColor(new Color(0.24f, 0.32f, 0.44f, 0.5f));
+        shapes.line(x + 16f, y + h - 186f, x + w - 16f, y + h - 186f);
+        shapes.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+
+        batch.begin();
+        // Portrait on upper left
+        float imgW = 120f;
+        float imgH = 165f;
+        float imgX = x + 18f;
+        float imgY = y + h - imgH - 12f;
+        if (portrait != null) {
+            batch.draw(portrait, imgX, imgY, imgW, imgH);
+        }
+
+        // Title and Role on upper right
+        float metaX = imgX + imgW + 16f;
+        float metaW = w - imgW - 44f;
+        subtitleFont.setColor(0.910f, 0.690f, 0.165f, 1f);
+        subtitleFont.draw(batch, title, metaX, imgY + imgH - 4f, metaW, Align.left, false);
+
+        font.setColor(roleColor);
+        font.draw(batch, role, metaX, imgY + imgH - 32f, metaW, Align.left, false);
+
+        font.setColor(new Color(0.65f, 0.72f, 0.82f, 1f));
+        font.draw(batch, "Affiliation: " + affiliation, metaX, imgY + imgH - 54f, metaW, Align.left, false);
+
+        font.setColor(new Color(0.85f, 0.88f, 0.94f, 1f));
+        font.draw(batch, "\"" + bio + "\"", metaX, imgY + imgH - 78f, metaW, Align.left, true);
+
+        // Tactical Perks Section
+        float perksY = y + h - 202f;
+        font.setColor(new Color(0.910f, 0.690f, 0.165f, 1f));
+        font.draw(batch, "TACTICAL PERKS & COMBAT ABILITIES:", x + 20f, perksY);
+
+        float listY = perksY - 26f;
+        font.setColor(Color.WHITE);
+        for (String perk : perks) {
+            font.draw(batch, perk, x + 20f, listY, w - 40f, Align.left, true);
+            listY -= 28f;
+        }
+        batch.end();
+
+        // Deploy Button
+        float btnW = w - 40f;
+        float btnH = 40f;
+        float btnX = x + 20f;
+        float btnY = y + 16f;
+        boolean selected = drawButton(btnX, btnY, btnW, btnH, deployLabel, mouse, clicked)
+                || (characterType == CharacterType.ELRIC && (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_1)))
+                || (characterType == CharacterType.JANE && (Gdx.input.isKeyJustPressed(Input.Keys.NUM_2) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_2)));
+
+        if (selected) {
+            launchGameWithCharacter(characterType);
         }
     }
 

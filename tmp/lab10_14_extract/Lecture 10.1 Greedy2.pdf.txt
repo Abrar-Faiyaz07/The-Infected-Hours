@@ -1,0 +1,105 @@
+
+===== PAGE 1 =====
+Compression
+
+===== PAGE 2 =====
+Compression
+• If n > m, then according to pigeonhole principle, there must be 
+at least one encoded string which is matched with more than 
+one original string.
+
+===== PAGE 3 =====
+Compression
+• For a lossless compression, multiple string matching with single 
+encoded string is not possible. 
+• There must be at least one input which will be matched with the 
+output having size bigger than input
+• Huffman encoding is a lossless text file compression technique
+===== PAGE 4 =====
+Huffman encoding
+Given a long string of characters, find a way to encode these characters 
+into binary codes such that the length of the binary representation of 
+the string is minimized
+• It assigns variable-length prefix free codes to input characters
+• Code lengths depend on the frequencies of corresponding characters
+• Target is to find a prefix free code so that the encoded string has the 
+smallest length
+===== PAGE 5 =====
+Huffman encoding (example)
+• Encoding 1: a = 0 b = 1 c = 01 
+• Decode the message based on the previous encoding: 0101 ?
+===== PAGE 6 =====
+Huffman encoding (example)
+• Encoding 1: a = 0 b = 1 c = 01 
+• Decode the message based on the previous encoding: 0101 ?
+• This encoding is not prefix free (code for a is found in the prefix of 
+code c)
+0  1  0  1 0  1  01 01  0   1 01   01
+a  b  a  b a  b  c c     a   b c      c
+===== PAGE 7 =====
+Huffman encoding (example)
+Text to encode: abcc
+• Some prefix free coding options are:
+• Encoding1: a = 0, b = 10, c = 11
+• Encoded string: 0101111 (length: 7)
+• Encoding2: c = 0, a = 10, b = 11
+• Encoded string: 101100 (length: 6)
+• Encoding3:…..
+• Encoding4:…..
+• Huffman encoding finds the encoding where the encoded string has 
+the smallest length
+===== PAGE 8 =====
+Huffman encoding
+• To achieve prefix free code, the binary tree representing the 
+encoding will have symbols at the leaves only, the intermediate 
+nodes will not represent any symbols
+• To achieve the shortest encoded string, the highest frequency 
+symbols will be closer to the root and lower frequency symbols will 
+be in the deeper levels of the tree
+===== PAGE 9 =====
+Huffman encoding (Greedy solution)
+Source: https://www.geeksforgeeks.org/huffman-coding-greedy-algo-3/
+
+===== PAGE 10 =====
+Optimality of Huffman encoding
+• Proof by induction:
+• Base case: n <= 2, our algorithm and Huffman tree are same (Only 
+one tree is possible with 1 or 2 nodes)
+• We will assume the claim to be true for n−1 unique elements, and 
+have to prove that it holds for n unique elements
+===== PAGE 11 =====
+Optimality of Huffman encoding
+• Assume, Huffman tree is H and our algorithm generates G
+• Our goal is to prove cost(H) = cost(G) [Not: H = G]
+• Let f1 <= f2 <= f3… <=fn are the frequencies for n symbols
+• There’s an optimal tree where the two smallest frequency symbols 
+mark siblings (Proof given later), so: f1 and f2 are neighbors in H
+• Our algorithm also forms a tree G, where f1 and f2 are neighbors
+===== PAGE 12 =====
+Optimality of Huffman encoding
+• Now remove f1 and f2 and make their parent a new leaf with frequency 
+(f1+f2). Using this idea, we obtain H’ and G’ from H and G.
+• H’ and G’ has n-1 elements and according to our hypothesis for 
+induction: 
+• cost(H’) = cost (G’)   …. (1)
+• Now:
+• cost(G’) =  cost(G) – (f1+f2) ….(2)
+• cost (H’) = cost(H) – (f1+f2) ….(3)
+• Using (1), (2) and (3):
+• cost(H) = cost(H’) + f1 + f2 = cost(G’) + f1 +f2 = cost(G)
+===== PAGE 13 =====
+Proof of the Claim
+• Claim: There’s an optimal tree where the two smallest frequency symbols 
+mark siblings
+• Let, w,y are the lowest frequency symbols. (They have the biggest depth in the 
+tree)
+• If w,y are not the siblings, 3 cases can happen:
+• w has a neighbor z:
+• Swap z with w: cost(T’) <= cost(T)
+• w is the only child:
+• Replace w with its parent: cost(T’) < cost(T) [Contradiction, as Huffman tree is optimal]
+• w has a subtree with z as leave (z is in deeper level than w):
+• Swap w with z: cost(T’) < cost (T) [Contradiction, as Huffman tree is optimal]
+===== PAGE 14 =====
+Visualization Tool
+• https://cmps-people.ok.ubc.ca/ylucet/DS/Huffman.html

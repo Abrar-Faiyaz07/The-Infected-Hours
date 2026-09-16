@@ -54,8 +54,18 @@ public class MainMenuController {
     }
 
     @FXML
+    private void onDebugCoop() {
+        new GameLauncherBridge(stage, backendClient).startDebugLocalCoop(() -> stage.getScene().setRoot(rootPane));
+    }
+
+    @FXML
     private void onLoadGame() {
         navigate(new LoadGameView(stage, backendClient).getRoot());
+    }
+
+    @FXML
+    private void onCollection() {
+        navigate(new CollectionView(stage, backendClient).getRoot());
     }
 
     @FXML
