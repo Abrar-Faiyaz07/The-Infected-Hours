@@ -32,8 +32,10 @@ import com.infectedhour.shared.network.LevelTransition;
 import com.infectedhour.shared.network.MatchMode;
 import com.infectedhour.shared.network.MatchResultMessage;
 import com.infectedhour.shared.network.WorldSnapshot;
+import com.infectedhour.shared.net.LanDiscovery;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -245,7 +247,7 @@ public class GameServer {
 
         joined.entity.setPosition(spawnX(joined.entity.getCharacter()), spawnY(joined.entity.getCharacter()));
 
-        connection.sendTCP(new JoinAccept(backendUrl, hostDisplayName,
+        connection.sendTCP(new JoinAccept(resolveBackendUrlFor(connection), hostDisplayName,
                 joined.entity.getCharacter(), joined.playerId, mode));
 
         LOG.info(() -> "Accepted " + joined.displayName + " as " + joined.entity.getCharacter()
@@ -260,6 +262,20 @@ public class GameServer {
         }
 
         sessionListener.onPlayerJoined(joined.playerId, joined.displayName, joined.entity.getCharacter(), mode);
+    }
+
+    private String resolveBackendUrlFor(Connection connection) {
+        if (connection == null || connection.getRemoteAddressTCP() == null) {
+            return backendUrl;
+        }
+        InetAddress remote = connection.getRemoteAddressTCP().getAddress();
+        if (remote != null && LanDiscovery.isVpnAddress(remote.getHostAddress())) {
+            String vpnIp = LanDiscovery.resolveVpnIpv4();
+            if (vpnIp != null && backendUrl != null) {
+                return backendUrl.replaceFirst("://[^:/]+", "://" + vpnIp);
+            }
+        }
+        return backendUrl;
     }
 
     private void onInput(Connection connection, InputCommand input) {

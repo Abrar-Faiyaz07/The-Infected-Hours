@@ -461,15 +461,24 @@ public class GameScreen implements Screen {
             mapTexture = new Texture(Gdx.files.internal("map.png"));
             mapTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         } else if (levelNumber == 2) {
-            Texture customMap2 = loadTextureSafely("map2.png");
-            if (customMap2 != null) {
-                mapTexture = customMap2;
+            Texture customFloor2 = loadTextureSafely("map1_floor2.png");
+            if (customFloor2 != null) {
+                mapTexture = customFloor2;
                 mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
             } else {
-                mapTexture = createRoadsideVillageTexture();
+                Texture customMap2 = loadTextureSafely("map2.png");
+                if (customMap2 != null) {
+                    mapTexture = customMap2;
+                    mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+                } else {
+                    mapTexture = createRoadsideVillageTexture();
+                }
             }
         } else {
-            Texture customMap3 = loadTextureSafely("map3.png");
+            Texture customMap3 = loadTextureSafely("map1_floor2.png");
+            if (customMap3 == null) {
+                customMap3 = loadTextureSafely("map3.png");
+            }
             if (customMap3 != null) {
                 mapTexture = customMap3;
                 mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
@@ -501,7 +510,22 @@ public class GameScreen implements Screen {
         idleFrameHeight = idleTexture.getHeight() / 4;
         idleFrames = TextureRegion.split(idleTexture, idleFrameWidth, idleFrameHeight);
 
-        femalePlayerTexture = loadTextureSafely("map_player.png");
+        femalePlayerTexture = loadTextureSafely("female/female_sprite_sheet_v2.png");
+        if (femalePlayerTexture == null) {
+            femalePlayerTexture = loadTextureSafely("female/female_sprite_sheet_v2.jpg");
+        }
+        if (femalePlayerTexture == null) {
+            femalePlayerTexture = loadTextureSafely("female/female_sprite_sheet_v3.png");
+        }
+        if (femalePlayerTexture == null) {
+            femalePlayerTexture = loadTextureSafely("female/map_player.png");
+        }
+        if (femalePlayerTexture == null) {
+            femalePlayerTexture = loadTextureSafely("female/female_sprite_sheet.png");
+        }
+        if (femalePlayerTexture == null) {
+            femalePlayerTexture = loadTextureSafely("map_player.png");
+        }
         if (femalePlayerTexture != null) {
             femalePlayerTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
             femaleFrameWidth = femalePlayerTexture.getWidth() / 8;
@@ -868,7 +892,7 @@ public class GameScreen implements Screen {
                     showBanner("Defeat the remaining " + remaining + " ambush zombies first!");
                 }
             } else if (areLevelObjectivesComplete(snapshot)) {
-                String nextName = levelNumber == 1 ? "Hospital Ground Floor" : (levelNumber == 2 ? "Roadside Village" : "Level " + (levelNumber + 1));
+                String nextName = levelNumber == 1 ? "Hospital Floor 2" : (levelNumber == 2 ? "Roadside Village" : "Level " + (levelNumber + 1));
                 showBanner("Proceeding to Level " + (levelNumber + 1) + " (" + nextName + ")…");
                 client.sendEvent(GameConstants.EVENT_LEVEL_EXIT_REQUEST, String.valueOf(levelNumber));
             } else {
@@ -2087,7 +2111,7 @@ public class GameScreen implements Screen {
 
             boolean canEscape = hasStairsKey && isAmbushDefeated;
             font.setColor(canEscape ? Color.GREEN : Color.GRAY);
-            font.draw(batch, (canEscape ? "[READY] " : "[LOCKED] ") + "Escape to Ground Floor", objectiveX, objectiveY);
+            font.draw(batch, (canEscape ? "[READY] " : "[LOCKED] ") + "Escape Upstairs (Floor 2)", objectiveX, objectiveY);
         } else if (levelNumber == 3) {
             font.setColor(0.910f, 0.690f, 0.165f, 1f);
             font.draw(batch, "VIRUS HEART ANTECHAMBER", objectiveX, objectiveY);
@@ -2227,7 +2251,7 @@ public class GameScreen implements Screen {
             }
         } else if (canAdvanceLevel) {
             font.setColor(Color.GOLD);
-            String nextName = levelNumber == 1 ? "Hospital Ground Floor" : (levelNumber == 2 ? "Roadside Village" : "Level " + (levelNumber + 1));
+            String nextName = levelNumber == 1 ? "Hospital Floor 2" : (levelNumber == 2 ? "Roadside Village" : "Level " + (levelNumber + 1));
             font.draw(batch, "Press [E] to proceed to LEVEL " + (levelNumber + 1) + " (" + nextName + ")",
                     VIRTUAL_WIDTH / 2f - 160f, VIRTUAL_HEIGHT / 2f - 50f);
         } else if (nearLevelExit) {
@@ -2297,7 +2321,7 @@ public class GameScreen implements Screen {
 
         // Header text
         font.setColor(0.910f, 0.690f, 0.165f, 1f);
-        String header = levelNumber == 1 ? "MAP: WARD" : (levelNumber == 2 ? "MAP: GROUND" : "MAP: VILLAGE");
+        String header = levelNumber == 1 ? "MAP: WARD" : (levelNumber == 2 ? "MAP: FLOOR 2" : "MAP: ANTECHAMBER");
         font.draw(batch, header, mmX + 6f, mmY + mmH + 14f);
 
         font.setColor(Color.LIGHT_GRAY);

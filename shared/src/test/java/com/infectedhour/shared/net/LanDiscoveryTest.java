@@ -11,6 +11,7 @@ import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -126,6 +127,27 @@ class LanDiscoveryTest {
         } catch (java.io.IOException noRoute) {
             // No default route on this machine — the interface-scan fallback is
             // in play and any non-blank answer is acceptable.
+        }
+    }
+
+    @Test
+    @DisplayName("isVpnAddress correctly detects Radmin and Hamachi subnets")
+    void testIsVpnAddress() {
+        assertTrue(LanDiscovery.isVpnAddress("26.148.157.199"));
+        assertTrue(LanDiscovery.isVpnAddress("26.0.0.1"));
+        assertTrue(LanDiscovery.isVpnAddress("25.1.2.3"));
+        assertFalse(LanDiscovery.isVpnAddress("192.168.1.1"));
+        assertFalse(LanDiscovery.isVpnAddress("127.0.0.1"));
+        assertFalse(LanDiscovery.isVpnAddress(null));
+        assertFalse(LanDiscovery.isVpnAddress(""));
+    }
+
+    @Test
+    @DisplayName("resolveVpnIpv4 returns valid IP or null without throwing")
+    void testResolveVpnIpv4() {
+        String vpnIp = LanDiscovery.resolveVpnIpv4();
+        if (vpnIp != null) {
+            assertTrue(LanDiscovery.isVpnAddress(vpnIp) || vpnIp.contains("."));
         }
     }
 }

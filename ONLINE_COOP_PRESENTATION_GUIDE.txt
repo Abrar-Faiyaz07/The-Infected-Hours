@@ -1,0 +1,119 @@
+================================================================================
+          THE INFECTED HOUR — ONLINE CO-OP PRESENTATION GUIDE
+================================================================================
+
+PROBLEM:
+Our project presentation will be conducted ONLINE (Google Meet / Zoom / Discord).
+Our game's multiplayer is built on LAN (KryoNet TCP 54555 / UDP 54777).
+
+BELOW ARE THE 3 WAYS TO DEMONSTRATE CO-OP ONLINE TO OUR TEACHER.
+
+--------------------------------------------------------------------------------
+OPTION 1: SPLIT-SCREEN SIDE-BY-SIDE ON 1 PC (⭐ STRONGLY RECOMMENDED)
+--------------------------------------------------------------------------------
+* BEST FOR: 100% stability, zero Wi-Fi/Internet lag, maximum visual impact.
+* CONCEPT: The presenter runs 1 Host and 1 Client on the same laptop/PC,
+           places them side-by-side, and shares their full screen on Meet/Zoom.
+
+WHY TEACHERS LOVE THIS:
+- The teacher doesn't have to switch between two students' screens or wait.
+- Both player perspectives are visible simultaneously on 1 screen.
+- When Player 1 moves/attacks on the left window, Player 2's screen on the
+  right immediately updates in real-time.
+- Demonstrates real-time packet sync (TCP reliable events + UDP 20Hz state
+  snapshots) without any risk of home internet disconnects during the viva!
+
+STEP-BY-STEP COMMANDS:
+1. Open Terminal 1 (Spring Boot Backend):
+   .\gradlew.bat :backend:bootRun
+
+2. Open Terminal 2 (Player 1 — Host / Elric):
+   .\gradlew.bat :lwjgl3:run
+   (Alternatively: run .\gradlew.bat :fx-launcher:run and click Host Game)
+
+3. Open Terminal 3 (Player 2 — Client / Jane):
+   .\gradlew.bat :lwjgl3:run --args="join"
+   (This connects instantly to localhost 127.0.0.1!)
+
+4. Arrange Windows on Screen:
+   - Press [F11] on both game windows to switch to Windowed mode (1280x720).
+   - Snap Player 1 window to Left half:   Press [Win] + [Left Arrow]
+   - Snap Player 2 window to Right half:  Press [Win] + [Right Arrow]
+
+5. In Google Meet / Zoom:
+   - Click "Share Screen" -> Choose "Entire Screen".
+   - You can control Player 1 with WASD + Mouse, and show Player 2 reacting,
+     or alternate between windows to demonstrate co-op interactions.
+
+
+--------------------------------------------------------------------------------
+OPTION 2: VIRTUAL LAN VIA RADMIN VPN (PLAYING FROM 2 DIFFERENT HOUSES)
+--------------------------------------------------------------------------------
+* BEST FOR: If two teammates are at their own homes and both want to play live
+  on their own keyboards simultaneously during the presentation.
+
+SETUP TIME: ~3 minutes (Free, no account needed).
+
+STEP 1: INSTALLATION
+- Both teammates download and install Radmin VPN:
+  Website: https://www.radmin-vpn.com/
+
+STEP 2: CREATE VIRTUAL NETWORK
+- Teammate 1 (Host):
+  1. Open Radmin VPN -> Click "Create Network".
+  2. Choose a Network Name (e.g., "InfectedHourDemo2026") and a password.
+  3. Note down your Radmin Virtual IP address (it looks like: 26.xxx.xxx.xxx).
+  4. Start the backend:
+     .\gradlew.bat :backend:bootRun
+  5. Start the Host Launcher:
+     .\gradlew.bat :fx-launcher:run -> Host Lobby -> Start Game.
+
+STEP 3: CLIENT CONNECTS
+- Teammate 2 (Client at their home):
+  1. Open Radmin VPN -> Click "Join Network".
+  2. Enter the same Network Name and Password.
+  3. Start the launcher:
+     .\gradlew.bat :fx-launcher:run
+  4. Go to "Co-op Mode" -> "Join a Match".
+  5. In the box "...or connect directly by IP", type the Host's Radmin IP:
+     Example: 26.152.88.42
+  6. Click "Join".
+
+STEP 4: PRESENTING ON CALL
+- In Google Meet / Zoom, the Host shares their screen.
+- Both teammates speak on their mics and coordinate gameplay live.
+
+
+--------------------------------------------------------------------------------
+OPTION 3: PRE-RECORDED VIDEO BACKUP (SAFETY NET — MUST PREPARE!)
+--------------------------------------------------------------------------------
+* WHY: Live network demos over video calls can suffer from lag, mic feedback,
+  or ISP hiccups. Having a clean 1-2 minute video ensures 0% stress.
+
+WHAT TO RECORD:
+- 60 to 90 seconds showing:
+  1. Lobby joining / character selection (Elric + Jane).
+  2. Both characters moving and clearing infected together.
+  3. Synchronized objective completion / puzzle interaction.
+  4. Downed state and reviving mechanic.
+
+HOW TO RECORD:
+- Use Windows Game Bar ([Win] + [G]) or OBS Studio.
+- Save the video as: "Infected_Hour_Coop_Demo.mp4" on your Desktop.
+- You can also embed the clip into your PowerPoint presentation slide.
+
+WHAT TO SAY IF INTERNET GLITCHES:
+"Sir, we have the live system running, and we have also attached a 1080p capture
+demonstrating the 2-player KryoNet packet synchronization in case screen-share
+bandwidth stutters."
+
+
+================================================================================
+FINAL TEAM CHECKLIST BEFORE PRESENTATION
+================================================================================
+[ ] Test Option 1 (Split-Screen side-by-side) on the presenter's laptop once.
+[ ] If playing from two houses, test Radmin VPN connection the night before.
+[ ] Ensure Java 21 is set in JAVA_HOME on presenting machine.
+[ ] Keep backend running before launching games.
+[ ] Have the backup MP4 video ready on Desktop just in case.
+================================================================================

@@ -334,4 +334,47 @@ public final class LanDiscovery {
                 || name.contains("docker") || name.contains("loopback") || name.contains("tap")
                 || name.contains("tunnel") || name.contains("bluetooth");
     }
+
+    /**
+     * Resolves a Radmin VPN (or virtual LAN adapter like Hamachi/ZeroTier/Tailscale) IPv4 address if present.
+     * Radmin VPN addresses always fall within 26.0.0.0/8, and its interface name contains "radmin".
+     *
+     * @return the VPN IPv4 address, or null if no active VPN interface is detected.
+     */
+    public static String resolveVpnIpv4() {
+        try {
+            for (NetworkInterface nic : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                if (!nic.isUp() || nic.isLoopback()) {
+                    continue;
+                }
+                String name = (nic.getDisplayName() == null ? nic.getName() : nic.getDisplayName()).toLowerCase();
+                boolean isVpnName = name.contains("radmin") || name.contains("zerotier")
+                        || name.contains("tailscale") || name.contains("hamachi");
+
+                for (InetAddress address : Collections.list(nic.getInetAddresses())) {
+                    if (!(address instanceof Inet4Address) || address.isLoopbackAddress()) {
+                        continue;
+                    }
+                    String ip = address.getHostAddress();
+                    if (isVpnName || ip.startsWith("26.") || ip.startsWith("25.")) {
+                        return ip;
+                    }
+                }
+            }
+        } catch (SocketException e) {
+            LOG.log(Level.FINE, "Could not resolve VPN address", e);
+        }
+        return null;
+    }
+
+    /**
+     * Returns true if the given IP address is in a known virtual VPN subnet
+     * (such as Radmin VPN's 26.0.0.0/8 or Hamachi's 25.0.0.0/8).
+     */
+    public static boolean isVpnAddress(String ip) {
+        if (ip == null || ip.isBlank()) {
+            return false;
+        }
+        return ip.startsWith("26.") || ip.startsWith("25.");
+    }
 }

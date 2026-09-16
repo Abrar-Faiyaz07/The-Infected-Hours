@@ -53,7 +53,12 @@ public class BossScreen implements Screen {
         titleFont = new BitmapFont();
         titleFont.getData().setScale(2.6f);
         projection = new Matrix4().setToOrtho2D(0f, 0f, WIDTH, HEIGHT);
-        if (Gdx.files.internal("map3.png").exists()) {
+        if (Gdx.files.internal("map1_floor2.png").exists()) {
+            try {
+                mapTexture = new Texture(Gdx.files.internal("map1_floor2.png"));
+                mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            } catch (Exception ignored) { }
+        } else if (Gdx.files.internal("map3.png").exists()) {
             try {
                 mapTexture = new Texture(Gdx.files.internal("map3.png"));
                 mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);

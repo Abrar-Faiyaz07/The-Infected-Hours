@@ -8,6 +8,8 @@ import com.infectedhour.shared.dto.PlayerDto;
 import com.infectedhour.shared.net.LanDiscovery;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -59,12 +61,33 @@ public class HostLobbyView {
         title.getStyleClass().add("title-gold");
 
         String lanIp = LanDiscovery.resolveLanIpv4();
-        Label hostIpLabel = new Label("Your LAN address:  " + lanIp);
+        String vpnIp = LanDiscovery.resolveVpnIpv4();
+
+        Label hostIpLabel = new Label("LAN address:  " + lanIp);
         hostIpLabel.getStyleClass().add("player-name");
 
-        Label manualHint = new Label(
-                "If the other laptop cannot find you automatically, have them type this address\n"
-                        + "into the Join screen's manual IP field.");
+        Label vpnIpLabel = null;
+        if (vpnIp != null) {
+            vpnIpLabel = new Label("Radmin VPN address:  " + vpnIp);
+            vpnIpLabel.getStyleClass().add("player-name");
+            vpnIpLabel.setStyle("-fx-text-fill: #4ade80; -fx-font-weight: bold;");
+        }
+
+        Button copyIpBtn = new Button("Copy IP for Partner");
+        copyIpBtn.setMaxWidth(460);
+        copyIpBtn.getStyleClass().add("menu-btn");
+        copyIpBtn.setOnAction(e -> {
+            String ipToCopy = (vpnIp != null) ? vpnIp : lanIp;
+            ClipboardContent content = new ClipboardContent();
+            content.putString(ipToCopy);
+            Clipboard.getSystemClipboard().setContent(content);
+            copyIpBtn.setText("Copied: " + ipToCopy + " ✓");
+        });
+
+        String hint = (vpnIp != null)
+                ? "• Same Wi-Fi: Partner enters LAN IP (" + lanIp + ")\n• Over Internet (Radmin VPN): Partner enters " + vpnIp
+                : "If the other laptop cannot find you automatically, have them type this address\ninto the Join screen's manual IP field.";
+        Label manualHint = new Label(hint);
         manualHint.getStyleClass().add("brand-subtitle");
 
         hostUsername.setPromptText("Your Host Username");
@@ -91,9 +114,13 @@ public class HostLobbyView {
             stage.getScene().setRoot(new CoopModeView(stage, backendClient).getRoot());
         });
 
+        root.getChildren().add(title);
+        root.getChildren().add(hostIpLabel);
+        if (vpnIpLabel != null) {
+            root.getChildren().add(vpnIpLabel);
+        }
         root.getChildren().addAll(
-                title,
-                hostIpLabel,
+                copyIpBtn,
                 manualHint,
                 new Label("Host Username:"),
                 hostUsername,

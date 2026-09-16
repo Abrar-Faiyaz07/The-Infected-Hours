@@ -152,9 +152,21 @@ public class CharacterSelectView {
     }
 
     private Image loadImage(String name) {
+        var femaleStream = getClass().getResourceAsStream("/assets/female/" + name);
+        if (femaleStream != null) {
+            return new Image(femaleStream);
+        }
         var stream = getClass().getResourceAsStream("/assets/" + name);
         if (stream != null) {
             return new Image(stream);
+        }
+        File f0 = new File("assets/female/" + name);
+        if (f0.exists()) {
+            return new Image(f0.toURI().toString());
+        }
+        File f0b = new File("../assets/female/" + name);
+        if (f0b.exists()) {
+            return new Image(f0b.toURI().toString());
         }
         File f1 = new File("assets/" + name);
         if (f1.exists()) {
