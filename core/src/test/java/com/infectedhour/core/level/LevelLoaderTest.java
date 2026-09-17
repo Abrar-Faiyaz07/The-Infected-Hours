@@ -2,6 +2,8 @@ package com.infectedhour.core.level;
 
 import com.infectedhour.core.systems.CollisionSystem;
 import com.infectedhour.shared.constants.GameConstants;
+import com.infectedhour.shared.level.Checkpoint;
+import com.infectedhour.shared.level.CheckpointRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -42,19 +44,26 @@ class LevelLoaderTest {
     }
 
     /**
-     * Guards the spawn points against a map edit that walls them in. GameServer
+     * Guards the spawn point against a map edit that walls it in. GameServer
      * would relocate a blocked spawn at runtime, but silently starting players
      * somewhere unintended is worse than a failing build.
+     *
+     * <p>The spawn is the level's first checkpoint, which is where the game
+     * actually puts players — {@code GameServer.restoreFrom} looks the position
+     * up from this registry, and it is the only spawn that varies per level.
+     * An earlier version of this test hard-coded (5.5, 4.5) and claimed to
+     * mirror {@code GameServer.spawnX/spawnY}; those constants had since moved,
+     * and being level-independent they cannot describe three different maps.
      */
     @ParameterizedTest
     @ValueSource(ints = { 1, 2, 3 })
     void playerSpawnPointsAreOnWalkableGround(int levelNumber) {
-        // Mirrors GameServer.spawnX/spawnY: Elric (5.5, 4.5), Jane (6.5, 4.5).
         LevelLoader loader = new LevelLoader();
         TileMap map = loader.loadMap(loader.loadDefinition(levelNumber));
+        Checkpoint start = CheckpointRegistry.firstOf(levelNumber);
 
-        assertTrue(map.isWalkableAt(5.5f, 4.5f), "level " + levelNumber + ": Elric's spawn is inside geometry");
-        assertTrue(map.isWalkableAt(6.5f, 4.5f), "level " + levelNumber + ": Jane's spawn is inside geometry");
+        assertTrue(map.isWalkableAt(start.spawnTileX(), start.spawnTileY()),
+                "level " + levelNumber + ": the spawn checkpoint " + start.id() + " is inside geometry");
     }
 
     /**
@@ -96,8 +105,9 @@ class LevelLoaderTest {
             }
         }
 
-        int startX = map.toCell(5.5f);
-        int startY = map.toCell(4.5f);
+        Checkpoint start = CheckpointRegistry.firstOf(levelNumber);
+        int startX = map.toCell(start.spawnTileX());
+        int startY = map.toCell(start.spawnTileY());
         assertTrue(standable[startY * cellsWide + startX],
                 "level " + levelNumber + ": the player does not fit at their own spawn point");
 
