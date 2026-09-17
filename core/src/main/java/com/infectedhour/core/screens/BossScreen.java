@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
@@ -32,7 +33,8 @@ public class BossScreen implements Screen {
     private static final float SCIENTIST_SCALE = 0.45f;
     private static final float AURA_SCALE = 0.25f;
     private static final float SHIELD_SCALE = 0.35f;
-    private static final float VOID_SCALE = 0.2f;
+    private static final float VOID_SCALE = 0.4f;
+    private static final float LASER_SCALE = 0.5f;
 
     private final InfectedHourGame game;
     private final GameClient client;
@@ -91,12 +93,21 @@ public class BossScreen implements Screen {
     private float bossInvulnerableTimer = 0f;
     private boolean phaseTwoTriggeredOnce = false;
 
+    // Boss Laser Attack Mechanics (4 frames, 0.2s each = 0.8s total)
+    private Texture laserTexture;
+    private Animation<TextureRegion> laserAnimation;
+    private int laserWidth, laserHeight;
+    private float laserAttackTimer = MathUtils.random(1f, 7f);
+    private boolean isFiringLaser = false;
+    private float laserDurationTimer = 0f;
+    private float laserTargetAngle = 0f;
+
     // Boss Aura Texture (Single Frame)
     private Texture bossAuraTexture;
 
-    // Void Projectile/Explosion (1x4 sheet)
+    // Void Texture & Animation (3 frames, 0.9s duration total, 0.3s each)
     private Texture voidTexture;
-    private TextureRegion[][] voidFrames;
+    private Animation<TextureRegion> voidAnimation;
     private int voidWidth, voidHeight;
     private float voidSpawnTimer = 0f;
 
@@ -198,13 +209,26 @@ public class BossScreen implements Screen {
             bossAuraTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         }
 
-        // Load Void Texture (1x4 Spritesheet)
+        // Load Laser Texture (4 frames, 0.2s each = 0.8s total)
+        laserTexture = loadTextureSafely("laser.png");
+        if (laserTexture != null) {
+            laserTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            laserWidth = laserTexture.getWidth() / 4;
+            laserHeight = laserTexture.getHeight() / 1;
+            TextureRegion[][] laserSplit = TextureRegion.split(laserTexture, laserWidth, laserHeight);
+            laserAnimation = new Animation<TextureRegion>(0.2f, laserSplit[0]);
+            laserAnimation.setPlayMode(Animation.PlayMode.NORMAL);
+        }
+
+        // Load Void Texture (3 frames animation mapped to 0.9s total duration -> 0.3s each)
         voidTexture = loadTextureSafely("void.png");
         if (voidTexture != null) {
             voidTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-            voidWidth = voidTexture.getWidth() / 4;
+            voidWidth = voidTexture.getWidth() / 3;
             voidHeight = voidTexture.getHeight() / 1;
-            voidFrames = TextureRegion.split(voidTexture, voidWidth, voidHeight);
+            TextureRegion[][] voidSplit = TextureRegion.split(voidTexture, voidWidth, voidHeight);
+            voidAnimation = new Animation<TextureRegion>(0.3f, voidSplit[0]);
+            voidAnimation.setPlayMode(Animation.PlayMode.NORMAL);
         }
 
         // Load Boss Load Sprite Sheet (1x2)
@@ -366,8 +390,9 @@ public class BossScreen implements Screen {
             drawBoss(delta);
         }
 
-        // Draw Player, Voids/Explosions, and Projectiles
+        // Draw Player, Voids/Explosions, Lasers, and Projectiles
         batch.begin();
+        drawLaser(delta);
         drawVoids(delta);
         drawProjectiles(delta);
         drawPlayer();
@@ -593,19 +618,44 @@ public class BossScreen implements Screen {
                         bossY = bossSpawnY;
                         phaseTwoIntroState = PhaseTwoIntroState.FLICKER_FIRST_FRAME;
                         phaseTwoIntroTimer = 0f;
+                        isFiringLaser = false;
                     }
                 }
             }
 
-            // Normal tracking behavior
-            float dx = playerX - bossX, dy = playerY - bossY, dist = (float) Math.sqrt(dx * dx + dy * dy);
-            if (dist > 2f) {
-                bossX += (dx / dist) * bossSpeed * delta;
-                bossY += (dy / dist) * bossSpeed * delta;
-                bossFacing = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 2 : 1) : (dy > 0 ? 3 : 0);
-                bossAnimTime += delta;
+            // Laser Attack Random Timer (1s to 7s) while chasing
+            if (isFiringLaser) {
+                laserDurationTimer -= delta;
+                if (laserDurationTimer <= 0f) {
+                    isFiringLaser = false;
+                    laserAttackTimer = MathUtils.random(1f, 7f);
+                }
             } else {
-                bossAnimTime += delta * 0.5f;
+                laserAttackTimer -= delta;
+                if (laserAttackTimer <= 0f) {
+                    isFiringLaser = true;
+                    laserDurationTimer = 0.8f; // Matches 0.8s total laser animation duration
+
+                    // Teleport right in front/close to the player (60 pixels away)
+                    float angleAwayFromPlayer = MathUtils.atan2(playerY - bossY, playerX - bossX);
+                    bossX = playerX - MathUtils.cos(angleAwayFromPlayer) * 60f;
+                    bossY = playerY - MathUtils.sin(angleAwayFromPlayer) * 60f;
+
+                    laserTargetAngle = MathUtils.radiansToDegrees * MathUtils.atan2(playerY - bossY, playerX - bossX);
+                }
+            }
+
+            // Normal tracking behavior (if not currently performing laser attack freeze frame)
+            if (!isFiringLaser) {
+                float dx = playerX - bossX, dy = playerY - bossY, dist = (float) Math.sqrt(dx * dx + dy * dy);
+                if (dist > 2f) {
+                    bossX += (dx / dist) * bossSpeed * delta;
+                    bossY += (dy / dist) * bossSpeed * delta;
+                    bossFacing = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 2 : 1) : (dy > 0 ? 3 : 0);
+                    bossAnimTime += delta;
+                } else {
+                    bossAnimTime += delta * 0.5f;
+                }
             }
         } else if (bossSpecialState == BossSpecialState.AURA_RETURN) {
             // Ensure boss stays locked at spawn point during Phase 2 with a tiny floating up-and-down motion
@@ -730,19 +780,30 @@ public class BossScreen implements Screen {
         batch.end();
     }
 
+    private void drawLaser(float delta) {
+        if (isFiringLaser && laserAnimation != null && bossSpecialState == BossSpecialState.NORMAL) {
+            float elapsed = 0.8f - laserDurationTimer;
+            TextureRegion currentFrame = laserAnimation.getKeyFrame(elapsed, false);
+
+            // Elongate the laser width by 2x so it reaches far towards the player
+            float laserW = laserWidth * LASER_SCALE * 2f;
+            float laserH = laserHeight * LASER_SCALE;
+            batch.draw(currentFrame, bossX, bossY - laserH / 2f, 0f, laserH / 2f, laserW, laserH, 1f, 1f, laserTargetAngle);
+        }
+    }
+
     private void drawVoids(float delta) {
         for (int i = activeVoids.size() - 1; i >= 0; i--) {
             ActiveVoid v = activeVoids.get(i);
             if (!paused && !isInventoryOpen) v.timeElapsed += delta;
 
-            if (v.timeElapsed >= 1.5f) {
+            if (v.timeElapsed >= 0.9f) {
                 activeVoids.remove(i);
                 continue;
             }
 
-            if (voidFrames != null) {
-                int frameIdx = Math.min(3, (int) ((v.timeElapsed / 1.5f) * 4));
-                TextureRegion frame = voidFrames[0][frameIdx];
+            if (voidAnimation != null) {
+                TextureRegion frame = voidAnimation.getKeyFrame(v.timeElapsed, false);
                 float vW = voidWidth * VOID_SCALE;
                 float vH = voidHeight * VOID_SCALE;
                 batch.draw(frame, v.x - vW / 2f, v.y - vH / 2f, vW, vH);
@@ -1119,5 +1180,6 @@ public class BossScreen implements Screen {
         if (janeMeleeHitTexture != null) janeMeleeHitTexture.dispose();
         if (bossAuraTexture != null) bossAuraTexture.dispose();
         if (voidTexture != null) voidTexture.dispose();
+        if (laserTexture != null) laserTexture.dispose();
     }
 }
