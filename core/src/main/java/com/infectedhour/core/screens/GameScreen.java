@@ -99,6 +99,9 @@ public class GameScreen implements Screen {
     private TextureRegion[][] p2SprintFrames;
     private Texture p2MeleeTexture;
     private TextureRegion[][] p2MeleeFrames;
+    private Texture p2MeleeHitTexture;
+    private TextureRegion[][] p2MeleeHitFrames;
+    private int p2MeleeHitFrameWidth, p2MeleeHitFrameHeight;
     private Texture p2IdleMeleeTexture;
     private TextureRegion[][] p2IdleMeleeFrames;
     private Texture p2BombTexture;
@@ -109,6 +112,7 @@ public class GameScreen implements Screen {
     private TextureRegion[][] femaleFrames;
     private int femaleFrameWidth, femaleFrameHeight;
     private static final float FEMALE_SPRITE_SCALE = 0.82f;
+    private static final float FEMALE_MELEE_SCALE = FEMALE_SPRITE_SCALE * 1.1f;
 
     // Sprint Texture
     private Texture playerSprintTexture;
@@ -703,6 +707,14 @@ public class GameScreen implements Screen {
         if (p2MeleeTexture != null) {
             p2MeleeTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
             p2MeleeFrames = TextureRegion.split(p2MeleeTexture, p2MeleeTexture.getWidth() / 8, p2MeleeTexture.getHeight() / 4);
+        }
+
+        p2MeleeHitTexture = loadTextureSafely("player 2/melee_hit.png");
+        if (p2MeleeHitTexture != null) {
+            p2MeleeHitTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            p2MeleeHitFrameWidth = p2MeleeHitTexture.getWidth() / 2;
+            p2MeleeHitFrameHeight = p2MeleeHitTexture.getHeight() / 4;
+            p2MeleeHitFrames = TextureRegion.split(p2MeleeHitTexture, p2MeleeHitFrameWidth, p2MeleeHitFrameHeight);
         }
 
         p2IdleMeleeTexture = loadTextureSafely("player 2/player_idle_melee.png");
@@ -1737,14 +1749,26 @@ public class GameScreen implements Screen {
                 // AI Jane animation state
                 if (aiJaneAnim.isAttacking) {
                     aiJaneAnim.attackTime += delta;
-                    float frameDuration = 0.045f;
-                    int attackCol = (int) (aiJaneAnim.attackTime / frameDuration);
-                    if (attackCol >= 8) {
-                        aiJaneAnim.isAttacking = false;
-                    } else if (p2MeleeFrames != null) {
-                        int safeRow = aiJaneAnim.currentRow % p2MeleeFrames.length;
-                        int safeCol = attackCol % p2MeleeFrames[0].length;
-                        aiJaneAnim.currentFrame = p2MeleeFrames[safeRow][safeCol];
+                    if (p2MeleeHitFrames != null) {
+                        float attackSpeed = 0.22f;
+                        int attackFrame = (int) (aiJaneAnim.attackTime / attackSpeed);
+                        if (attackFrame >= 2) {
+                            aiJaneAnim.isAttacking = false;
+                        } else {
+                            int safeRow = aiJaneAnim.currentRow % p2MeleeHitFrames.length;
+                            int safeCol = attackFrame % p2MeleeHitFrames[0].length;
+                            aiJaneAnim.currentFrame = p2MeleeHitFrames[safeRow][safeCol];
+                        }
+                    } else {
+                        float frameDuration = 0.045f;
+                        int attackCol = (int) (aiJaneAnim.attackTime / frameDuration);
+                        if (attackCol >= 8) {
+                            aiJaneAnim.isAttacking = false;
+                        } else if (p2MeleeFrames != null) {
+                            int safeRow = aiJaneAnim.currentRow % p2MeleeFrames.length;
+                            int safeCol = attackCol % p2MeleeFrames[0].length;
+                            aiJaneAnim.currentFrame = p2MeleeFrames[safeRow][safeCol];
+                        }
                     }
                 } else if (jMoving && p2MeleeFrames != null) {
                     aiJaneAnim.stateTime += delta;
@@ -2431,8 +2455,13 @@ public class GameScreen implements Screen {
                     batch.setColor(Color.WHITE);
                 }
             } else {
-                float jWidth = (jFrame != null) ? jFrame.getRegionWidth() * FEMALE_SPRITE_SCALE : (frameWidth * 0.8f * FEMALE_SPRITE_SCALE);
-                float jHeight = (jFrame != null) ? jFrame.getRegionHeight() * FEMALE_SPRITE_SCALE : (frameHeight * 0.8f * FEMALE_SPRITE_SCALE);
+                float jScale = FEMALE_MELEE_SCALE;
+                float jWidth = (jFrame != null) ? jFrame.getRegionWidth() * jScale : (frameWidth * 0.8f * jScale);
+                float jHeight = (jFrame != null) ? jFrame.getRegionHeight() * jScale : (frameHeight * 0.8f * jScale);
+                if (aiJaneAnim.isAttacking && p2MeleeHitFrames != null) {
+                    jWidth = p2MeleeHitFrameWidth * 0.8f * jScale;
+                    jHeight = p2MeleeHitFrameHeight * 0.8f * jScale;
+                }
                 float jx = Math.round((janeX * PIXELS_PER_TILE) - (jWidth / 2f));
                 float jy = Math.round((janeY * PIXELS_PER_TILE) - SPRITE_FEET_INSET_PX);
                 batch.draw(jFrame, jx, jy, jWidth, jHeight);
@@ -2676,8 +2705,9 @@ public class GameScreen implements Screen {
             }
 
             if (isFemale) {
-                anim.currentDrawWidth *= FEMALE_SPRITE_SCALE;
-                anim.currentDrawHeight *= FEMALE_SPRITE_SCALE;
+                float fScale = showMacheteSprite ? FEMALE_MELEE_SCALE : FEMALE_SPRITE_SCALE;
+                anim.currentDrawWidth *= fScale;
+                anim.currentDrawHeight *= fScale;
             }
 
             if (showBombSprite && !isSprintingAnim) {
@@ -2687,8 +2717,27 @@ public class GameScreen implements Screen {
 
             if (anim.isAttacking && showMacheteSprite) {
                 anim.attackTime += delta;
-                if (isFemale && p2MeleeFrames != null) {
-                    // Jane uses player 2/player_melee.png (8 frames per row)
+                if (isFemale && p2MeleeHitFrames != null) {
+                    // Jane uses player 2/melee_hit.png (2 frames per row, 4 rows)
+                    float attackSpeed = 0.22f;
+                    int attackFrame = (int) (anim.attackTime / attackSpeed);
+
+                    if (attackFrame >= 1 && !anim.damageApplied && (isLocalPlayer || isDualViewDebugMode)) {
+                        anim.damageApplied = true;
+                        applyMeleeAttackDamage(player, anim, true);
+                    }
+
+                    if (attackFrame >= 2) {
+                        anim.isAttacking = false;
+                    } else {
+                        int safeRow = anim.currentRow % p2MeleeHitFrames.length;
+                        int safeCol = attackFrame % p2MeleeHitFrames[0].length;
+                        anim.currentFrame = p2MeleeHitFrames[safeRow][safeCol];
+                        anim.currentDrawWidth = p2MeleeHitFrameWidth * 0.8f * FEMALE_MELEE_SCALE;
+                        anim.currentDrawHeight = p2MeleeHitFrameHeight * 0.8f * FEMALE_MELEE_SCALE;
+                    }
+                } else if (isFemale && p2MeleeFrames != null) {
+                    // Fallback to player 2/player_melee.png (8 frames per row)
                     float frameDuration = 0.045f;
                     int attackCol = (int) (anim.attackTime / frameDuration);
 
@@ -2703,8 +2752,8 @@ public class GameScreen implements Screen {
                         int safeRow = anim.currentRow % p2MeleeFrames.length;
                         int safeCol = attackCol % p2MeleeFrames[0].length;
                         anim.currentFrame = p2MeleeFrames[safeRow][safeCol];
-                        anim.currentDrawWidth = p2MeleeFrames[safeRow][safeCol].getRegionWidth() * FEMALE_SPRITE_SCALE;
-                        anim.currentDrawHeight = p2MeleeFrames[safeRow][safeCol].getRegionHeight() * FEMALE_SPRITE_SCALE;
+                        anim.currentDrawWidth = p2MeleeFrames[safeRow][safeCol].getRegionWidth() * FEMALE_MELEE_SCALE;
+                        anim.currentDrawHeight = p2MeleeFrames[safeRow][safeCol].getRegionHeight() * FEMALE_MELEE_SCALE;
                     }
                 } else {
                     // Elric uses meleeHitFrames (melee_hit.png)
@@ -3900,6 +3949,7 @@ public class GameScreen implements Screen {
         if (p2IdleTexture != null) p2IdleTexture.dispose();
         if (p2SprintTexture != null) p2SprintTexture.dispose();
         if (p2MeleeTexture != null) p2MeleeTexture.dispose();
+        if (p2MeleeHitTexture != null) p2MeleeHitTexture.dispose();
         if (p2IdleMeleeTexture != null) p2IdleMeleeTexture.dispose();
         if (p2BombTexture != null) p2BombTexture.dispose();
         if (p2BombIdleTexture != null) p2BombIdleTexture.dispose();

@@ -9,6 +9,7 @@ import com.infectedhour.fxlauncher.views.ResultsView;
 import com.infectedhour.lwjgl3.Lwjgl3Launcher;
 import com.infectedhour.shared.constants.GameConstants;
 import com.infectedhour.shared.dto.PlayerDto;
+import com.infectedhour.shared.network.CharacterType;
 import javafx.application.Platform;
 import javafx.animation.PauseTransition;
 import javafx.geometry.Pos;
@@ -87,6 +88,13 @@ public class GameLauncherBridge {
     public void startDebugLocalCoop(Runnable onReturnToLauncher) {
         SessionConfig config = SessionConfig.debugLocalCoop(
                 playerId(), displayName(), SessionState.get().getBackendUrl());
+        startMatch(config, onReturnToLauncher);
+    }
+
+    /** Boots directly into the Final Boss encounter with the chosen survivor (Elric or Jane). */
+    public void startBossFight(CharacterType character, Runnable onReturnToLauncher) {
+        SessionConfig config = SessionConfig.debugBossFight(
+                playerId(), displayName(), SessionState.get().getBackendUrl(), character);
         startMatch(config, onReturnToLauncher);
     }
 

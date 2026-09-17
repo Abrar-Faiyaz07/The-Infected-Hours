@@ -59,6 +59,11 @@ public class MainMenuController {
     }
 
     @FXML
+    private void onFinalBossFight() {
+        navigate(new BossCharacterSelectView(stage, backendClient, rootPane).getRoot());
+    }
+
+    @FXML
     private void onLoadGame() {
         navigate(new LoadGameView(stage, backendClient).getRoot());
     }

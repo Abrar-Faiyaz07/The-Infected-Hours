@@ -85,7 +85,9 @@ public class InfectedHourGame extends Game {
             });
         });
 
-        if (session.debugSplitScreen()) {
+        if (session.debugBossFight()) {
+            setScreen(new com.infectedhour.core.screens.BossScreen(this, client, bridge, session.preferredCharacter()));
+        } else if (session.debugSplitScreen()) {
             setScreen(new GameScreen(this, client, bridge, session.startingLevel()));
         } else if (bridge.hasLauncher() || session.isLoadingSave()) {
             setScreen(new LevelBriefingScreen(this, client, bridge, session.startingLevel()));
