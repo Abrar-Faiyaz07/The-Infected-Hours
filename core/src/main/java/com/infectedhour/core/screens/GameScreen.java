@@ -47,16 +47,15 @@ import java.util.Set;
 public class GameScreen implements Screen {
 
     private static final float PIXELS_PER_TILE = 48f;
-
     private static final float MAP_ART_TILE_PX = 41.2667f;
     private static final float MAP_ART_ORIGIN_X_PX = 32f;
     private static final float MAP_ART_ORIGIN_Y_TOP_PX = 32f;
     private static final int MAP_ART_ROWS = 33;
-
     private static final float SPRITE_FEET_INSET_PX = 13f;
-
     private static final float VIRTUAL_WIDTH = 1280f;
     private static final float VIRTUAL_HEIGHT = 720f;
+    private static final float FEMALE_SPRITE_SCALE = 0.82f;
+    private static final float MAX_HEAL_COOLDOWN = 12.0f;
 
     private final InfectedHourGame game;
     private final GameClient client;
@@ -69,128 +68,64 @@ public class GameScreen implements Screen {
     private SpriteBatch batch;
     private ShapeRenderer shapes;
     private BitmapFont font;
-
     private OrthographicCamera camera;
     private Viewport viewport;
-    private Texture mapTexture;
-    private Texture markerTexture;
+
+    private Texture mapTexture, markerTexture, keyTexture;
     private List<CampaignLevelPlan.Feature> levelFeatures = List.of();
     private final Set<String> completedFeatureIds = new HashSet<>();
     private boolean zombieObjectiveSent = false;
-
     private CollisionSystem collisionSystem;
 
-    // Standard Textures
-    private Texture playerTexture;
-    private TextureRegion[][] playerFrames;
-    private int frameWidth, frameHeight;
+    // Standard Textures (Elric)
+    private Texture playerTexture, idleTexture, playerSprintTexture, playerMeleeTexture, idleMeleeTexture;
+    private TextureRegion[][] playerFrames, idleFrames, playerSprintFrames, playerMeleeFrames, idleMeleeFrames;
+    private int frameWidth, frameHeight, idleFrameWidth, idleFrameHeight;
 
-    private Texture idleTexture;
-    private TextureRegion[][] idleFrames;
-    private int idleFrameWidth, idleFrameHeight;
+    private Texture playerBombTexture, playerBombIdleTexture, playerBombThrowTexture, meleeHitTexture;
+    private TextureRegion[][] playerBombFrames, playerBombIdleFrames, playerBombThrowFrames, meleeHitFrames;
+    private int pbFrameWidth, pbFrameHeight, meleeHitFrameWidth, meleeHitFrameHeight;
 
-    // Female Player (Jane) Textures & Frames
-    private Texture femalePlayerTexture;
-    private TextureRegion[][] femaleFrames;
-    private int femaleFrameWidth, femaleFrameHeight;
-    private static final float FEMALE_SPRITE_SCALE = 0.82f;
-
-    // Sprint Texture
-    private Texture playerSprintTexture;
-    private TextureRegion[][] playerSprintFrames;
-
-    // Melee Textures
-    private Texture playerMeleeTexture;
-    private TextureRegion[][] playerMeleeFrames;
-
-    private Texture idleMeleeTexture;
-    private TextureRegion[][] idleMeleeFrames;
-
-    // Player Bomb Textures
-    private Texture playerBombTexture;
-    private TextureRegion[][] playerBombFrames;
-    private Texture playerBombIdleTexture;
-    private TextureRegion[][] playerBombIdleFrames;
-    private Texture playerBombThrowTexture;
-    private TextureRegion[][] playerBombThrowFrames;
-    private int pbFrameWidth, pbFrameHeight;
+    // Player 2 Textures (Jane)
+    private Texture janePlayerTexture, janeIdleTexture, janeSprintTexture, janeMeleeTexture, janeIdleMeleeTexture;
+    private TextureRegion[][] janePlayerFrames, janeIdleFrames, janeSprintFrames, janeMeleeFrames, janeIdleMeleeFrames;
+    private Texture janeBombTexture, janeBombIdleTexture, janeBombThrowTexture, janeMeleeHitTexture;
+    private TextureRegion[][] janeBombFrames, janeBombIdleFrames, janeBombThrowFrames, janeMeleeHitFrames;
+    private int janeMeleeHitFrameWidth, janeMeleeHitFrameHeight;
 
     // Ground Items & Effects
-    private Texture meleeTexture;
-    private TextureRegion[][] meleeGroundFrames;
-    private int meleeFrameWidth;
+    private Texture meleeTexture, bloodTexture, bombTexture, bombEffectTexture;
+    private TextureRegion[][] meleeGroundFrames, bombFrames, bombEffectFrames;
+    private int meleeFrameWidth, bombFrameWidth, bombEffectFrameWidth;
     private float groundItemStateTime = 0f;
-
-    private Texture bloodTexture;
     private final List<Vector2> bloodPools = new ArrayList<>();
-
-    // Hit Animation Textures
-    private Texture meleeHitTexture;
-    private TextureRegion[][] meleeHitFrames;
-    private int meleeHitFrameWidth, meleeHitFrameHeight;
-
-    // Bomb Texture & Tracking
-    private Texture bombTexture;
-    private TextureRegion[][] bombFrames;
-    private int bombFrameWidth;
     private float bombCooldown = 0f;
-    private final List<ActiveBomb> activeBombs = new ArrayList<>();
 
-    // Bomb Explosion Tracking
-    private Texture bombEffectTexture;
-    private TextureRegion[][] bombEffectFrames;
-    private int bombEffectFrameWidth;
+    private final List<ActiveBomb> activeBombs = new ArrayList<>();
     private final List<ActiveExplosion> activeExplosions = new ArrayList<>();
 
-    // Healing Ability
-    private float healCooldown = 0f;
-    private static final float MAX_HEAL_COOLDOWN = 12.0f;
-    private float healEffectTimer = 0f;
-    private float healFloatingTextTimer = 0f;
-    private Texture healIconTexture;
-    private Texture healEffectTexture;
-
-    // HUD Damage Screen Tracking
-    private Texture damagedScreen1Texture;
-    private Texture damagedScreen2Texture;
-
-    // Immunity Timer Tracking
-    private Texture timerTexture;
+    // Healing & UI
+    private float healCooldown = 0f, healEffectTimer = 0f, healFloatingTextTimer = 0f;
+    private Texture healIconTexture, healEffectTexture;
+    private Texture damagedScreen1Texture, damagedScreen2Texture, timerTexture;
     private TextureRegion[] timerFrames;
     private int timerFrameWidth;
-    private float maxImmunityTime = 120f;
-    private float currentImmunityTime = 120f;
+    private float maxImmunityTime = 120f, currentImmunityTime = 120f;
+    private float mockBombX = -1f, mockBombY = -1f;
 
-    private float mockBombX = -1f;
-    private float mockBombY = -1f;
-
-    // Inventory Textures & Logic
-    private Texture inventoryTexture;
-    private Texture meleeInventoryTexture;
+    // Inventory & States
+    private Texture inventoryTexture, meleeInventoryTexture;
     private boolean isInventoryOpen = false;
+    private boolean hasMachete = false, isMacheteEquipped = false;
+    private boolean hasBomb = false, isBombEquipped = false;
 
-    private boolean hasMachete = false;
-    private boolean isMacheteEquipped = false;
+    // Enemies
+    private Texture zombieTexture, zombieIdleTexture, zombieBiteTexture;
+    private TextureRegion[][] zombieFrames, zombieIdleFrames, zombieBiteFrames;
+    private int zombieFrameWidth, zombieFrameHeight, zombieBiteFrameWidth, zombieBiteFrameHeight;
 
-    private boolean hasBomb = false;
-    private boolean isBombEquipped = false;
-
-    private Texture zombieTexture;
-    private TextureRegion[][] zombieFrames;
-    private int zombieFrameWidth, zombieFrameHeight;
-
-    private Texture zombieIdleTexture;
-    private TextureRegion[][] zombieIdleFrames;
-
-    // Zombie Bite Texture
-    private Texture zombieBiteTexture;
-    private TextureRegion[][] zombieBiteFrames;
-    private int zombieBiteFrameWidth, zombieBiteFrameHeight;
-
-    private float middleZombieX = 22f;
-    private float middleZombieY = 16f;
+    private float middleZombieX = 22f, middleZombieY = 16f;
     private boolean middleZombieChasing = false;
-
     private float middleZombieHp = 300f;
     private boolean isZombieDead = false;
 
@@ -199,82 +134,38 @@ public class GameScreen implements Screen {
 
     private float stamina = 100f;
     private final float maxStamina = 100f;
-
     private float biteCooldown = 0.8f;
     private boolean isBeingBitten = false;
 
     // Level 1 Key & Ambush Mechanics
-    private boolean hasStairsKey = false;
-    private boolean isAmbushActive = false;
-    private boolean isAmbushDefeated = false;
-    private Texture keyTexture;
-    private float keyX = 38.0f;
-    private float keyY = 27.0f;
-
-    private static class AmbushZombie {
-        float x, y;
-        float hp = 100f;
-        float maxHp = 100f;
-        boolean isBoss = false;
-        boolean dead = false;
-        float stateTime = 0f;
-        boolean biting = false;
-        float biteCooldown = 0.8f;
-
-        AmbushZombie(float x, float y, boolean isBoss) {
-            this.x = x;
-            this.y = y;
-            this.isBoss = isBoss;
-            this.maxHp = isBoss ? 450f : 100f;
-            this.hp = this.maxHp;
-        }
-    }
+    private boolean hasStairsKey = false, isAmbushActive = false, isAmbushDefeated = false;
+    private float keyX = 38.0f, keyY = 27.0f;
     private final List<AmbushZombie> ambushZombies = new ArrayList<>();
 
-    // Minimap Radar
+    // Minimap Radar & App State
     private boolean isMinimapOpen = true;
     private float minimapStateTime = 0f;
     private TextureRegion minimapRegion;
-
-    // Save Overlay & State
     private boolean isSaveOverlayOpen = false;
     private List<SaveSlotDto> overlaySlots = null;
 
-    private boolean paused = false;
-    private boolean returningToLauncher = false;
+    private boolean paused = false, returningToLauncher = false, isDualViewDebugMode = false;
     private volatile boolean levelTransitionInProgress = false;
-    private boolean isDualViewDebugMode = false;
     private String partnerBanner = null;
     private float partnerBannerSecondsLeft = 0f;
 
-    private static class ActiveBomb {
-        float startX, startY;
-        float targetX, targetY;
-        float timeElapsed = 0f;
-        float totalDuration = 0.8f;
-    }
+    private static class ActiveBomb { float startX, startY, targetX, targetY, timeElapsed = 0f, totalDuration = 0.8f; }
+    private static class ActiveExplosion { float x, y, timeElapsed = 0f, totalDuration = 0.4f; }
+    private static class PlayerAnimState { float lastX = -1f, lastY = -1f; int currentRow = 0, currentColumn = 0; float stateTime = 0f, attackTime = 0f; boolean isAttacking = false, damageApplied = false; }
+    private static class ZombieAnimState { int currentRow = 1, currentColumn = 0; float stateTime = 0f; }
 
-    private static class ActiveExplosion {
-        float x, y;
-        float timeElapsed = 0f;
-        float totalDuration = 0.4f;
-    }
-
-    private static class PlayerAnimState {
-        float lastX = -1f, lastY = -1f;
-        int currentRow = 0;
-        int currentColumn = 0;
-        float stateTime = 0f;
-
-        boolean isAttacking = false;
-        float attackTime = 0f;
-        boolean damageApplied = false;
-    }
-
-    private static class ZombieAnimState {
-        int currentRow = 1;
-        int currentColumn = 0;
-        float stateTime = 0f;
+    private static class AmbushZombie {
+        float x, y, hp, maxHp, stateTime = 0f, biteCooldown = 0.8f;
+        boolean isBoss, dead = false, biting = false;
+        AmbushZombie(float x, float y, boolean isBoss) {
+            this.x = x; this.y = y; this.isBoss = isBoss;
+            this.maxHp = isBoss ? 450f : 100f; this.hp = this.maxHp;
+        }
     }
 
     public GameScreen(InfectedHourGame game, GameClient client, GameBridge bridge, int levelNumber) {
@@ -309,7 +200,6 @@ public class GameScreen implements Screen {
     private void drawCollisionOverlay() {
         if (tileMap == null) return;
         float cell = PIXELS_PER_TILE * tileMap.getCellSize();
-
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         shapes.setProjectionMatrix(camera.combined);
@@ -461,24 +351,15 @@ public class GameScreen implements Screen {
             mapTexture = new Texture(Gdx.files.internal("map.png"));
             mapTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         } else if (levelNumber == 2) {
-            Texture customFloor2 = loadTextureSafely("map1_floor2.png");
-            if (customFloor2 != null) {
-                mapTexture = customFloor2;
+            Texture customMap2 = loadTextureSafely("map2.png");
+            if (customMap2 != null) {
+                mapTexture = customMap2;
                 mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
             } else {
-                Texture customMap2 = loadTextureSafely("map2.png");
-                if (customMap2 != null) {
-                    mapTexture = customMap2;
-                    mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-                } else {
-                    mapTexture = createRoadsideVillageTexture();
-                }
+                mapTexture = createRoadsideVillageTexture();
             }
         } else {
-            Texture customMap3 = loadTextureSafely("map1_floor2.png");
-            if (customMap3 == null) {
-                customMap3 = loadTextureSafely("map3.png");
-            }
+            Texture customMap3 = loadTextureSafely("map3.png");
             if (customMap3 != null) {
                 mapTexture = customMap3;
                 mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
@@ -498,6 +379,7 @@ public class GameScreen implements Screen {
             minimapRegion = new TextureRegion(mapTexture);
         }
 
+        // ── 1. PLAYER 1 (ELRIC) TEXTURE LOADING ──
         playerTexture = new Texture(Gdx.files.internal("player.png"));
         playerTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         frameWidth = playerTexture.getWidth() / 8;
@@ -509,29 +391,6 @@ public class GameScreen implements Screen {
         idleFrameWidth = idleTexture.getWidth() / 8;
         idleFrameHeight = idleTexture.getHeight() / 4;
         idleFrames = TextureRegion.split(idleTexture, idleFrameWidth, idleFrameHeight);
-
-        femalePlayerTexture = loadTextureSafely("female/female_sprite_sheet_v2.png");
-        if (femalePlayerTexture == null) {
-            femalePlayerTexture = loadTextureSafely("female/female_sprite_sheet_v2.jpg");
-        }
-        if (femalePlayerTexture == null) {
-            femalePlayerTexture = loadTextureSafely("female/female_sprite_sheet_v3.png");
-        }
-        if (femalePlayerTexture == null) {
-            femalePlayerTexture = loadTextureSafely("female/map_player.png");
-        }
-        if (femalePlayerTexture == null) {
-            femalePlayerTexture = loadTextureSafely("female/female_sprite_sheet.png");
-        }
-        if (femalePlayerTexture == null) {
-            femalePlayerTexture = loadTextureSafely("map_player.png");
-        }
-        if (femalePlayerTexture != null) {
-            femalePlayerTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-            femaleFrameWidth = femalePlayerTexture.getWidth() / 8;
-            femaleFrameHeight = femalePlayerTexture.getHeight() / 4;
-            femaleFrames = TextureRegion.split(femalePlayerTexture, femaleFrameWidth, femaleFrameHeight);
-        }
 
         playerSprintTexture = loadTextureSafely("sprint.png");
         if (playerSprintTexture != null) {
@@ -583,6 +442,95 @@ public class GameScreen implements Screen {
             playerBombThrowFrames = playerFrames;
         }
 
+        meleeHitTexture = loadTextureSafely("melee_hit.png");
+        if (meleeHitTexture == null) {
+            meleeHitTexture = createColorTexture(32 * 4, 32 * 2, new Color(1f, 1f, 1f, 0.9f));
+        }
+        int mCols = 4;
+        int mRows = 2;
+        if (meleeHitTexture.getHeight() > meleeHitTexture.getWidth()) {
+            mCols = 2;
+            mRows = 4;
+        }
+        meleeHitFrameWidth = meleeHitTexture.getWidth() / mCols;
+        meleeHitFrameHeight = meleeHitTexture.getHeight() / mRows;
+        meleeHitFrames = TextureRegion.split(meleeHitTexture, meleeHitFrameWidth, meleeHitFrameHeight);
+
+        // ── 2. PLAYER 2 (JANE) TEXTURE LOADING (From "player 2/" Folder) ──
+        janePlayerTexture = loadTextureSafely("player 2/player.png");
+        if (janePlayerTexture != null) {
+            janePlayerFrames = TextureRegion.split(janePlayerTexture, janePlayerTexture.getWidth() / 8, janePlayerTexture.getHeight() / 4);
+        } else {
+            janePlayerFrames = playerFrames;
+        }
+
+        janeIdleTexture = loadTextureSafely("player 2/player_idle.png");
+        if (janeIdleTexture != null) {
+            janeIdleFrames = TextureRegion.split(janeIdleTexture, janeIdleTexture.getWidth() / 8, janeIdleTexture.getHeight() / 4);
+        } else {
+            janeIdleFrames = idleFrames;
+        }
+
+        janeSprintTexture = loadTextureSafely("player 2/sprint.png");
+        if (janeSprintTexture != null) {
+            janeSprintFrames = TextureRegion.split(janeSprintTexture, janeSprintTexture.getWidth() / 8, janeSprintTexture.getHeight() / 4);
+        } else {
+            janeSprintFrames = playerSprintFrames;
+        }
+
+        janeMeleeTexture = loadTextureSafely("player 2/player_melee.png");
+        if (janeMeleeTexture != null) {
+            janeMeleeFrames = TextureRegion.split(janeMeleeTexture, janeMeleeTexture.getWidth() / 8, janeMeleeTexture.getHeight() / 4);
+        } else {
+            janeMeleeFrames = playerMeleeFrames;
+        }
+
+        janeIdleMeleeTexture = loadTextureSafely("player 2/player_idle_melee.png");
+        if (janeIdleMeleeTexture != null) {
+            janeIdleMeleeFrames = TextureRegion.split(janeIdleMeleeTexture, janeIdleMeleeTexture.getWidth() / 8, janeIdleMeleeTexture.getHeight() / 4);
+        } else {
+            janeIdleMeleeFrames = idleMeleeFrames;
+        }
+
+        janeBombTexture = loadTextureSafely("player 2/player_bomb.png");
+        if (janeBombTexture != null) {
+            janeBombFrames = TextureRegion.split(janeBombTexture, janeBombTexture.getWidth() / 8, janeBombTexture.getHeight() / 4);
+        } else {
+            janeBombFrames = playerBombFrames;
+        }
+
+        janeBombIdleTexture = loadTextureSafely("player 2/player_bomb_idle.png");
+        if (janeBombIdleTexture != null) {
+            janeBombIdleFrames = TextureRegion.split(janeBombIdleTexture, janeBombIdleTexture.getWidth() / 8, janeBombIdleTexture.getHeight() / 4);
+        } else {
+            janeBombIdleFrames = playerBombIdleFrames;
+        }
+
+        janeBombThrowTexture = loadTextureSafely("player 2/bomb_throw.png");
+        if (janeBombThrowTexture != null) {
+            janeBombThrowFrames = TextureRegion.split(janeBombThrowTexture, janeBombThrowTexture.getWidth() / 2, janeBombThrowTexture.getHeight() / 4);
+        } else {
+            janeBombThrowFrames = playerBombThrowFrames;
+        }
+
+        janeMeleeHitTexture = loadTextureSafely("player 2/melee_hit.png");
+        if (janeMeleeHitTexture != null) {
+            int jmCols = 4;
+            int jmRows = 2;
+            if (janeMeleeHitTexture.getHeight() > janeMeleeHitTexture.getWidth()) {
+                jmCols = 2;
+                jmRows = 4;
+            }
+            janeMeleeHitFrameWidth = janeMeleeHitTexture.getWidth() / jmCols;
+            janeMeleeHitFrameHeight = janeMeleeHitTexture.getHeight() / jmRows;
+            janeMeleeHitFrames = TextureRegion.split(janeMeleeHitTexture, janeMeleeHitFrameWidth, janeMeleeHitFrameHeight);
+        } else {
+            janeMeleeHitFrames = meleeHitFrames;
+            janeMeleeHitFrameWidth = meleeHitFrameWidth;
+            janeMeleeHitFrameHeight = meleeHitFrameHeight;
+        }
+
+        // ── 3. WORLD & HUD TEXTURES ──
         bombTexture = loadTextureSafely("bomb.png");
         if (bombTexture == null) {
             bombTexture = createColorTexture(16 * 8, 16, new Color(0.25f, 0.25f, 0.3f, 1f));
@@ -658,20 +606,6 @@ public class GameScreen implements Screen {
         meleeFrameWidth = meleeTexture.getWidth() / 7;
         meleeGroundFrames = TextureRegion.split(meleeTexture, meleeFrameWidth, meleeTexture.getHeight());
 
-        meleeHitTexture = loadTextureSafely("melee_hit.png");
-        if (meleeHitTexture == null) {
-            meleeHitTexture = createColorTexture(32 * 4, 32 * 2, new Color(1f, 1f, 1f, 0.9f));
-        }
-        int mCols = 4;
-        int mRows = 2;
-        if (meleeHitTexture.getHeight() > meleeHitTexture.getWidth()) {
-            mCols = 2;
-            mRows = 4;
-        }
-        meleeHitFrameWidth = meleeHitTexture.getWidth() / mCols;
-        meleeHitFrameHeight = meleeHitTexture.getHeight() / mRows;
-        meleeHitFrames = TextureRegion.split(meleeHitTexture, meleeHitFrameWidth, meleeHitFrameHeight);
-
         bloodTexture = loadTextureSafely("blood.png");
         if (bloodTexture == null) {
             bloodTexture = createColorTexture(24, 24, new Color(0.65f, 0.08f, 0.08f, 0.75f));
@@ -697,7 +631,6 @@ public class GameScreen implements Screen {
                     CampaignLevelPlan.findFeature(levelNumber, event.payload)
                             .ifPresent(feature -> showBanner("Objective updated: " + feature.label()));
                 });
-                default -> { }
             }
         });
 
@@ -892,7 +825,7 @@ public class GameScreen implements Screen {
                     showBanner("Defeat the remaining " + remaining + " ambush zombies first!");
                 }
             } else if (areLevelObjectivesComplete(snapshot)) {
-                String nextName = levelNumber == 1 ? "Hospital Floor 2" : (levelNumber == 2 ? "Roadside Village" : "Level " + (levelNumber + 1));
+                String nextName = levelNumber == 1 ? "Hospital Ground Floor" : (levelNumber == 2 ? "Roadside Village" : "Level " + (levelNumber + 1));
                 showBanner("Proceeding to Level " + (levelNumber + 1) + " (" + nextName + ")…");
                 client.sendEvent(GameConstants.EVENT_LEVEL_EXIT_REQUEST, String.valueOf(levelNumber));
             } else {
@@ -1124,87 +1057,6 @@ public class GameScreen implements Screen {
         if (paused) drawPauseOverlay();
     }
 
-    private TextureRegion updateMiddleZombie(WorldSnapshot.PlayerState me, float delta) {
-        if (isZombieDead || me == null) {
-            return null;
-        }
-
-        float aggroRadiusTiles = 5.0f;
-        float loseRadiusTiles = 8.0f;
-        float zombieSpeed = 2.0f;
-
-        float midDistX = me.x - middleZombieX;
-        float midDistY = me.y - middleZombieY;
-        float midDistance = (float) Math.sqrt(midDistX * midDistX + midDistY * midDistY);
-
-        boolean hasLOS = hasLineOfSight(middleZombieX, middleZombieY, me.x, me.y);
-
-        if (midDistance <= 0.8f && !me.downed && me.hp > 0f && hasLOS) {
-            isBeingBitten = true;
-            biteCooldown -= delta;
-            if (biteCooldown <= 0f) {
-                client.sendEvent("ZOMBIE_BITE_DAMAGE", "33.4");
-                biteCooldown = 0.8f;
-            }
-        } else {
-            isBeingBitten = false;
-            biteCooldown = 0.8f;
-        }
-
-        if (!middleZombieChasing && midDistance <= aggroRadiusTiles && hasLOS) {
-            middleZombieChasing = true;
-        } else if (middleZombieChasing && (midDistance >= loseRadiusTiles || !hasLOS)) {
-            middleZombieChasing = false;
-        }
-
-        boolean zombieMoving = middleZombieChasing && midDistance > 0.5f;
-
-        if (isBeingBitten) {
-            if (Math.abs(midDistX) > Math.abs(midDistY)) zombieAnim.currentRow = midDistX > 0 ? 2 : 1;
-            else zombieAnim.currentRow = midDistY > 0 ? 3 : 0;
-
-            float biteProgress = 0.8f - biteCooldown;
-            if (biteProgress < 0f) biteProgress = 0f;
-            int biteFrame = (int) (biteProgress / 0.4f);
-            if (biteFrame >= 2) biteFrame = 1;
-
-            int safeRow = zombieAnim.currentRow % zombieBiteFrames.length;
-            int safeCol = biteFrame % zombieBiteFrames[0].length;
-            return zombieBiteFrames[safeRow][safeCol];
-        } else if (zombieMoving) {
-            float moveX = (midDistX / midDistance) * zombieSpeed * delta;
-            float moveY = (midDistY / midDistance) * zombieSpeed * delta;
-
-            float zombieRadius = 0.25f;
-            float nextX = middleZombieX + moveX;
-            float nextY = middleZombieY + moveY;
-
-            if (isWalkable(nextX, middleZombieY, zombieRadius)) middleZombieX = nextX;
-            if (isWalkable(middleZombieX, nextY, zombieRadius)) middleZombieY = nextY;
-
-            if (Math.abs(midDistX) > Math.abs(midDistY)) zombieAnim.currentRow = midDistX > 0 ? 2 : 1;
-            else zombieAnim.currentRow = midDistY > 0 ? 3 : 0;
-
-            zombieAnim.stateTime += delta;
-            if (zombieAnim.stateTime > 0.15f) {
-                zombieAnim.currentColumn = (zombieAnim.currentColumn + 1) % 8;
-                zombieAnim.stateTime = 0f;
-            }
-            int safeRow = zombieAnim.currentRow % zombieFrames.length;
-            int safeCol = zombieAnim.currentColumn % zombieFrames[0].length;
-            return zombieFrames[safeRow][safeCol];
-        } else {
-            zombieAnim.stateTime += delta;
-            if (zombieAnim.stateTime > 0.5f) {
-                zombieAnim.currentColumn = (zombieAnim.currentColumn == 0) ? 1 : 0;
-                zombieAnim.stateTime = 0f;
-            }
-            int safeRow = zombieAnim.currentRow % zombieIdleFrames.length;
-            int safeCol = zombieAnim.currentColumn % zombieIdleFrames[0].length;
-            return zombieIdleFrames[safeRow][safeCol];
-        }
-    }
-
     private void checkAmbushCompletion() {
         if (!isAmbushActive || isAmbushDefeated) return;
         long remaining = ambushZombies.stream().filter(z -> !z.dead).count();
@@ -1285,6 +1137,85 @@ public class GameScreen implements Screen {
         return zombieFrames != null ? zombieFrames[0][0] : null;
     }
 
+    private TextureRegion updateMiddleZombie(WorldSnapshot.PlayerState me, float delta) {
+        if (isZombieDead || me == null) return null;
+
+        float aggroRadiusTiles = 5.0f;
+        float loseRadiusTiles = 8.0f;
+        float zombieSpeed = 2.0f;
+
+        float midDistX = me.x - middleZombieX;
+        float midDistY = me.y - middleZombieY;
+        float midDistance = (float) Math.sqrt(midDistX * midDistX + midDistY * midDistY);
+
+        boolean hasLOS = hasLineOfSight(middleZombieX, middleZombieY, me.x, me.y);
+
+        if (midDistance <= 0.8f && !me.downed && me.hp > 0f && hasLOS) {
+            isBeingBitten = true;
+            biteCooldown -= delta;
+            if (biteCooldown <= 0f) {
+                client.sendEvent("ZOMBIE_BITE_DAMAGE", "33.4");
+                biteCooldown = 0.8f;
+            }
+        } else {
+            isBeingBitten = false;
+            biteCooldown = 0.8f;
+        }
+
+        if (!middleZombieChasing && midDistance <= aggroRadiusTiles && hasLOS) {
+            middleZombieChasing = true;
+        } else if (middleZombieChasing && (midDistance >= loseRadiusTiles || !hasLOS)) {
+            middleZombieChasing = false;
+        }
+
+        boolean zombieMoving = middleZombieChasing && midDistance > 0.5f;
+
+        if (isBeingBitten) {
+            if (Math.abs(midDistX) > Math.abs(midDistY)) zombieAnim.currentRow = midDistX > 0 ? 2 : 1;
+            else zombieAnim.currentRow = midDistY > 0 ? 3 : 0;
+
+            float biteProgress = 0.8f - biteCooldown;
+            if (biteProgress < 0f) biteProgress = 0f;
+            int biteFrame = (int) (biteProgress / 0.4f);
+            if (biteFrame >= 2) biteFrame = 1;
+
+            int safeRow = zombieAnim.currentRow % zombieBiteFrames.length;
+            int safeCol = biteFrame % zombieBiteFrames[0].length;
+            return zombieBiteFrames[safeRow][safeCol];
+        } else if (zombieMoving) {
+            float moveX = (midDistX / midDistance) * zombieSpeed * delta;
+            float moveY = (midDistY / midDistance) * zombieSpeed * delta;
+
+            float zombieRadius = 0.25f;
+            float nextX = middleZombieX + moveX;
+            float nextY = middleZombieY + moveY;
+
+            if (isWalkable(nextX, middleZombieY, zombieRadius)) middleZombieX = nextX;
+            if (isWalkable(middleZombieX, nextY, zombieRadius)) middleZombieY = nextY;
+
+            if (Math.abs(midDistX) > Math.abs(midDistY)) zombieAnim.currentRow = midDistX > 0 ? 2 : 1;
+            else zombieAnim.currentRow = midDistY > 0 ? 3 : 0;
+
+            zombieAnim.stateTime += delta;
+            if (zombieAnim.stateTime > 0.15f) {
+                zombieAnim.currentColumn = (zombieAnim.currentColumn + 1) % 8;
+                zombieAnim.stateTime = 0f;
+            }
+            int safeRow = zombieAnim.currentRow % zombieFrames.length;
+            int safeCol = zombieAnim.currentColumn % zombieFrames[0].length;
+            return zombieFrames[safeRow][safeCol];
+        } else {
+            zombieAnim.stateTime += delta;
+            if (zombieAnim.stateTime > 0.5f) {
+                zombieAnim.currentColumn = (zombieAnim.currentColumn == 0) ? 1 : 0;
+                zombieAnim.stateTime = 0f;
+            }
+            int safeRow = zombieAnim.currentRow % zombieIdleFrames.length;
+            int safeCol = zombieAnim.currentColumn % zombieIdleFrames[0].length;
+            return zombieIdleFrames[safeRow][safeCol];
+        }
+    }
+
     private void drawWorld(WorldSnapshot snapshot, float delta, TextureRegion zombieFrame, WorldSnapshot.PlayerState me) {
         drawCampaignFeatures();
 
@@ -1292,7 +1223,6 @@ public class GameScreen implements Screen {
 
         Gdx.gl.glEnable(GL20.GL_STENCIL_TEST);
         Gdx.gl.glClear(GL20.GL_STENCIL_BUFFER_BIT);
-
         Gdx.gl.glColorMask(false, false, false, false);
         Gdx.gl.glDepthMask(false);
         Gdx.gl.glStencilFunc(GL20.GL_ALWAYS, 1, 0xFF);
@@ -1368,7 +1298,6 @@ public class GameScreen implements Screen {
             }
         }
 
-        // Draw Stairs Key in Level 1
         if (levelNumber == 1 && !hasStairsKey && keyTexture != null) {
             float kSize = 24f;
             float bob = (float) Math.sin(groundItemStateTime * 4.0f) * 3.0f;
@@ -1495,7 +1424,6 @@ public class GameScreen implements Screen {
             batch.draw(bombEffectFrames[0][frameIdx], drawX, drawY, expW, expH);
         }
 
-        // 5. Middle Zombie
         if (!isZombieDead && zombieFrame != null) {
             float currentZDrawWidth = isBeingBitten ? zombieBiteFrameWidth : zombieFrameWidth;
             float currentZDrawHeight = isBeingBitten ? zombieBiteFrameHeight : zombieFrameHeight;
@@ -1504,7 +1432,6 @@ public class GameScreen implements Screen {
             batch.draw(zombieFrame, midDrawX, midDrawY, currentZDrawWidth, currentZDrawHeight);
         }
 
-        // 5b. Ambush Zombies & Boss
         if (isAmbushActive) {
             for (AmbushZombie az : ambushZombies) {
                 if (az.dead) continue;
@@ -1529,7 +1456,6 @@ public class GameScreen implements Screen {
             }
         }
 
-        // 6. Players
         if (snapshot.players != null) {
             for (WorldSnapshot.PlayerState player : snapshot.players) {
                 PlayerAnimState anim = animStates.computeIfAbsent(player.playerId, k -> new PlayerAnimState());
@@ -1545,8 +1471,6 @@ public class GameScreen implements Screen {
                 TextureRegion currentFrame;
 
                 boolean isFemale = (player.character == CharacterType.JANE);
-                int characterOffset = (player.character == CharacterType.ELRIC) ? 0 : 4;
-
                 boolean isLocalPlayer = me != null && player.playerId.equals(me.playerId);
                 boolean showMacheteSprite = isLocalPlayer ? isMacheteEquipped : "MELEE".equals(player.equippedWeapon);
                 boolean showBombSprite = isLocalPlayer && isBombEquipped;
@@ -1560,39 +1484,55 @@ public class GameScreen implements Screen {
 
                 int animFrames = 4;
                 int idleAnimFrames = 2;
-                int activeOffset = characterOffset;
+                int activeOffset = isFemale ? 0 : (player.character == CharacterType.ELRIC ? 0 : 4);
 
-                if (isFemale && femaleFrames != null) {
-                    activeRunFrames = femaleFrames;
-                    activeIdleFrames = femaleFrames;
-                    animFrames = 4;
-                    idleAnimFrames = 1;
-                    activeOffset = moving ? 4 : 0;
+                if (isFemale && janePlayerFrames != null) {
+                    activeRunFrames = janePlayerFrames;
+                    activeIdleFrames = janeIdleFrames != null ? janeIdleFrames : janePlayerFrames;
+                    animFrames = activeRunFrames[0].length;
+                    idleAnimFrames = activeIdleFrames[0].length;
                 }
 
                 if (showMacheteSprite) {
-                    if (!isFemale) {
+                    if (isFemale && janeIdleMeleeFrames != null) {
+                        activeIdleFrames = janeIdleMeleeFrames;
+                        idleAnimFrames = activeIdleFrames[0].length;
+                    } else if (!isFemale) {
                         activeIdleFrames = idleMeleeFrames;
+                        idleAnimFrames = Math.min(2, activeIdleFrames[0].length);
                     }
                 } else if (showBombSprite) {
-                    activeIdleFrames = playerBombIdleFrames;
-                    idleAnimFrames = (playerBombIdleFrames[0].length >= 8) ? 8 : 2;
+                    if (isFemale && janeBombIdleFrames != null) {
+                        activeIdleFrames = janeBombIdleFrames;
+                    } else {
+                        activeIdleFrames = playerBombIdleFrames;
+                    }
+                    idleAnimFrames = (activeIdleFrames[0].length >= 8) ? 8 : Math.min(2, activeIdleFrames[0].length);
                     activeOffset = 0;
                 }
 
                 if (isSprintingAnim) {
-                    if (!isFemale) {
+                    if (isFemale && janeSprintFrames != null) {
+                        activeRunFrames = janeSprintFrames;
+                    } else if (!isFemale) {
                         activeRunFrames = playerSprintFrames;
-                        animFrames = (playerSprintFrames[0].length >= 8) ? 8 : 4;
-                        activeOffset = 0;
                     }
+                    animFrames = (activeRunFrames[0].length >= 8) ? 8 : Math.min(4, activeRunFrames[0].length);
+                    if (!isFemale) activeOffset = 0;
                 } else if (showMacheteSprite) {
-                    if (!isFemale) {
+                    if (isFemale && janeMeleeFrames != null) {
+                        activeRunFrames = janeMeleeFrames;
+                    } else if (!isFemale) {
                         activeRunFrames = playerMeleeFrames;
                     }
+                    animFrames = (activeRunFrames[0].length >= 8) ? 8 : Math.min(4, activeRunFrames[0].length);
                 } else if (showBombSprite) {
-                    activeRunFrames = playerBombFrames;
-                    animFrames = (playerBombFrames[0].length >= 8) ? 8 : 4;
+                    if (isFemale && janeBombFrames != null) {
+                        activeRunFrames = janeBombFrames;
+                    } else {
+                        activeRunFrames = playerBombFrames;
+                    }
+                    animFrames = (activeRunFrames[0].length >= 8) ? 8 : Math.min(4, activeRunFrames[0].length);
                     activeOffset = 0;
                 }
 
@@ -1600,8 +1540,7 @@ public class GameScreen implements Screen {
 
                 if (moving) {
                     if (Math.abs(dx) > 0.005f) {
-                        if (isFemale) anim.currentRow = dx > 0 ? 1 : 2;
-                        else anim.currentRow = dx > 0 ? 2 : 1;
+                        anim.currentRow = dx > 0 ? 2 : 1;
                     } else {
                         anim.currentRow = dy > 0 ? 3 : 0;
                     }
@@ -1632,16 +1571,16 @@ public class GameScreen implements Screen {
                 float currentDrawWidth = currentFrame.getRegionWidth();
                 float currentDrawHeight = currentFrame.getRegionHeight();
 
-                // ── FEMALE CHARACTER IN-GAME SCALING ──
                 if (isFemale) {
                     currentDrawWidth *= FEMALE_SPRITE_SCALE;
                     currentDrawHeight *= FEMALE_SPRITE_SCALE;
                 }
 
-                // ── UPDATED: Bomb sprites scaled down to 0.9x ──
+                // -> This targets exactly the running/moving bomb scale: decreasing from 1.0f to 0.9f
                 if (showBombSprite && !isSprintingAnim) {
-                    currentDrawWidth *= 0.9f;
-                    currentDrawHeight *= 0.9f;
+                    float bombScale = isFemale ? (moving ? 0.9f : 1.1f) : 0.9f;
+                    currentDrawWidth *= bombScale;
+                    currentDrawHeight *= bombScale;
                 }
 
                 if (anim.isAttacking && showMacheteSprite) {
@@ -1706,12 +1645,14 @@ public class GameScreen implements Screen {
                     if (attackFrame >= 2) {
                         anim.isAttacking = false;
                     } else {
-                        int safeRow = anim.currentRow % meleeHitFrames.length;
-                        int safeCol = attackFrame % meleeHitFrames[0].length;
+                        TextureRegion[][] activeHitFrames = isFemale ? janeMeleeHitFrames : meleeHitFrames;
+                        int safeRow = anim.currentRow % activeHitFrames.length;
+                        int safeCol = attackFrame % activeHitFrames[0].length;
 
-                        currentFrame = meleeHitFrames[safeRow][safeCol];
-                        currentDrawWidth = meleeHitFrameWidth * 0.8f;
-                        currentDrawHeight = meleeHitFrameHeight * 0.8f;
+                        currentFrame = activeHitFrames[safeRow][safeCol];
+                        float hitScale = isFemale ? 0.7f : 0.8f;
+                        currentDrawWidth = (isFemale ? janeMeleeHitFrameWidth : meleeHitFrameWidth) * hitScale;
+                        currentDrawHeight = (isFemale ? janeMeleeHitFrameHeight : meleeHitFrameHeight) * hitScale;
                         if (isFemale) {
                             currentDrawWidth *= FEMALE_SPRITE_SCALE;
                             currentDrawHeight *= FEMALE_SPRITE_SCALE;
@@ -1725,13 +1666,15 @@ public class GameScreen implements Screen {
                     if (attackFrame >= 2) {
                         anim.isAttacking = false;
                     } else {
-                        int safeRow = anim.currentRow % playerBombThrowFrames.length;
-                        int safeCol = attackFrame % playerBombThrowFrames[0].length;
+                        TextureRegion[][] activeThrowFrames = isFemale ? janeBombThrowFrames : playerBombThrowFrames;
+                        int safeRow = anim.currentRow % activeThrowFrames.length;
+                        int safeCol = attackFrame % activeThrowFrames[0].length;
 
-                        currentFrame = playerBombThrowFrames[safeRow][safeCol];
+                        currentFrame = activeThrowFrames[safeRow][safeCol];
 
-                        currentDrawWidth = currentFrame.getRegionWidth() * 0.6f;
-                        currentDrawHeight = currentFrame.getRegionHeight() * 0.6f;
+                        float throwScale = isFemale ? 0.9f : 0.6f;
+                        currentDrawWidth = currentFrame.getRegionWidth() * throwScale;
+                        currentDrawHeight = currentFrame.getRegionHeight() * throwScale;
                         if (isFemale) {
                             currentDrawWidth *= FEMALE_SPRITE_SCALE;
                             currentDrawHeight *= FEMALE_SPRITE_SCALE;
@@ -1945,12 +1888,141 @@ public class GameScreen implements Screen {
         batch.end();
     }
 
+    private void drawMinimap(WorldSnapshot snapshot, Matrix4 hudMatrix, float delta) {
+        if (!isMinimapOpen || tileMap == null) return;
+        minimapStateTime += delta;
+
+        float mmW = 150f;
+        float mmH = 110f;
+        float mmX = VIRTUAL_WIDTH - mmW - 20f;
+        float mmY = VIRTUAL_HEIGHT - mmH - 36f;
+
+        float mapTilesW = tileMap.getWidth();
+        float mapTilesH = tileMap.getHeight();
+        if (mapTilesW <= 0 || mapTilesH <= 0) return;
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        shapes.setProjectionMatrix(hudMatrix);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+
+        shapes.setColor(0.08f, 0.12f, 0.18f, 0.92f);
+        shapes.rect(mmX, mmY + mmH, mmW, 18f);
+
+        shapes.setColor(0.05f, 0.08f, 0.12f, 0.88f);
+        shapes.rect(mmX, mmY, mmW, mmH);
+        shapes.end();
+
+        batch.setProjectionMatrix(hudMatrix);
+        batch.begin();
+        if (minimapRegion != null) {
+            batch.setColor(0.70f, 0.82f, 0.95f, 0.85f);
+            batch.draw(minimapRegion, mmX, mmY, mmW, mmH);
+            batch.setColor(Color.WHITE);
+        } else if (mapTexture != null) {
+            batch.setColor(0.70f, 0.82f, 0.95f, 0.85f);
+            batch.draw(mapTexture, mmX, mmY, mmW, mmH);
+            batch.setColor(Color.WHITE);
+        }
+
+        font.setColor(0.910f, 0.690f, 0.165f, 1f);
+        String header = levelNumber == 1 ? "MAP: WARD" : (levelNumber == 2 ? "MAP: GROUND" : "MAP: VILLAGE");
+        font.draw(batch, header, mmX + 6f, mmY + mmH + 14f);
+
+        font.setColor(Color.LIGHT_GRAY);
+        font.draw(batch, "[M]", mmX + mmW - 22f, mmY + mmH + 14f);
+        batch.end();
+
+        shapes.setProjectionMatrix(hudMatrix);
+        shapes.begin(ShapeRenderer.ShapeType.Line);
+
+        shapes.setColor(0.20f, 0.50f, 0.80f, 0.90f);
+        shapes.rect(mmX, mmY + mmH, mmW, 18f);
+
+        shapes.setColor(0.20f, 0.50f, 0.80f, 0.90f);
+        shapes.rect(mmX, mmY, mmW, mmH);
+
+        shapes.setColor(0.20f, 0.50f, 0.80f, 0.25f);
+        shapes.line(mmX, mmY + mmH / 2f, mmX + mmW, mmY + mmH / 2f);
+        shapes.line(mmX + mmW / 2f, mmY, mmX + mmW / 2f, mmY + mmH);
+        shapes.end();
+
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+
+        LevelExit.forLevel(levelNumber).ifPresent(exit -> {
+            float ex = mmX + (exit.tileX() / mapTilesW) * mmW;
+            float ey = mmY + (exit.tileY() / mapTilesH) * mmH;
+            boolean unlocked = levelNumber != 1 || (hasStairsKey && isAmbushDefeated);
+            shapes.setColor(unlocked ? Color.LIME : Color.ORANGE);
+            float pulse = 3.5f + (float) Math.sin(minimapStateTime * 5.0f) * 1.2f;
+            shapes.circle(ex, ey, pulse, 10);
+        });
+
+        if (levelNumber == 1 && !hasStairsKey) {
+            float kx = mmX + (keyX / mapTilesW) * mmW;
+            float ky = mmY + (keyY / mapTilesH) * mmH;
+            shapes.setColor(Color.GOLD);
+            float pulse = 3.2f + (float) Math.sin(minimapStateTime * 6.0f) * 1.0f;
+            shapes.circle(kx, ky, pulse, 8);
+        }
+
+        if (!isZombieDead) {
+            float zx = mmX + (middleZombieX / mapTilesW) * mmW;
+            float zy = mmY + (middleZombieY / mapTilesH) * mmH;
+            shapes.setColor(Color.RED);
+            shapes.circle(zx, zy, 2.6f, 8);
+        }
+
+        if (isAmbushActive) {
+            for (AmbushZombie az : ambushZombies) {
+                if (az.dead) continue;
+                float ax = mmX + (az.x / mapTilesW) * mmW;
+                float ay = mmY + (az.y / mapTilesH) * mmH;
+                if (az.isBoss) {
+                    shapes.setColor(Color.MAGENTA);
+                    float pulse = 4.5f + (float) Math.sin(minimapStateTime * 5.0f) * 1.2f;
+                    shapes.circle(ax, ay, pulse, 10);
+                } else {
+                    shapes.setColor(Color.RED);
+                    shapes.circle(ax, ay, 2.6f, 8);
+                }
+            }
+        }
+
+        if (levelNumber == 2 && levelFeatures != null) {
+            for (CampaignLevelPlan.Feature feat : levelFeatures) {
+                if (completedFeatureIds.contains(feat.actionId())) continue;
+                float fx = mmX + (feat.tileX() / mapTilesW) * mmW;
+                float fy = mmY + (feat.tileY() / mapTilesH) * mmH;
+                shapes.setColor(Color.YELLOW);
+                shapes.circle(fx, fy, 2.8f, 8);
+            }
+        }
+
+        if (snapshot.players != null) {
+            WorldSnapshot.PlayerState me = client != null ? client.findLocalPlayer(snapshot) : null;
+            for (WorldSnapshot.PlayerState player : snapshot.players) {
+                if (player.downed || player.hp <= 0f) continue;
+                float px = mmX + (player.x / mapTilesW) * mmW;
+                float py = mmY + (player.y / mapTilesH) * mmH;
+                boolean isLocal = me != null && player.playerId == me.playerId;
+
+                shapes.setColor(isLocal ? Color.LIME : Color.CYAN);
+                shapes.circle(px, py, 3.5f, 10);
+
+                shapes.setColor(Color.WHITE);
+                shapes.circle(px, py, 1.4f, 6);
+            }
+        }
+
+        shapes.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+    }
+
     private void drawHud(WorldSnapshot snapshot, float delta) {
         if (partnerBannerSecondsLeft > 0f) partnerBannerSecondsLeft -= delta;
         Matrix4 hudMatrix = new Matrix4().setToOrtho2D(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
         float top = VIRTUAL_HEIGHT - 20f;
 
-        // Damage Screen Vignette
         batch.setProjectionMatrix(hudMatrix);
         batch.begin();
         if (snapshot != null) {
@@ -1980,7 +2052,6 @@ public class GameScreen implements Screen {
             cy = timerY + scaledTH / 2f;
         }
 
-        // Render HP & Stamina Bars
         Gdx.gl.glEnable(GL20.GL_BLEND);
         shapes.setProjectionMatrix(hudMatrix);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
@@ -2014,7 +2085,6 @@ public class GameScreen implements Screen {
         }
         shapes.end();
 
-        // Circular Immunity Ring
         if (timerTexture != null && timerFrames != null) {
             shapes.begin(ShapeRenderer.ShapeType.Line);
             float radius = Math.max(scaledTW, scaledTH) / 2f + 4f;
@@ -2047,7 +2117,6 @@ public class GameScreen implements Screen {
         font.setColor(Color.WHITE);
         font.draw(batch, "LEVEL " + levelNumber + "   |   " + client.getMatchMode() + "   |   " + (game.isHost() ? "HOST" : "CLIENT"), 20f, top);
 
-        // Draw Heal Ability HUD Slot
         if (healIconTexture != null) {
             float badgeX = timerX + scaledTW + 180f;
             float badgeY = timerY + scaledTH - 32f;
@@ -2275,183 +2344,6 @@ public class GameScreen implements Screen {
         font.setColor(Color.GRAY);
         font.draw(batch, "WASD move   E interact   SPACE attack   SHIFT sprint   M map   H heal (+35 HP)   ESC pause   I inventory   F11 fullscreen   F12 screenshot", 20f, 30f);
         batch.end();
-
-        drawMinimap(snapshot, hudMatrix, delta);
-    }
-
-    private void drawMinimap(WorldSnapshot snapshot, Matrix4 hudMatrix, float delta) {
-        if (!isMinimapOpen || tileMap == null) return;
-        minimapStateTime += delta;
-
-        float mmW = 150f;
-        float mmH = 110f;
-        float mmX = VIRTUAL_WIDTH - mmW - 20f;
-        float mmY = VIRTUAL_HEIGHT - mmH - 36f;
-
-        float mapTilesW = tileMap.getWidth();
-        float mapTilesH = tileMap.getHeight();
-        if (mapTilesW <= 0 || mapTilesH <= 0) return;
-
-        // 1. Semi-transparent background & Header Bar
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        shapes.setProjectionMatrix(hudMatrix);
-        shapes.begin(ShapeRenderer.ShapeType.Filled);
-
-        // Header tab
-        shapes.setColor(0.08f, 0.12f, 0.18f, 0.92f);
-        shapes.rect(mmX, mmY + mmH, mmW, 18f);
-
-        // Main map frame background
-        shapes.setColor(0.05f, 0.08f, 0.12f, 0.88f);
-        shapes.rect(mmX, mmY, mmW, mmH);
-        shapes.end();
-
-        // 2. Render tactical map view
-        batch.setProjectionMatrix(hudMatrix);
-        batch.begin();
-        if (minimapRegion != null) {
-            batch.setColor(0.70f, 0.82f, 0.95f, 0.85f); // tactical radar tint
-            batch.draw(minimapRegion, mmX, mmY, mmW, mmH);
-            batch.setColor(Color.WHITE);
-        } else if (mapTexture != null) {
-            batch.setColor(0.70f, 0.82f, 0.95f, 0.85f);
-            batch.draw(mapTexture, mmX, mmY, mmW, mmH);
-            batch.setColor(Color.WHITE);
-        }
-
-        // Header text
-        font.setColor(0.910f, 0.690f, 0.165f, 1f);
-        String header = levelNumber == 1 ? "MAP: WARD" : (levelNumber == 2 ? "MAP: FLOOR 2" : "MAP: ANTECHAMBER");
-        font.draw(batch, header, mmX + 6f, mmY + mmH + 14f);
-
-        font.setColor(Color.LIGHT_GRAY);
-        font.draw(batch, "[M]", mmX + mmW - 22f, mmY + mmH + 14f);
-        batch.end();
-
-        // 3. Grid lines & border
-        shapes.setProjectionMatrix(hudMatrix);
-        shapes.begin(ShapeRenderer.ShapeType.Line);
-
-        // Header border
-        shapes.setColor(0.20f, 0.50f, 0.80f, 0.90f);
-        shapes.rect(mmX, mmY + mmH, mmW, 18f);
-
-        // Outer border
-        shapes.setColor(0.20f, 0.50f, 0.80f, 0.90f);
-        shapes.rect(mmX, mmY, mmW, mmH);
-
-        // Subtle crosshairs
-        shapes.setColor(0.20f, 0.50f, 0.80f, 0.25f);
-        shapes.line(mmX, mmY + mmH / 2f, mmX + mmW, mmY + mmH / 2f);
-        shapes.line(mmX + mmW / 2f, mmY, mmX + mmW / 2f, mmY + mmH);
-        shapes.end();
-
-        // 4. Entity blips
-        shapes.begin(ShapeRenderer.ShapeType.Filled);
-
-        // A. Exit Beacon (Stairs / Tunnel)
-        LevelExit.forLevel(levelNumber).ifPresent(exit -> {
-            float ex = mmX + (exit.tileX() / mapTilesW) * mmW;
-            float ey = mmY + (exit.tileY() / mapTilesH) * mmH;
-            boolean unlocked = levelNumber != 1 || (hasStairsKey && isAmbushDefeated);
-            shapes.setColor(unlocked ? Color.LIME : Color.ORANGE);
-            float pulse = 3.5f + (float) Math.sin(minimapStateTime * 5.0f) * 1.2f;
-            shapes.circle(ex, ey, pulse, 10);
-        });
-
-        // B. Key Blip (Level 1 only, when not yet collected)
-        if (levelNumber == 1 && !hasStairsKey) {
-            float kx = mmX + (keyX / mapTilesW) * mmW;
-            float ky = mmY + (keyY / mapTilesH) * mmH;
-            shapes.setColor(Color.GOLD);
-            float pulse = 3.2f + (float) Math.sin(minimapStateTime * 6.0f) * 1.0f;
-            shapes.circle(kx, ky, pulse, 8);
-        }
-
-        // C. Middle Zombie
-        if (!isZombieDead) {
-            float zx = mmX + (middleZombieX / mapTilesW) * mmW;
-            float zy = mmY + (middleZombieY / mapTilesH) * mmH;
-            shapes.setColor(Color.RED);
-            shapes.circle(zx, zy, 2.6f, 8);
-        }
-
-        // D. Ambush Zombies & Mutated Boss
-        if (isAmbushActive) {
-            for (AmbushZombie az : ambushZombies) {
-                if (az.dead) continue;
-                float ax = mmX + (az.x / mapTilesW) * mmW;
-                float ay = mmY + (az.y / mapTilesH) * mmH;
-                if (az.isBoss) {
-                    shapes.setColor(Color.MAGENTA);
-                    float pulse = 4.5f + (float) Math.sin(minimapStateTime * 5.0f) * 1.2f;
-                    shapes.circle(ax, ay, pulse, 10);
-                } else {
-                    shapes.setColor(Color.RED);
-                    shapes.circle(ax, ay, 2.6f, 8);
-                }
-            }
-        }
-
-        // E. Campaign Features (Level 2)
-        if (levelNumber == 2 && levelFeatures != null) {
-            for (CampaignLevelPlan.Feature feat : levelFeatures) {
-                if (completedFeatureIds.contains(feat.actionId())) continue;
-                float fx = mmX + (feat.tileX() / mapTilesW) * mmW;
-                float fy = mmY + (feat.tileY() / mapTilesH) * mmH;
-                shapes.setColor(Color.YELLOW);
-                shapes.circle(fx, fy, 2.8f, 8);
-            }
-        }
-
-        // F. Players
-        if (snapshot != null && snapshot.players != null) {
-            WorldSnapshot.PlayerState me = client != null ? client.findLocalPlayer(snapshot) : null;
-            for (WorldSnapshot.PlayerState player : snapshot.players) {
-                if (player.downed || player.hp <= 0f) continue;
-                float px = mmX + (player.x / mapTilesW) * mmW;
-                float py = mmY + (player.y / mapTilesH) * mmH;
-                boolean isLocal = me != null && player.playerId == me.playerId;
-
-                shapes.setColor(isLocal ? Color.LIME : Color.CYAN);
-                shapes.circle(px, py, 3.5f, 10);
-
-                shapes.setColor(Color.WHITE);
-                shapes.circle(px, py, 1.4f, 6);
-            }
-        }
-
-        shapes.end();
-        Gdx.gl.glDisable(GL20.GL_BLEND);
-    }
-
-    private static String objectiveLabel(String objectiveId) {
-        if (objectiveId == null) return "Unknown objective";
-        return switch (objectiveId) {
-            case "l2_infected" -> "Clear zombie patrol";
-            case "l2_rescue" -> "Rescue villagers";
-            case "l2_puzzle" -> "Restore relay puzzle";
-            default -> objectiveId;
-        };
-    }
-
-    private boolean isNearLevelExit(WorldSnapshot.PlayerState player) {
-        return player != null
-                && LevelExit.forLevel(levelNumber)
-                .map(exit -> exit.contains(player.x, player.y))
-                .orElse(false);
-    }
-
-    private boolean areLevelObjectivesComplete(WorldSnapshot snapshot) {
-        if (snapshot == null || snapshot.objectives == null) {
-            return false;
-        }
-        for (WorldSnapshot.ObjectiveState objective : snapshot.objectives) {
-            if (!objective.complete) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private void drawPauseOverlay() {
@@ -2550,65 +2442,6 @@ public class GameScreen implements Screen {
         font.setColor(btn2Hovered ? Color.WHITE : new Color(0.95f, 0.6f, 0.6f, 1f));
         font.draw(batch, "Exit to Main Menu (Q)", btnX + 105f, btn2Y + 28f);
         batch.end();
-    }
-
-    private InputCommand readLocalInput(WorldSnapshot.PlayerState me, float delta) {
-        InputCommand input = new InputCommand();
-        float proposedMoveX = (Gdx.input.isKeyPressed(Input.Keys.D) ? 1 : 0) - (Gdx.input.isKeyPressed(Input.Keys.A) ? 1 : 0);
-        float proposedMoveY = (Gdx.input.isKeyPressed(Input.Keys.W) ? 1 : 0) - (Gdx.input.isKeyPressed(Input.Keys.S) ? 1 : 0);
-
-        if (me != null) {
-            PlayerAnimState anim = animStates.get(me.playerId);
-            if (anim != null && anim.isAttacking) {
-                proposedMoveX = 0f;
-                proposedMoveY = 0f;
-            } else {
-                float playerSpeed = 4.0f * delta;
-                float playerRadius = 0.25f;
-                boolean isCurrentlyStuck = !isWalkable(me.x, me.y, playerRadius);
-                if (!isCurrentlyStuck) {
-                    if (!isWalkable(me.x + (proposedMoveX * playerSpeed), me.y, playerRadius)) proposedMoveX = 0;
-                    if (!isWalkable(me.x, me.y + (proposedMoveY * playerSpeed), playerRadius)) proposedMoveY = 0;
-                }
-            }
-        }
-
-        input.moveX = proposedMoveX;
-        input.moveY = proposedMoveY;
-
-        boolean leftClickAttack = Gdx.input.isButtonJustPressed(Input.Buttons.LEFT) && !isInventoryOpen;
-        input.attackPressed = Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || leftClickAttack;
-
-        input.interactHeld = Gdx.input.isKeyPressed(Input.Keys.E);
-        input.interactPressed = Gdx.input.isKeyJustPressed(Input.Keys.E);
-
-        boolean movingCommand = proposedMoveX != 0f || proposedMoveY != 0f;
-        input.abilityPressed = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT) && stamina > 0f && movingCommand;
-
-        input.dropPressed = Gdx.input.isKeyJustPressed(Input.Keys.Q);
-        return input;
-    }
-
-    private void showBanner(String message) {
-        partnerBanner = message;
-        partnerBannerSecondsLeft = 5f;
-    }
-
-    @Override
-    public void resize(int width, int height) {
-        viewport.update(width, height, true);
-    }
-
-    @Override
-    public void pause() { }
-
-    @Override
-    public void resume() { }
-
-    @Override
-    public void hide() {
-        client.setOnEvent(null);
-        client.setOnLevelTransition(null);
     }
 
     private void renderSaveOverlay() {
@@ -2723,24 +2556,76 @@ public class GameScreen implements Screen {
         batch.end();
     }
 
+    private static String objectiveLabel(String objectiveId) {
+        if (objectiveId == null) return "Unknown objective";
+        return switch (objectiveId) {
+            case "l2_infected" -> "Clear zombie patrol";
+            case "l2_rescue" -> "Rescue villagers";
+            case "l2_puzzle" -> "Restore relay puzzle";
+            default -> objectiveId;
+        };
+    }
+
+    private boolean isNearLevelExit(WorldSnapshot.PlayerState player) {
+        return player != null && LevelExit.forLevel(levelNumber).map(exit -> exit.contains(player.x, player.y)).orElse(false);
+    }
+
+    private boolean areLevelObjectivesComplete(WorldSnapshot snapshot) {
+        if (snapshot == null || snapshot.objectives == null) return false;
+        for (WorldSnapshot.ObjectiveState objective : snapshot.objectives) { if (!objective.complete) return false; }
+        return true;
+    }
+
+    private InputCommand readLocalInput(WorldSnapshot.PlayerState me, float delta) {
+        InputCommand input = new InputCommand();
+        float proposedMoveX = (Gdx.input.isKeyPressed(Input.Keys.D) ? 1 : 0) - (Gdx.input.isKeyPressed(Input.Keys.A) ? 1 : 0);
+        float proposedMoveY = (Gdx.input.isKeyPressed(Input.Keys.W) ? 1 : 0) - (Gdx.input.isKeyPressed(Input.Keys.S) ? 1 : 0);
+
+        if (me != null) {
+            PlayerAnimState anim = animStates.get(me.playerId);
+            if (anim != null && anim.isAttacking) {
+                proposedMoveX = 0f; proposedMoveY = 0f;
+            } else {
+                float playerSpeed = 4.0f * delta, playerRadius = 0.25f;
+                if (isWalkable(me.x, me.y, playerRadius)) {
+                    if (!isWalkable(me.x + (proposedMoveX * playerSpeed), me.y, playerRadius)) proposedMoveX = 0;
+                    if (!isWalkable(me.x, me.y + (proposedMoveY * playerSpeed), playerRadius)) proposedMoveY = 0;
+                }
+            }
+        }
+        input.moveX = proposedMoveX; input.moveY = proposedMoveY;
+        input.attackPressed = Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT) && !isInventoryOpen);
+        input.interactHeld = Gdx.input.isKeyPressed(Input.Keys.E); input.interactPressed = Gdx.input.isKeyJustPressed(Input.Keys.E);
+        input.abilityPressed = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT) && stamina > 0f && (proposedMoveX != 0f || proposedMoveY != 0f);
+        input.dropPressed = Gdx.input.isKeyJustPressed(Input.Keys.Q);
+        return input;
+    }
+
+    private void showBanner(String message) {
+        partnerBanner = message; partnerBannerSecondsLeft = 5f;
+    }
+
     private void takeInGameScreenshot() {
         try {
-            int w = Gdx.graphics.getBackBufferWidth();
-            int h = Gdx.graphics.getBackBufferHeight();
+            int w = Gdx.graphics.getBackBufferWidth(), h = Gdx.graphics.getBackBufferHeight();
             Pixmap pixmap = ScreenUtils.getFrameBufferPixmap(0, 0, w, h);
-            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-            FileHandle dir = Gdx.files.local("screenshots");
-            if (!dir.exists()) {
-                dir.mkdirs();
-            }
-            FileHandle file = dir.child("screenshot_" + timestamp + ".png");
-            PixmapIO.writePNG(file, pixmap);
-            pixmap.dispose();
-            showBanner("Screenshot saved: " + file.name());
-        } catch (Throwable t) {
-            showBanner("Screenshot failed: " + t.getMessage());
-        }
+            FileHandle dir = Gdx.files.local("screenshots"); if (!dir.exists()) dir.mkdirs();
+            FileHandle file = dir.child("screenshot_" + new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date()) + ".png");
+            PixmapIO.writePNG(file, pixmap); pixmap.dispose(); showBanner("Screenshot saved: " + file.name());
+        } catch (Throwable t) { showBanner("Screenshot failed: " + t.getMessage()); }
     }
+
+    @Override
+    public void resize(int width, int height) { viewport.update(width, height, true); }
+
+    @Override
+    public void pause() { }
+
+    @Override
+    public void resume() { }
+
+    @Override
+    public void hide() { client.setOnEvent(null); client.setOnLevelTransition(null); }
 
     @Override
     public void dispose() {
@@ -2751,8 +2636,21 @@ public class GameScreen implements Screen {
         if (markerTexture != null) markerTexture.dispose();
         if (playerTexture != null) playerTexture.dispose();
         if (idleTexture != null) idleTexture.dispose();
-        if (femalePlayerTexture != null) femalePlayerTexture.dispose();
         if (playerSprintTexture != null && playerSprintTexture != playerTexture) playerSprintTexture.dispose();
+        if (playerMeleeTexture != null && playerMeleeTexture != playerTexture) playerMeleeTexture.dispose();
+        if (idleMeleeTexture != null && idleMeleeTexture != idleTexture) idleMeleeTexture.dispose();
+        if (playerBombTexture != null && playerBombTexture != playerTexture) playerBombTexture.dispose();
+        if (playerBombIdleTexture != null && playerBombIdleTexture != idleTexture) playerBombIdleTexture.dispose();
+        if (playerBombThrowTexture != null && playerBombThrowTexture != playerTexture) playerBombThrowTexture.dispose();
+        if (janePlayerTexture != null && janePlayerTexture != playerTexture) janePlayerTexture.dispose();
+        if (janeIdleTexture != null && janeIdleTexture != idleTexture) janeIdleTexture.dispose();
+        if (janeSprintTexture != null && janeSprintTexture != playerSprintTexture) janeSprintTexture.dispose();
+        if (janeMeleeTexture != null && janeMeleeTexture != playerMeleeTexture) janeMeleeTexture.dispose();
+        if (janeIdleMeleeTexture != null && janeIdleMeleeTexture != idleMeleeTexture) janeIdleMeleeTexture.dispose();
+        if (janeBombTexture != null && janeBombTexture != playerBombTexture) janeBombTexture.dispose();
+        if (janeBombIdleTexture != null && janeBombIdleTexture != playerBombIdleTexture) janeBombIdleTexture.dispose();
+        if (janeBombThrowTexture != null && janeBombThrowTexture != playerBombThrowTexture) janeBombThrowTexture.dispose();
+        if (janeMeleeHitTexture != null && janeMeleeHitTexture != meleeHitTexture) janeMeleeHitTexture.dispose();
         if (zombieTexture != null) zombieTexture.dispose();
         if (zombieIdleTexture != null && zombieIdleTexture != zombieTexture) zombieIdleTexture.dispose();
         if (zombieBiteTexture != null && zombieBiteTexture != zombieTexture) zombieBiteTexture.dispose();
@@ -2763,12 +2661,7 @@ public class GameScreen implements Screen {
         if (damagedScreen1Texture != null) damagedScreen1Texture.dispose();
         if (damagedScreen2Texture != null) damagedScreen2Texture.dispose();
         if (timerTexture != null) timerTexture.dispose();
-        if (playerBombTexture != null && playerBombTexture != playerTexture) playerBombTexture.dispose();
-        if (playerBombIdleTexture != null && playerBombIdleTexture != idleTexture) playerBombIdleTexture.dispose();
-        if (playerBombThrowTexture != null && playerBombThrowTexture != playerTexture) playerBombThrowTexture.dispose();
         if (meleeTexture != null) meleeTexture.dispose();
-        if (playerMeleeTexture != null && playerMeleeTexture != playerTexture) playerMeleeTexture.dispose();
-        if (idleMeleeTexture != null && idleMeleeTexture != idleTexture) idleMeleeTexture.dispose();
         if (meleeInventoryTexture != null) meleeInventoryTexture.dispose();
         if (meleeHitTexture != null) meleeHitTexture.dispose();
         if (keyTexture != null) keyTexture.dispose();
