@@ -53,19 +53,19 @@ public final class CheckpointRegistry {
             new Checkpoint("l2_cp01_checkpoint",  "Hospital Upper Floor",     2, 1, 55.5f, 30.5f),
             new Checkpoint("l2_cp02_stalls",      "Abandoned Road Market",    2, 2,  7.5f, 21.5f),
             new Checkpoint("l2_cp03_clinic",      "Clinic Power Relay",       2, 3, 14.5f,  4.5f),
-            new Checkpoint("l2_cp04_pharmacy",    "Infected Roadblock",       2, 4, 22.5f, 34.5f),
+            new Checkpoint("l2_cp04_pharmacy",    "Infected Roadblock",       2, 4, 24.5f, 34.5f),
             new Checkpoint("l2_cp05_shelter",     "Villager Shelter",         2, 5, 31.5f, 27.5f),
             new Checkpoint("l2_cp06_depot",       "Depot Power Relay",        2, 6, 39.5f, 21.5f),
-            new Checkpoint("l2_cp07_rooftops",    "East Village Road",        2, 7, 46.5f,  4.5f),
+            new Checkpoint("l2_cp07_rooftops",    "East Village Road",        2, 7, 45.5f,  4.5f),
             new Checkpoint("l2_cp08_tunnel",      "Service Tunnel Mouth",     2, 8, 53.5f, 23.5f),
 
             // ---- Level 3 — Hidden Laboratory, 60x40 (7) ----
             new Checkpoint("l3_cp01_descent",     "The Descent",              3, 1, 55.5f, 30.5f),
-            new Checkpoint("l3_cp02_labs",        "Flooded Laboratories",     3, 2,  8.5f, 26.5f),
-            new Checkpoint("l3_cp03_containment", "Containment Ring",         3, 3, 16.5f, 32.5f),
+            new Checkpoint("l3_cp02_labs",        "Flooded Laboratories",     3, 2, 10.5f, 34.5f),
+            new Checkpoint("l3_cp03_containment", "Containment Ring",         3, 3, 15.5f, 33.5f),
             new Checkpoint("l3_cp04_antechamber", "Heart Antechamber",        3, 4, 25.5f, 10.5f),
             new Checkpoint("l3_cp05_shield",      "Shield Phase Arena",       3, 5, 33.5f, 25.5f),
-            new Checkpoint("l3_cp06_exposure",    "Exposure Window",          3, 6, 42.5f,  3.5f),
+            new Checkpoint("l3_cp06_exposure",    "Exposure Window",          3, 6, 42.5f,  4.5f),
             new Checkpoint("l3_cp07_core",        "The Core",                 3, 7, 50.5f,  9.5f)
     );
 
