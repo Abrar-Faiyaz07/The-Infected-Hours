@@ -35,7 +35,7 @@ class CheckpointPlacementTest {
         List<String> failures = new ArrayList<>();
 
         for (int level = 1; level <= GameConstants.LEVEL_COUNT; level++) {
-            TileMap map = loader.loadTileMap("maps/level" + level + ".map");
+            TileMap map = loader.loadMap(loader.loadDefinition(level));
 
             for (Checkpoint checkpoint : CheckpointRegistry.forLevel(level)) {
                 float x = checkpoint.spawnTileX();

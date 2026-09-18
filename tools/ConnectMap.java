@@ -18,7 +18,7 @@ import java.util.List;
  * intact everywhere it was already connected.
  *
  * <pre>
- *   java tools/ConnectMap.java core/src/main/resources/maps/level2.map 1 5.5 4.5 6.5 4.5
+ *   java tools/ConnectMap.java core/src/main/resources/maps/level1_part2.map 1 5.5 4.5 6.5 4.5
  * </pre>
  * Args: mapFile, subdivisions, spawnWorldX, spawnWorldY, [extraWorldX, extraWorldY]...
  * (the extra points — e.g. the second character's spawn — are forced open and
