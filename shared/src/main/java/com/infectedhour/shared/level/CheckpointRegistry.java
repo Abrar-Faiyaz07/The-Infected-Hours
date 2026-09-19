@@ -50,14 +50,14 @@ public final class CheckpointRegistry {
             new Checkpoint("l1_cp07_crossing",    "Evacuation Stairwell",     1, 7, 35.5f, 17.5f),
 
             // ---- Level 2 — Roadside Village, 60x40 (8) ----
-            new Checkpoint("l2_cp01_checkpoint",  "Hospital Upper Floor",     2, 1, 55.5f, 30.5f),
+            new Checkpoint("l2_cp01_checkpoint",  "Hospital Upper Floor",     2, 1,  6.3f, 37.22f),
             new Checkpoint("l2_cp02_stalls",      "Abandoned Road Market",    2, 2,  7.5f, 21.5f),
             new Checkpoint("l2_cp03_clinic",      "Clinic Power Relay",       2, 3, 14.5f,  4.5f),
             new Checkpoint("l2_cp04_pharmacy",    "Infected Roadblock",       2, 4, 24.5f, 34.5f),
             new Checkpoint("l2_cp05_shelter",     "Villager Shelter",         2, 5, 31.5f, 27.5f),
             new Checkpoint("l2_cp06_depot",       "Depot Power Relay",        2, 6, 39.5f, 21.5f),
             new Checkpoint("l2_cp07_rooftops",    "East Village Road",        2, 7, 45.5f,  4.5f),
-            new Checkpoint("l2_cp08_tunnel",      "Service Tunnel Mouth",     2, 8, 53.5f, 23.5f),
+            new Checkpoint("l2_cp08_tunnel",      "Level 2 Exit Door",        2, 8, 26.5f,  1.5f),
 
             // ---- Level 3 — Hidden Laboratory, 60x40 (7) ----
             new Checkpoint("l3_cp01_descent",     "The Descent",              3, 1, 55.5f, 30.5f),
@@ -114,7 +114,12 @@ public final class CheckpointRegistry {
     public static Checkpoint firstOf(int levelNumber) {
         return forLevel(levelNumber).stream()
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("No checkpoints for level " + levelNumber));
+                .orElseGet(() -> switch (levelNumber) {
+                    case 4 -> new Checkpoint("l4_cp01_start", "Subterranean Corridor", 4, 1, 10.5f, 30.5f);
+                    case 5 -> new Checkpoint("l5_cp01_start", "Research Facility", 5, 1, 28.5f, 8.5f);
+                    case 6 -> new Checkpoint("l6_cp01_start", "Secret Laboratory", 6, 1, 15.5f, 15.5f);
+                    default -> throw new IllegalArgumentException("No checkpoints for level " + levelNumber);
+                });
     }
 
     /** The next checkpoint after this one, or empty at the end of the campaign. */

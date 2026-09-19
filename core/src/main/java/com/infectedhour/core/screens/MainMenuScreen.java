@@ -16,6 +16,7 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.infectedhour.core.InfectedHourGame;
+import com.infectedhour.core.audio.SoundtrackCatalog;
 import com.infectedhour.core.bridge.GameBridge;
 import com.infectedhour.core.net.GameClient;
 import com.infectedhour.shared.constants.GameConstants;
@@ -72,6 +73,7 @@ public class MainMenuScreen implements Screen {
 
     @Override
     public void show() {
+        game.getAudioDirector().playMusic(SoundtrackCatalog.Track.MAIN_MENU);
         camera = new OrthographicCamera();
         viewport = new FitViewport(VIRTUAL_WIDTH, VIRTUAL_HEIGHT, camera);
         camera.position.set(VIRTUAL_WIDTH / 2f, VIRTUAL_HEIGHT / 2f, 0);

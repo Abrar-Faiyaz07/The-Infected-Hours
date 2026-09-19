@@ -38,9 +38,34 @@ public record LevelDefinition(
                 ), false);
     }
 
+    public static LevelDefinition level3() {
+        return new LevelDefinition(3, "Road Approach",
+                "maps/level3_road.tmx", "maps/map2.map",
+                List.of(), false);
+    }
+
+    /** Compatibility for legacy unit tests referencing level3Boss(). */
     public static LevelDefinition level3Boss() {
         return new LevelDefinition(3, "Hidden Laboratory",
-                "maps/level3_hidden_laboratory.tmx", "maps/level3.map",
+                "maps/level3_hidden_laboratory.tmx", "maps/map2.map",
+                List.of(), true);
+    }
+
+    public static LevelDefinition level4() {
+        return new LevelDefinition(4, "Subterranean Corridor",
+                "maps/level4_corridor.tmx", "maps/map2_part2.map",
+                List.of(), false);
+    }
+
+    public static LevelDefinition level5() {
+        return new LevelDefinition(5, "Research Facility",
+                "maps/level5_facility.tmx", "maps/level3.map",
+                List.of(), false);
+    }
+
+    public static LevelDefinition level6Boss() {
+        return new LevelDefinition(6, "Secret Laboratory",
+                "maps/level6_laboratory.tmx", "maps/level_final.map",
                 List.of(), true);
     }
 }

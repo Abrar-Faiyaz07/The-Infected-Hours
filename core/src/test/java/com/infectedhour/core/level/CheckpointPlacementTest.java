@@ -35,7 +35,7 @@ class CheckpointPlacementTest {
         List<String> failures = new ArrayList<>();
 
         for (int level = 1; level <= GameConstants.LEVEL_COUNT; level++) {
-            TileMap map = loader.loadTileMap("maps/level" + level + ".map");
+            TileMap map = loader.loadMap(loader.loadDefinition(level));
 
             for (Checkpoint checkpoint : CheckpointRegistry.forLevel(level)) {
                 float x = checkpoint.spawnTileX();
@@ -67,6 +67,8 @@ class CheckpointPlacementTest {
         // move at all, which reads as "the controls are broken".
         assertTrue(isClear(map, 9.5f, 8.5f), "Elric's spawn is inside a wall");
         assertTrue(isClear(map, 10.5f, 8.5f), "Jane's spawn is inside a wall");
+        assertTrue(isClear(map, 40.0f, 8.0f), "Jane's spawn is inside a wall");
+        assertTrue(isClear(map, 12.0f, 8.5f), "Bomb spawn is inside a wall");
     }
 
     /** Samples every collision cell the player's circle would cover. */

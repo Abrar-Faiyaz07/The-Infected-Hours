@@ -27,6 +27,7 @@ public class Lwjgl3Launcher {
      *   ./gradlew :lwjgl3:run --args="join 192.168.0.14"  # join that host
      *   ./gradlew :lwjgl3:run --args="join"               # join localhost (two windows, one PC)
      *   ./gradlew :lwjgl3:run --args="level 2"            # start on that level, at its first checkpoint
+     *   ./gradlew :lwjgl3:run --args="coop 2"             # debug split-screen co-op on level 2
      * </pre>
      *
      * The two-windows-on-one-PC form is the fastest way to exercise the whole
@@ -44,8 +45,14 @@ public class Lwjgl3Launcher {
         if (args != null && args.length > 0 && "jane".equalsIgnoreCase(args[0])) {
             return SessionConfig.hosting("dev-host", "Dev Host", null, com.infectedhour.shared.network.CharacterType.JANE);
         }
+        if (args != null && args.length > 0 && ("coop".equalsIgnoreCase(args[0]) || "split".equalsIgnoreCase(args[0]))) {
+            int lvl = args.length > 1 ? Integer.parseInt(args[1]) : 1;
+            return devSessionCoopAtLevel(lvl);
+        }
         if (args != null && args.length > 1 && "level".equalsIgnoreCase(args[0])) {
-            return devSessionAtLevel(Integer.parseInt(args[1]));
+            boolean coop = args.length > 2 && ("coop".equalsIgnoreCase(args[2]) || "split".equalsIgnoreCase(args[2]));
+            int lvl = Integer.parseInt(args[1]);
+            return coop ? devSessionCoopAtLevel(lvl) : devSessionAtLevel(lvl);
         }
         return SessionConfig.devSolo();
     }
@@ -62,6 +69,15 @@ public class Lwjgl3Launcher {
                 start.id(), start.name(), 0, 0L, "ELRIC",
                 100f, 0f, 0f, null, null, null);
         return SessionConfig.hostingFromSave("dev-host", "Dev Host", null, slot);
+    }
+
+    static SessionConfig devSessionCoopAtLevel(int levelNumber) {
+        Checkpoint start = CheckpointRegistry.firstOf(levelNumber);
+        SaveSlotDto slot = new SaveSlotDto(1, true, levelNumber, "Dev Level " + levelNumber,
+                start.id(), start.name(), 0, 0L, "ELRIC",
+                100f, 0f, 0f, null, null, null);
+        return new SessionConfig(true, "localhost", "dev-host", "Dev Host", null, slot,
+                com.infectedhour.shared.network.CharacterType.ELRIC, true, false);
     }
 
     public static void boot(SessionConfig session, GameBridge bridge) {

@@ -211,7 +211,8 @@ public class GameScreen implements Screen {
     private boolean middleZombieChasing = false;
     private boolean middleZombieBiting = false;
 
-    private float middleZombieHp = 300f;
+    private float middleZombieMaxHp = 25f;
+    private float middleZombieHp = 25f;
     private boolean isZombieDead = false;
 
     private final Map<String, PlayerAnimState> animStates = new HashMap<>();
@@ -238,7 +239,7 @@ public class GameScreen implements Screen {
 
     // Level 1 Herb Parts & Mixed Herb Revive Kit
     private static final float HERB_1_X = 3.5f, HERB_1_Y = 6.5f;
-    private static final float HERB_2_X = 38.0f, HERB_2_Y = 14.0f;
+    private static final float HERB_2_X = 41.0f, HERB_2_Y = 14.0f;
     private static final float MEDKIT_X = 4.5f, MEDKIT_Y = 6.5f;
     private boolean herb1Collected = false;
     private boolean herb2Collected = false;
@@ -247,9 +248,9 @@ public class GameScreen implements Screen {
     private boolean hasPickedFloorMedkit = false;
 
     // Level 1 Senseless Jane in Pharmacy
-    private static final float JANE_PHARMACY_X = 42.0f, JANE_PHARMACY_Y = 5.5f;
+    private static final float JANE_PHARMACY_X = 40.0f, JANE_PHARMACY_Y = 8.0f;
     private boolean isJaneRevived = false;
-    private float janeX = 42.0f, janeY = 5.5f;
+    private float janeX = 40.0f, janeY = 8.0f;
     private float janeHp = 100f, janeMaxHp = 100f;
     private float janeAttackCooldown = 0f;
     private float janeMedkitTimer = 60.0f;
@@ -264,6 +265,7 @@ public class GameScreen implements Screen {
         final float maxHp = 100f;
         boolean isRescued = false;
         boolean isDead = false;
+        boolean isStaying = false;
         float biteCooldown = 0.8f;
         float stateTime = 0f;
 
@@ -278,8 +280,8 @@ public class GameScreen implements Screen {
 
     private static class AmbushZombie {
         float x, y;
-        float hp = 100f;
-        float maxHp = 100f;
+        float hp = 25f;
+        float maxHp = 25f;
         boolean isBoss = false;
         boolean dead = false;
         float stateTime = 0f;
@@ -291,7 +293,7 @@ public class GameScreen implements Screen {
             this.x = x;
             this.y = y;
             this.isBoss = isBoss;
-            this.maxHp = isBoss ? 500f : 100f;
+            this.maxHp = isBoss ? 100f : 25f;
             this.hp = this.maxHp;
         }
     }
@@ -310,6 +312,7 @@ public class GameScreen implements Screen {
     private boolean returningToLauncher = false;
     private volatile boolean levelTransitionInProgress = false;
     private boolean isDualViewDebugMode = false;
+    private boolean showAxisDebug = false;
     private String partnerBanner = null;
     private float partnerBannerSecondsLeft = 0f;
 
@@ -502,6 +505,11 @@ public class GameScreen implements Screen {
         }
 
         if (levelNumber == 1) {
+            middleZombieX = 22.0f;
+            middleZombieY = 16.0f;
+            middleZombieHp = middleZombieMaxHp;
+            isZombieDead = false;
+
             levelVillagers.clear();
             levelVillagers.add(new LevelVillager("v1", "Dr. Ramirez", 18.5f, 28.5f));
             levelVillagers.add(new LevelVillager("v2", "Nurse Claire", 35.5f, 28.5f));
@@ -518,8 +526,8 @@ public class GameScreen implements Screen {
             hasReviveKit = false;
             hasPickedFloorMedkit = false;
             isJaneRevived = false;
-            janeX = 42.0f;
-            janeY = 5.5f;
+            janeX = 40.0f;
+            janeY = 8.0f;
             janeHp = 100f;
             janeMedkitTimer = 60.0f;
             coins = CampaignSquadState.coins;
@@ -545,8 +553,8 @@ public class GameScreen implements Screen {
 
             // Jane ally continuity (revived with Katana)
             isJaneRevived = true;
-            janeX = 22.0f;
-            janeY = 12.0f;
+            janeX = 3.5f;
+            janeY = 37.22f;
             janeHp = CampaignSquadState.janeHp > 0f ? CampaignSquadState.janeHp : 100f;
 
             // Rescued hospital villagers carry over as active followers
@@ -554,15 +562,26 @@ public class GameScreen implements Screen {
             boolean hasV1 = CampaignSquadState.rescuedVillagers.isEmpty() || CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v1".equals(info.id()));
             boolean hasV2 = CampaignSquadState.rescuedVillagers.isEmpty() || CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v2".equals(info.id()));
             if (hasV1) {
-                LevelVillager v1 = new LevelVillager("v1", "Dr. Ramirez", 20.5f, 11.5f);
+                LevelVillager v1 = new LevelVillager("v1", "Dr. Ramirez", 6.0f, 35.5f);
                 v1.isRescued = true;
                 levelVillagers.add(v1);
             }
             if (hasV2) {
-                LevelVillager v2 = new LevelVillager("v2", "Nurse Claire", 23.5f, 11.5f);
+                LevelVillager v2 = new LevelVillager("v2", "Nurse Claire", 3.5f, 35.5f);
                 v2.isRescued = true;
                 levelVillagers.add(v2);
             }
+
+            // Level 2 stranded villagers awaiting rescue
+            boolean hasV3 = CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v3".equals(info.id()));
+            LevelVillager v3 = new LevelVillager("v3", "Survivor Arthur", 16.96f, 32.86f);
+            v3.isRescued = hasV3;
+            levelVillagers.add(v3);
+
+            boolean hasV4 = CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v4".equals(info.id()));
+            LevelVillager v4 = new LevelVillager("v4", "Survivor Maya", 51.0f, 33.65f);
+            v4.isRescued = hasV4;
+            levelVillagers.add(v4);
 
             levelFeatures.stream()
                     .filter(feature -> feature.type() == CampaignLevelPlan.FeatureType.ZOMBIE_ENCOUNTER)
@@ -571,7 +590,7 @@ public class GameScreen implements Screen {
                         middleZombieX = feature.tileX();
                         middleZombieY = feature.tileY();
                     });
-        } else if (levelNumber == 3) {
+        } else if (levelNumber >= 3) {
             coins = CampaignSquadState.coins;
             hasBomb = CampaignSquadState.hasBomb;
             isBombEquipped = CampaignSquadState.isBombEquipped;
@@ -587,7 +606,7 @@ public class GameScreen implements Screen {
             boolean hasV1 = CampaignSquadState.rescuedVillagers.isEmpty() || CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v1".equals(info.id()));
             boolean hasV2 = CampaignSquadState.rescuedVillagers.isEmpty() || CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v2".equals(info.id()));
             if (hasV1) {
-                LevelVillager v1 = new LevelVillager("v1", "Dr. Ramirez", 26.5f, 9.5f);
+                LevelVillager v1 = new LevelVillager("v1", "Dr. Ramirez", 30.5f, 9.5f);
                 v1.isRescued = true;
                 levelVillagers.add(v1);
             }
@@ -596,20 +615,41 @@ public class GameScreen implements Screen {
                 v2.isRescued = true;
                 levelVillagers.add(v2);
             }
+            boolean hasV3 = CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v3".equals(info.id()));
+            if (hasV3) {
+                LevelVillager v3 = new LevelVillager("v3", "Survivor Arthur", 32.0f, 9.5f);
+                v3.isRescued = true;
+                levelVillagers.add(v3);
+            }
+            boolean hasV4 = CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v4".equals(info.id()));
+            if (hasV4) {
+                LevelVillager v4 = new LevelVillager("v4", "Survivor Maya", 33.5f, 9.5f);
+                v4.isRescued = true;
+                levelVillagers.add(v4);
+            }
 
             isZombieDead = true;
             isAmbushActive = true;
             isAmbushDefeated = false;
             ambushZombies.clear();
-            AmbushZombie titanBoss = new AmbushZombie(30.5f, 20.5f, true);
-            titanBoss.maxHp = 600f;
-            titanBoss.hp = 600f;
-            ambushZombies.add(titanBoss);
 
-            ambushZombies.add(new AmbushZombie(24.5f, 18.5f, false));
-            ambushZombies.add(new AmbushZombie(36.5f, 22.5f, false));
-            ambushZombies.add(new AmbushZombie(28.5f, 26.5f, false));
-            ambushZombies.add(new AmbushZombie(32.5f, 14.5f, false));
+            if (levelNumber == 6) {
+                AmbushZombie virusHeart = new AmbushZombie(30.5f, 20.5f, true);
+                virusHeart.maxHp = 150f;
+                virusHeart.hp = 150f;
+                ambushZombies.add(virusHeart);
+                ambushZombies.add(new AmbushZombie(24.5f, 18.5f, false));
+                ambushZombies.add(new AmbushZombie(36.5f, 22.5f, false));
+                ambushZombies.add(new AmbushZombie(28.5f, 26.5f, false));
+                ambushZombies.add(new AmbushZombie(32.5f, 14.5f, false));
+            } else {
+                AmbushZombie sectorBoss = new AmbushZombie(30.5f, 20.5f, true);
+                sectorBoss.maxHp = 60f;
+                sectorBoss.hp = 60f;
+                ambushZombies.add(sectorBoss);
+                ambushZombies.add(new AmbushZombie(25.5f, 18.5f, false));
+                ambushZombies.add(new AmbushZombie(35.5f, 22.5f, false));
+            }
         }
 
         this.collisionSystem = new CollisionSystem(tileMap);
@@ -621,43 +661,45 @@ public class GameScreen implements Screen {
         }
 
         if (levelNumber == 1) {
-            mapTexture = new Texture(Gdx.files.internal("map.png"));
-            mapTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            mapTexture = loadTextureSafely("map1.png");
+            if (mapTexture == null) {
+                mapTexture = loadTextureSafely("map.png");
+            }
+            if (mapTexture != null) {
+                mapTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            }
         } else if (levelNumber == 2) {
-            Texture customFloor2 = loadTextureSafely("map1__part2.png");
-            if (customFloor2 == null) {
-                customFloor2 = loadTextureSafely("map1_part2.png");
+            mapTexture = loadTextureSafely("map1_part2.png");
+            if (mapTexture == null) {
+                mapTexture = loadTextureSafely("map1__part2.png");
             }
-            if (customFloor2 == null) {
-                customFloor2 = loadTextureSafely("level1_part2.png");
-            }
-            if (customFloor2 == null) {
-                customFloor2 = loadTextureSafely("map2.png");
-            }
-            if (customFloor2 == null) {
-                customFloor2 = loadTextureSafely("map1_floor2.png");
-            }
-            if (customFloor2 != null) {
-                mapTexture = customFloor2;
+            if (mapTexture != null) {
                 mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-            } else {
-                mapTexture = createRoadsideVillageTexture();
             }
-        } else {
-            Texture customMap3 = loadTextureSafely("map2_part2.png");
-            if (customMap3 == null) {
-                customMap3 = loadTextureSafely("map3.png");
-            }
-            if (customMap3 == null) {
-                customMap3 = loadTextureSafely("map1_floor2.png");
-            }
-            if (customMap3 != null) {
-                mapTexture = customMap3;
+        } else if (levelNumber == 3) {
+            mapTexture = loadTextureSafely("map2.png");
+            if (mapTexture != null) {
                 mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-            } else {
-                Texture fallback = loadTextureSafely("map2.png");
-                mapTexture = fallback != null ? fallback : createRoadsideVillageTexture();
             }
+        } else if (levelNumber == 4) {
+            mapTexture = loadTextureSafely("map2_part2.png");
+            if (mapTexture != null) {
+                mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            }
+        } else if (levelNumber == 5) {
+            mapTexture = loadTextureSafely("map3.png");
+            if (mapTexture != null) {
+                mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            }
+        } else if (levelNumber == 6) {
+            mapTexture = loadTextureSafely("map_final.png");
+            if (mapTexture != null) {
+                mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            }
+        }
+
+        if (mapTexture == null) {
+            mapTexture = createRoadsideVillageTexture();
         }
         markerTexture = createColorTexture(1, 1, Color.WHITE);
         keyTexture = loadTextureSafely("key.png");
@@ -937,10 +979,13 @@ public class GameScreen implements Screen {
                 }
             }
             Gdx.app.postRunnable(() -> {
-                StoryPanelScreen.Sequence storySequence = levelNumber == 1
-                        ? StoryPanelScreen.Sequence.AFTER_LEVEL_1
-                        : StoryPanelScreen.Sequence.AFTER_LEVEL_2;
-                game.setScreen(new StoryPanelScreen(game, client, bridge, storySequence, levelNumber));
+                if (levelNumber == 1) {
+                    game.setScreen(new StoryPanelScreen(game, client, bridge, StoryPanelScreen.Sequence.AFTER_LEVEL_1, levelNumber));
+                } else if (levelNumber == 2) {
+                    game.setScreen(new StoryPanelScreen(game, client, bridge, StoryPanelScreen.Sequence.AFTER_LEVEL_2, levelNumber));
+                } else {
+                    game.setScreen(new LevelBriefingScreen(game, client, bridge, transition.nextLevelNumber));
+                }
             });
         });
     }
@@ -978,6 +1023,16 @@ public class GameScreen implements Screen {
         if (!completedFeatureIds.add(feature.actionId())) return;
         client.sendEvent(GameConstants.EVENT_OBJECTIVE_PROGRESS, feature.actionId());
         showBanner(feature.label() + " complete");
+        if (feature.type() == CampaignLevelPlan.FeatureType.SURVIVOR) {
+            for (LevelVillager v : levelVillagers) {
+                if (!v.isRescued && Math.hypot(v.x - feature.tileX(), v.y - feature.tileY()) <= 2.2f) {
+                    v.isRescued = true;
+                    CampaignSquadState.rescuedVillagers.add(new CampaignSquadState.RescuedVillagerInfo(v.id, v.name, v.hp));
+                    showBanner(v.name + " joined squad! Protect them from infected bites.");
+                    break;
+                }
+            }
+        }
     }
 
     private CampaignLevelPlan.Feature nearbyIncompleteFeature(WorldSnapshot.PlayerState player) {
@@ -1255,8 +1310,8 @@ public class GameScreen implements Screen {
             }
         }
 
-        // Villagers Interaction:
-        if (levelNumber == 1 && me != null) {
+        // Villagers Interaction (All levels):
+        if (me != null) {
             for (LevelVillager v : levelVillagers) {
                 if (!v.isDead && !v.isRescued) {
                     float dx = me.x - v.x;
@@ -1265,6 +1320,13 @@ public class GameScreen implements Screen {
                         v.isRescued = true;
                         showBanner(v.name + " joined squad! Protect them from infected bites.");
                         CampaignSquadState.rescuedVillagers.add(new CampaignSquadState.RescuedVillagerInfo(v.id, v.name, v.hp));
+                        if (levelNumber == 2) {
+                            levelFeatures.stream()
+                                    .filter(f -> f.type() == CampaignLevelPlan.FeatureType.SURVIVOR && !completedFeatureIds.contains(f.actionId()))
+                                    .filter(f -> Math.hypot(f.tileX() - v.x, f.tileY() - v.y) <= 2.2f)
+                                    .findFirst()
+                                    .ifPresent(this::completeFeature);
+                        }
                     }
                 }
             }
@@ -1279,12 +1341,12 @@ public class GameScreen implements Screen {
                     hasStairsKey = true;
                     isAmbushActive = true;
                     ambushZombies.clear();
-                    // Boss zombie guarding the door corridor:
-                    ambushZombies.add(new AmbushZombie(41.0f, 29.5f, true));
-                    // 3 regular zombies swarming:
+                    // Boss zombie guarding the door corridor (clear walkway at 42.0, 28.0):
+                    ambushZombies.add(new AmbushZombie(42.0f, 28.0f, true));
+                    // 3 regular zombies swarming (verified walkable positions):
                     ambushZombies.add(new AmbushZombie(36.0f, 26.5f, false));
-                    ambushZombies.add(new AmbushZombie(40.5f, 25.5f, false));
-                    ambushZombies.add(new AmbushZombie(37.5f, 29.0f, false));
+                    ambushZombies.add(new AmbushZombie(42.0f, 25.0f, false));
+                    ambushZombies.add(new AmbushZombie(36.5f, 28.5f, false));
                     showBanner("DOOR BREACHED! MUTATED BOSS & ZOMBIE HORDE EMERGE!");
                 }
             }
@@ -1332,13 +1394,7 @@ public class GameScreen implements Screen {
             }
         }
 
-        if (levelNumber == 2 && isZombieDead && !zombieObjectiveSent) {
-            levelFeatures.stream()
-                    .filter(feature -> feature.type() == CampaignLevelPlan.FeatureType.ZOMBIE_ENCOUNTER)
-                    .findFirst()
-                    .ifPresent(this::completeFeature);
-            zombieObjectiveSent = true;
-        }
+        checkZombiePatrolObjective();
 
         game.stepSimulation(delta);
 
@@ -1426,7 +1482,25 @@ public class GameScreen implements Screen {
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
             isDualViewDebugMode = !isDualViewDebugMode;
+            if (isDualViewDebugMode && game.isHost() && game.getServer() != null) {
+                game.getServer().enableLocalCoopDummy(CharacterType.JANE);
+            }
             showBanner(isDualViewDebugMode ? "Dual View Debug Mode: ON (Split Screen)" : "Dual View Debug Mode: OFF");
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.J)) {
+            showAxisDebug = !showAxisDebug;
+            showBanner(showAxisDebug ? "Coordinates Display: ON [J]" : "Coordinates Display: OFF [J]");
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.X)) {
+            handleVillagerCommandToggle(me);
+        }
+        if (isDualViewDebugMode && (Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_7) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_7))) {
+            WorldSnapshot.PlayerState p2 = (snapshot != null && snapshot.players != null && snapshot.players.size() > 1) ? snapshot.players.get(1) : null;
+            if (p2 != null) {
+                handleVillagerCommandToggle(p2);
+            }
         }
 
         if (snapshot != null) {
@@ -1479,9 +1553,9 @@ public class GameScreen implements Screen {
                 font.draw(batch, "P1: " + (p1.character != null ? p1.character.name() : "ELRIC") + " [WASD | SPACE attack | E interact]", 20f, VIRTUAL_HEIGHT - 40f);
                 if (levelNumber == 1 && !isJaneRevived) {
                     font.setColor(Color.PINK);
-                    font.draw(batch, "P2: JANE [UNCONSCIOUS IN PHARMACY - Awaiting Revive Kit]", VIRTUAL_WIDTH / 2f + 20f, VIRTUAL_HEIGHT - 40f);
+                    font.draw(batch, "P2: JANE [UNCONSCIOUS IN LAB - Awaiting Revive Kit]", VIRTUAL_WIDTH / 2f + 20f, VIRTUAL_HEIGHT - 40f);
                     font.setColor(Color.YELLOW);
-                    font.draw(batch, "[UNCONSCIOUS IN PHARMACY]\nTrapped until Elric crafts Mixed Herb Revive Kit!", VIRTUAL_WIDTH * 0.75f - 180f, VIRTUAL_HEIGHT / 2f);
+                    font.draw(batch, "[UNCONSCIOUS IN LAB]\nTrapped until Elric crafts Mixed Herb Revive Kit!", VIRTUAL_WIDTH * 0.75f - 180f, VIRTUAL_HEIGHT / 2f);
                 } else {
                     font.draw(batch, "P2: " + (p2.character != null ? p2.character.name() : "JANE") + " [NUM 8-4-5-6 | R-SHIFT sprint | NUM 0 attack | NUM 3 interact]", VIRTUAL_WIDTH / 2f + 20f, VIRTUAL_HEIGHT - 40f);
                 }
@@ -1530,7 +1604,7 @@ public class GameScreen implements Screen {
                 shapes.rect(zx - 1f, zy - 1f, barW + 2f, barH + 2f);
 
                 shapes.setColor(Color.YELLOW);
-                shapes.rect(zx, zy, barW * (middleZombieHp / 300f), barH);
+                shapes.rect(zx, zy, barW * (middleZombieHp / middleZombieMaxHp), barH);
             }
 
             // Villager health bars (All Levels)
@@ -1605,6 +1679,56 @@ public class GameScreen implements Screen {
         if (paused) drawPauseOverlay();
     }
 
+    private void handleVillagerCommandToggle(WorldSnapshot.PlayerState commander) {
+        if (commander == null) return;
+        List<LevelVillager> activeRescued = new ArrayList<>();
+        for (LevelVillager v : levelVillagers) {
+            if (v.isRescued && !v.isDead) {
+                activeRescued.add(v);
+            }
+        }
+        if (activeRescued.isEmpty()) {
+            showBanner("No rescued villagers are currently following!");
+            return;
+        }
+
+        LevelVillager nearest = null;
+        float minDist = 2.2f;
+        for (LevelVillager v : activeRescued) {
+            float d = (float) Math.hypot(commander.x - v.x, commander.y - v.y);
+            if (d < minDist) {
+                minDist = d;
+                nearest = v;
+            }
+        }
+
+        if (nearest != null) {
+            nearest.isStaying = !nearest.isStaying;
+            if (nearest.isStaying) {
+                showBanner(nearest.name + " ordered to HOLD POSITION! [X]");
+            } else {
+                showBanner(nearest.name + " ordered to FOLLOW SQUAD! [X]");
+            }
+        } else {
+            boolean anyFollowing = false;
+            for (LevelVillager v : activeRescued) {
+                if (!v.isStaying) {
+                    anyFollowing = true;
+                    break;
+                }
+            }
+            boolean newState = anyFollowing;
+            for (LevelVillager v : activeRescued) {
+                v.isStaying = newState;
+            }
+            if (newState) {
+                showBanner("All rescued villagers ordered to HOLD POSITION! [X]");
+            } else {
+                showBanner("All rescued villagers ordered to FOLLOW SQUAD! [X]");
+            }
+        }
+    }
+
     private void updateAlliesAndVillagers(float delta, WorldSnapshot.PlayerState me) {
         if (me == null) return;
 
@@ -1618,7 +1742,7 @@ public class GameScreen implements Screen {
             float distYP = me.y - v.y;
             float distP = (float) Math.hypot(distXP, distYP);
 
-            if (distP > 1.8f) {
+            if (!v.isStaying && distP > 1.8f) {
                 float speed = 2.0f;
                 float moveX = (distXP / distP) * speed * delta;
                 float moveY = (distYP / distP) * speed * delta;
@@ -1692,14 +1816,17 @@ public class GameScreen implements Screen {
                             atkWY = middleZombieY - janeY;
                             attackAction = () -> {
                                 middleZombieHp -= 30f;
-                                float kbX = Math.signum(middleZombieX - janeX) * 0.6f;
-                                float kbY = Math.signum(middleZombieY - janeY) * 0.6f;
-                                if (isWalkable(middleZombieX + kbX, middleZombieY, 0.25f)) middleZombieX += kbX;
-                                if (isWalkable(middleZombieX, middleZombieY + kbY, 0.25f)) middleZombieY += kbY;
+                                float kbX = Math.signum(middleZombieX - janeX) * 0.5f;
+                                float kbY = Math.signum(middleZombieY - janeY) * 0.5f;
+                                if (isWalkable(middleZombieX + kbX * 0.5f, middleZombieY, 0.25f) && isWalkable(middleZombieX + kbX, middleZombieY, 0.25f)) middleZombieX += kbX;
+                                else if (isWalkable(middleZombieX + kbX * 0.5f, middleZombieY, 0.25f)) middleZombieX += kbX * 0.5f;
+                                if (isWalkable(middleZombieX, middleZombieY + kbY * 0.5f, 0.25f) && isWalkable(middleZombieX, middleZombieY + kbY, 0.25f)) middleZombieY += kbY;
+                                else if (isWalkable(middleZombieX, middleZombieY + kbY * 0.5f, 0.25f)) middleZombieY += kbY * 0.5f;
                                 if (middleZombieHp <= 0f) {
                                     isZombieDead = true;
                                     coins += 1;
                                     bloodPools.add(new Vector2(middleZombieX, middleZombieY));
+                                    checkZombiePatrolObjective();
                                 }
                             };
                         }
@@ -1717,10 +1844,12 @@ public class GameScreen implements Screen {
                                 attackAction = () -> {
                                     targetAz.hp -= 30f;
                                     if (!targetAz.isBoss) {
-                                        float kbX = Math.signum(targetAz.x - janeX) * 0.6f;
-                                        float kbY = Math.signum(targetAz.y - janeY) * 0.6f;
-                                        if (isWalkable(targetAz.x + kbX, targetAz.y, 0.25f)) targetAz.x += kbX;
-                                        if (isWalkable(targetAz.x, targetAz.y + kbY, 0.25f)) targetAz.y += kbY;
+                                        float kbX = Math.signum(targetAz.x - janeX) * 0.5f;
+                                        float kbY = Math.signum(targetAz.y - janeY) * 0.5f;
+                                        if (isWalkable(targetAz.x + kbX * 0.5f, targetAz.y, 0.25f) && isWalkable(targetAz.x + kbX, targetAz.y, 0.25f)) targetAz.x += kbX;
+                                        else if (isWalkable(targetAz.x + kbX * 0.5f, targetAz.y, 0.25f)) targetAz.x += kbX * 0.5f;
+                                        if (isWalkable(targetAz.x, targetAz.y + kbY * 0.5f, 0.25f) && isWalkable(targetAz.x, targetAz.y + kbY, 0.25f)) targetAz.y += kbY;
+                                        else if (isWalkable(targetAz.x, targetAz.y + kbY * 0.5f, 0.25f)) targetAz.y += kbY * 0.5f;
                                     }
                                     if (targetAz.hp <= 0f) {
                                         targetAz.dead = true;
@@ -1958,15 +2087,33 @@ public class GameScreen implements Screen {
             int safeCol = biteFrame % zombieBiteFrames[0].length;
             return zombieBiteFrames[safeRow][safeCol];
         } else if (zombieMoving) {
+            float zombieRadius = 0.25f;
+            if (!isWalkable(middleZombieX, middleZombieY, zombieRadius)) {
+                float[] dxs = {0.1f, -0.1f, 0f, 0f, 0.25f, -0.25f, 0f, 0f};
+                float[] dys = {0f, 0f, 0.1f, -0.1f, 0f, 0f, 0.25f, -0.25f};
+                for (int i = 0; i < dxs.length; i++) {
+                    if (isWalkable(middleZombieX + dxs[i], middleZombieY + dys[i], zombieRadius)) {
+                        middleZombieX += dxs[i];
+                        middleZombieY += dys[i];
+                        break;
+                    }
+                }
+            }
+
             float moveX = (midDistX / midDistance) * zombieSpeed * delta;
             float moveY = (midDistY / midDistance) * zombieSpeed * delta;
 
-            float zombieRadius = 0.25f;
             float nextX = middleZombieX + moveX;
             float nextY = middleZombieY + moveY;
 
-            if (isWalkable(nextX, middleZombieY, zombieRadius)) middleZombieX = nextX;
-            if (isWalkable(middleZombieX, nextY, zombieRadius)) middleZombieY = nextY;
+            boolean movedX = false;
+            boolean movedY = false;
+            if (isWalkable(nextX, middleZombieY, zombieRadius)) { middleZombieX = nextX; movedX = true; }
+            if (isWalkable(middleZombieX, nextY, zombieRadius)) { middleZombieY = nextY; movedY = true; }
+            if (!movedX && !movedY) {
+                if (isWalkable(nextX, middleZombieY, 0.15f)) middleZombieX = nextX;
+                else if (isWalkable(middleZombieX, nextY, 0.15f)) middleZombieY = nextY;
+            }
 
             if (Math.abs(midDistX) > Math.abs(midDistY)) zombieAnim.currentRow = midDistX > 0 ? 2 : 1;
             else zombieAnim.currentRow = midDistY > 0 ? 3 : 0;
@@ -1996,15 +2143,23 @@ public class GameScreen implements Screen {
         long remaining = ambushZombies.stream().filter(z -> !z.dead).count();
         if (remaining == 0) {
             isAmbushDefeated = true;
-            if (levelNumber == 3) {
+            if (levelNumber == 6) {
                 showBanner("VIRUS HEART DESTROYED! ASHGROVE IS SAVED!");
                 Gdx.app.postRunnable(() -> {
-                    game.setScreen(new StoryPanelScreen(game, client, bridge, StoryPanelScreen.Sequence.ENDING, 3));
+                    game.setScreen(new StoryPanelScreen(game, client, bridge, StoryPanelScreen.Sequence.ENDING, 6));
+                });
+            } else if (levelNumber == 3) {
+                coins += 5;
+                showBanner("HORDE DEFEATED! (+5 Coins) Advancing to Subterranean Corridor...");
+                Gdx.app.postRunnable(() -> {
+                    if (game.getServer() != null) {
+                        game.getServer().broadcastLevelTransition(4);
+                    }
                 });
             } else {
                 coins += 5;
-                String dest = levelNumber == 1 ? "Floor 2" : "the next area";
-                showBanner("MUTATED BOSS & HORDE DEFEATED! (+5 Coins) The stairs to " + dest + " are unlocked!");
+                String dest = levelNumber == 1 ? "Hospital Floor 2" : "the next area";
+                showBanner("MUTATED BOSS & HORDE DEFEATED! (+5 Coins) The passage to " + dest + " is unlocked!");
             }
         }
     }
@@ -2082,14 +2237,32 @@ public class GameScreen implements Screen {
             }
 
             if (distP > 0.5f && distP <= 14.0f) {
+                float radius = 0.25f;
+                if (!isWalkable(az.x, az.y, radius)) {
+                    float[] dxs = {0.1f, -0.1f, 0f, 0f, 0.25f, -0.25f, 0f, 0f};
+                    float[] dys = {0f, 0f, 0.1f, -0.1f, 0f, 0f, 0.25f, -0.25f};
+                    for (int i = 0; i < dxs.length; i++) {
+                        if (isWalkable(az.x + dxs[i], az.y + dys[i], radius)) {
+                            az.x += dxs[i];
+                            az.y += dys[i];
+                            break;
+                        }
+                    }
+                }
+
                 float speed = az.isBoss ? 1.4f : 1.7f;
                 float moveX = (distXP / distP) * speed * delta;
                 float moveY = (distYP / distP) * speed * delta;
                 float nextX = az.x + moveX;
                 float nextY = az.y + moveY;
-                float radius = az.isBoss ? 0.35f : 0.25f;
-                if (isWalkable(nextX, az.y, radius)) az.x = nextX;
-                if (isWalkable(az.x, nextY, radius)) az.y = nextY;
+                boolean movedX = false;
+                boolean movedY = false;
+                if (isWalkable(nextX, az.y, radius)) { az.x = nextX; movedX = true; }
+                if (isWalkable(az.x, nextY, radius)) { az.y = nextY; movedY = true; }
+                if (!movedX && !movedY) {
+                    if (isWalkable(nextX, az.y, 0.15f)) az.x = nextX;
+                    else if (isWalkable(az.x, nextY, 0.15f)) az.y = nextY;
+                }
 
                 if (zombieFrames != null) {
                     int walkCol = ((int) (az.stateTime / 0.15f)) % 8;
@@ -2275,6 +2448,7 @@ public class GameScreen implements Screen {
                             isZombieDead = true;
                             isBeingBitten = false;
                             bloodPools.add(new Vector2(middleZombieX, middleZombieY));
+                            checkZombiePatrolObjective();
                         }
                     }
                 }
@@ -2422,12 +2596,25 @@ public class GameScreen implements Screen {
         // 5d. Rescued / Stranded Villagers (Follow squad across all levels)
         for (LevelVillager v : levelVillagers) {
             if (v.isDead) continue;
-            if (!v.isRescued && levelNumber != 1) continue;
             float vx = Math.round((v.x * PIXELS_PER_TILE) - (idleFrameWidth * 0.8f / 2f));
             float vy = Math.round((v.y * PIXELS_PER_TILE) - SPRITE_FEET_INSET_PX);
-            batch.setColor(0.75f, 0.90f, 1.0f, 1.0f);
+            if (!v.isRescued) {
+                batch.setColor(1.0f, 0.95f, 0.70f, 1.0f);
+            } else {
+                batch.setColor(0.75f, 0.90f, 1.0f, 1.0f);
+            }
             batch.draw(idleFrames[0][0], vx, vy, idleFrameWidth * 0.8f, idleFrameHeight * 0.8f);
             batch.setColor(Color.WHITE);
+
+            if (!v.isRescued) {
+                font.setColor(Color.YELLOW);
+                font.draw(batch, v.name, Math.round(v.x * PIXELS_PER_TILE - 28f), Math.round(vy + idleFrameHeight * 0.8f + 12f));
+                font.setColor(Color.WHITE);
+            } else if (v.isStaying) {
+                font.setColor(Color.ORANGE);
+                font.draw(batch, "[HOLD]", Math.round(v.x * PIXELS_PER_TILE - 18f), Math.round(vy + idleFrameHeight * 0.8f + 12f));
+                font.setColor(Color.WHITE);
+            }
         }
 
         // 5e. Senseless Jane in Pharmacy / Revived Jane Ally (All levels)
@@ -2530,16 +2717,19 @@ public class GameScreen implements Screen {
                 if (validHit) {
                     middleZombieHp -= playerDamage;
                     if (isJaneMelee) {
-                        float kbX = Math.signum(distX) * 0.6f;
-                        float kbY = Math.signum(distY) * 0.6f;
-                        if (isWalkable(middleZombieX + kbX, middleZombieY, 0.25f)) middleZombieX += kbX;
-                        if (isWalkable(middleZombieX, middleZombieY + kbY, 0.25f)) middleZombieY += kbY;
+                        float kbX = Math.signum(distX) * 0.5f;
+                        float kbY = Math.signum(distY) * 0.5f;
+                        if (isWalkable(middleZombieX + kbX * 0.5f, middleZombieY, 0.25f) && isWalkable(middleZombieX + kbX, middleZombieY, 0.25f)) middleZombieX += kbX;
+                        else if (isWalkable(middleZombieX + kbX * 0.5f, middleZombieY, 0.25f)) middleZombieX += kbX * 0.5f;
+                        if (isWalkable(middleZombieX, middleZombieY + kbY * 0.5f, 0.25f) && isWalkable(middleZombieX, middleZombieY + kbY, 0.25f)) middleZombieY += kbY;
+                        else if (isWalkable(middleZombieX, middleZombieY + kbY * 0.5f, 0.25f)) middleZombieY += kbY * 0.5f;
                     }
                     if (middleZombieHp <= 0f) {
                         isZombieDead = true;
                         isBeingBitten = false;
                         coins += 1;
                         bloodPools.add(new Vector2(middleZombieX, middleZombieY));
+                        checkZombiePatrolObjective();
                     }
                 }
             }
@@ -2564,10 +2754,12 @@ public class GameScreen implements Screen {
                     if (azHit) {
                         az.hp -= playerDamage;
                         if (isJaneMelee && !az.isBoss) {
-                            float kbX = Math.signum(azDistX) * 0.6f;
-                            float kbY = Math.signum(azDistY) * 0.6f;
-                            if (isWalkable(az.x + kbX, az.y, 0.25f)) az.x += kbX;
-                            if (isWalkable(az.x, az.y + kbY, 0.25f)) az.y += kbY;
+                            float kbX = Math.signum(azDistX) * 0.5f;
+                            float kbY = Math.signum(azDistY) * 0.5f;
+                            if (isWalkable(az.x + kbX * 0.5f, az.y, 0.25f) && isWalkable(az.x + kbX, az.y, 0.25f)) az.x += kbX;
+                            else if (isWalkable(az.x + kbX * 0.5f, az.y, 0.25f)) az.x += kbX * 0.5f;
+                            if (isWalkable(az.x, az.y + kbY * 0.5f, 0.25f) && isWalkable(az.x, az.y + kbY, 0.25f)) az.y += kbY;
+                            else if (isWalkable(az.x, az.y + kbY * 0.5f, 0.25f)) az.y += kbY * 0.5f;
                         }
                         if (az.hp <= 0f) {
                             az.dead = true;
@@ -3226,9 +3418,9 @@ public class GameScreen implements Screen {
                 font.setColor(0.910f, 0.690f, 0.165f, 1f);
                 font.draw(batch, "[O] Objectives | Coins: " + coins, objectiveX, objectiveY);
             }
-        } else if (levelNumber == 3) {
+        } else if (levelNumber == 6) {
             font.setColor(0.910f, 0.690f, 0.165f, 1f);
-            font.draw(batch, "VIRUS HEART ANTECHAMBER", objectiveX, objectiveY);
+            font.draw(batch, "VIRUS HEART CONTAINMENT (FINAL)", objectiveX, objectiveY);
             objectiveY -= 22f;
 
             if (isAmbushActive) {
@@ -3242,25 +3434,60 @@ public class GameScreen implements Screen {
 
                 if (boss != null) {
                     font.setColor(Color.CORAL);
-                    font.draw(batch, "[!] Outbreak Titan: " + (int) boss.hp + "/" + (int) boss.maxHp + " HP", objectiveX, objectiveY);
+                    font.draw(batch, "[!] Virus Heart: " + (int) boss.hp + "/" + (int) boss.maxHp + " HP", objectiveX, objectiveY);
                 } else {
                     font.setColor(Color.GREEN);
-                    font.draw(batch, "[DONE] Titan Defeated", objectiveX, objectiveY);
+                    font.draw(batch, "[DONE] Virus Heart Destroyed", objectiveX, objectiveY);
                 }
                 objectiveY -= 20f;
 
                 if (minionsAlive > 0) {
                     font.setColor(Color.FIREBRICK);
-                    font.draw(batch, "[!] Minions: " + minionsAlive + " remaining", objectiveX, objectiveY);
+                    font.draw(batch, "[!] Swarm: " + minionsAlive + " remaining", objectiveX, objectiveY);
                 } else {
                     font.setColor(Color.GREEN);
-                    font.draw(batch, "[DONE] Minions Cleared", objectiveX, objectiveY);
+                    font.draw(batch, "[DONE] Swarm Cleared", objectiveX, objectiveY);
                 }
                 objectiveY -= 20f;
             }
 
             font.setColor(isAmbushDefeated ? Color.GREEN : Color.GRAY);
-            font.draw(batch, (isAmbushDefeated ? "[VICTORY] " : "[OBJECTIVE] ") + "Defeat Outbreak Source", objectiveX, objectiveY);
+            font.draw(batch, (isAmbushDefeated ? "[VICTORY] " : "[OBJECTIVE] ") + "Eliminate Extinction Source", objectiveX, objectiveY);
+        } else if (levelNumber == 3) {
+            font.setColor(0.910f, 0.690f, 0.165f, 1f);
+            font.draw(batch, "ROAD APPROACH (LEVEL 3)", objectiveX, objectiveY);
+            objectiveY -= 22f;
+
+            if (isAmbushActive) {
+                AmbushZombie boss = null;
+                long minionsAlive = 0;
+                for (AmbushZombie az : ambushZombies) {
+                    if (az.dead) continue;
+                    if (az.isBoss) boss = az;
+                    else minionsAlive++;
+                }
+
+                if (boss != null) {
+                    font.setColor(Color.CORAL);
+                    font.draw(batch, "[!] Sector Alpha: " + (int) boss.hp + "/" + (int) boss.maxHp + " HP", objectiveX, objectiveY);
+                } else {
+                    font.setColor(Color.GREEN);
+                    font.draw(batch, "[DONE] Sector Alpha Neutralized", objectiveX, objectiveY);
+                }
+                objectiveY -= 20f;
+
+                if (minionsAlive > 0) {
+                    font.setColor(Color.FIREBRICK);
+                    font.draw(batch, "[!] Hostiles: " + minionsAlive + " remaining", objectiveX, objectiveY);
+                } else {
+                    font.setColor(Color.GREEN);
+                    font.draw(batch, "[DONE] Hostiles Cleared", objectiveX, objectiveY);
+                }
+                objectiveY -= 20f;
+            }
+
+            font.setColor(isAmbushDefeated ? Color.GREEN : Color.GRAY);
+            font.draw(batch, (isAmbushDefeated ? "[CLEARED] " : "[OBJECTIVE] ") + "Secure Road Approach", objectiveX, objectiveY);
         } else if (snapshot != null && snapshot.objectives != null && !snapshot.objectives.isEmpty()) {
             font.setColor(0.910f, 0.690f, 0.165f, 1f);
             font.draw(batch, "ROADSIDE OBJECTIVES", objectiveX, objectiveY);
@@ -3345,7 +3572,7 @@ public class GameScreen implements Screen {
         }
 
         LevelVillager nearVillager = null;
-        if (levelNumber == 1 && localPlayer != null) {
+        if (localPlayer != null) {
             for (LevelVillager v : levelVillagers) {
                 if (!v.isDead && Math.hypot(localPlayer.x - v.x, localPlayer.y - v.y) <= 1.8f) {
                     nearVillager = v;
@@ -3405,10 +3632,18 @@ public class GameScreen implements Screen {
         } else if (nearVillager != null && !nearVillager.isRescued) {
             font.setColor(Color.CYAN);
             font.draw(batch, "Press [E] — Talk & Escort " + nearVillager.name, promptCenterX - 130f, VIRTUAL_HEIGHT / 2f - 50f);
-        } else if (nearVillager != null && nearVillager.hp < nearVillager.maxHp) {
-            boolean isJaneChar = (localPlayer != null && localPlayer.character == CharacterType.JANE);
-            font.setColor(Color.LIME);
-            font.draw(batch, "Press [H] — Heal " + nearVillager.name + " (" + (isJaneChar ? "+50" : "+35") + " HP)", promptCenterX - 130f, VIRTUAL_HEIGHT / 2f - 50f);
+        } else if (nearVillager != null) {
+            String actionWord = nearVillager.isStaying ? "FOLLOW squad" : "HOLD position";
+            if (nearVillager.hp < nearVillager.maxHp) {
+                boolean isJaneChar = (localPlayer != null && localPlayer.character == CharacterType.JANE);
+                font.setColor(Color.LIME);
+                font.draw(batch, "Press [H] — Heal " + nearVillager.name + " (" + (isJaneChar ? "+50" : "+35") + " HP)", promptCenterX - 140f, VIRTUAL_HEIGHT / 2f - 40f);
+                font.setColor(Color.CYAN);
+                font.draw(batch, "Press [X] — Order to " + actionWord, promptCenterX - 100f, VIRTUAL_HEIGHT / 2f - 62f);
+            } else {
+                font.setColor(Color.CYAN);
+                font.draw(batch, "Press [X] — Order " + nearVillager.name + " to " + actionWord, promptCenterX - 150f, VIRTUAL_HEIGHT / 2f - 50f);
+            }
         } else if (canPickUpKey) {
             font.setColor(Color.GOLD);
             font.draw(batch, "Press [E] to Pick Up Staff Room Key", promptCenterX - 115f, VIRTUAL_HEIGHT / 2f - 50f);
@@ -3424,10 +3659,13 @@ public class GameScreen implements Screen {
         }
 
         font.setColor(Color.GRAY);
-        font.draw(batch, "WASD move   E interact   SPACE attack   SHIFT sprint   M map   H heal (+35 HP)   ESC pause   I inventory   F11 fullscreen   F12 screenshot", 20f, 30f);
+        font.draw(batch, "WASD move   E interact   SPACE attack   SHIFT sprint   X stay/follow   M map   J coords   H heal   ESC pause   I inventory   F11 fullscreen   F12 screenshot", 20f, 30f);
         batch.end();
 
         drawMinimap(snapshot, hudMatrix, delta);
+        if (showAxisDebug) {
+            drawAxisDebugHud(snapshot, hudMatrix);
+        }
     }
 
     private void drawMinimap(WorldSnapshot snapshot, Matrix4 hudMatrix, float delta) {
@@ -3615,6 +3853,109 @@ public class GameScreen implements Screen {
 
         shapes.end();
         Gdx.gl.glDisable(GL20.GL_BLEND);
+    }
+
+    private void checkZombiePatrolObjective() {
+        if (levelNumber == 2 && isZombieDead && !zombieObjectiveSent) {
+            levelFeatures.stream()
+                    .filter(feature -> feature.type() == CampaignLevelPlan.FeatureType.ZOMBIE_ENCOUNTER)
+                    .findFirst()
+                    .ifPresent(this::completeFeature);
+            zombieObjectiveSent = true;
+        }
+    }
+
+    private void drawAxisDebugHud(WorldSnapshot snapshot, Matrix4 hudMatrix) {
+        if (!showAxisDebug) return;
+
+        WorldSnapshot.PlayerState elric = null;
+        WorldSnapshot.PlayerState jane = null;
+
+        if (snapshot != null && snapshot.players != null) {
+            for (WorldSnapshot.PlayerState p : snapshot.players) {
+                if (p.character == CharacterType.JANE) {
+                    jane = p;
+                } else {
+                    if (elric == null) elric = p;
+                }
+            }
+            if (elric == null && !snapshot.players.isEmpty()) {
+                elric = snapshot.players.get(0);
+            }
+            if (jane == null && snapshot.players.size() > 1) {
+                jane = snapshot.players.get(1);
+            }
+        }
+
+        WorldSnapshot.PlayerState localPlayer = snapshot == null ? null : client.findLocalPlayer(snapshot);
+        float elricX = elric != null ? elric.x : (localPlayer != null ? localPlayer.x : -1f);
+        float elricY = elric != null ? elric.y : (localPlayer != null ? localPlayer.y : -1f);
+        float elricHp = elric != null ? elric.hp : (localPlayer != null ? localPlayer.hp : 0f);
+
+        float janePosX = -1f;
+        float janePosY = -1f;
+        float janeHpVal = jane != null ? jane.hp : janeHp;
+        if (jane != null) {
+            janePosX = jane.x;
+            janePosY = jane.y;
+        } else if (levelNumber == 1 && !isJaneRevived) {
+            janePosX = JANE_PHARMACY_X;
+            janePosY = JANE_PHARMACY_Y;
+        } else if (janeX != -1f && janeY != -1f) {
+            janePosX = janeX;
+            janePosY = janeY;
+        }
+
+        float boxW = 500f;
+        float boxH = 92f;
+        float boxX = (VIRTUAL_WIDTH - boxW) / 2f;
+        float boxY = VIRTUAL_HEIGHT - boxH - 52f;
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        shapes.setProjectionMatrix(hudMatrix);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(0.05f, 0.08f, 0.12f, 0.88f);
+        shapes.rect(boxX, boxY, boxW, boxH);
+        shapes.end();
+
+        shapes.begin(ShapeRenderer.ShapeType.Line);
+        shapes.setColor(0.2f, 0.8f, 1.0f, 0.8f);
+        shapes.rect(boxX, boxY, boxW, boxH);
+        shapes.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+
+        batch.setProjectionMatrix(hudMatrix);
+        batch.begin();
+        font.setColor(Color.YELLOW);
+        font.draw(batch, "[J] COORDINATES OVERLAY", boxX + 16f, boxY + boxH - 12f);
+
+        if (elricX != -1f) {
+            font.setColor(Color.CYAN);
+            font.draw(batch, String.format("ELRIC:  X = %6.2f, Y = %6.2f   Tile: (%2d, %2d)   HP: %.0f",
+                    elricX, elricY, (int) elricX, (int) elricY, elricHp), boxX + 16f, boxY + boxH - 32f);
+        } else {
+            font.setColor(Color.GRAY);
+            font.draw(batch, "ELRIC:  Not spawned", boxX + 16f, boxY + boxH - 32f);
+        }
+
+        if (janePosX != -1f) {
+            font.setColor(new Color(1f, 0.4f, 0.9f, 1f));
+            font.draw(batch, String.format("JANE:   X = %6.2f, Y = %6.2f   Tile: (%2d, %2d)   HP: %.0f",
+                    janePosX, janePosY, (int) janePosX, (int) janePosY, janeHpVal), boxX + 16f, boxY + boxH - 52f);
+        } else {
+            font.setColor(Color.GRAY);
+            font.draw(batch, "JANE:   Not spawned", boxX + 16f, boxY + boxH - 52f);
+        }
+
+        if (elricX != -1f && janePosX != -1f) {
+            float dx = janePosX - elricX;
+            float dy = janePosY - elricY;
+            float dist = (float) Math.hypot(dx, dy);
+            font.setColor(Color.WHITE);
+            font.draw(batch, String.format("DELTA:  dX = %+.2f, dY = %+.2f   Distance: %.2f tiles", dx, dy, dist),
+                    boxX + 16f, boxY + boxH - 72f);
+        }
+        batch.end();
     }
 
     private static String objectiveLabel(String objectiveId) {

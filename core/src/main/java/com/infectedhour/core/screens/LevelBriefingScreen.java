@@ -11,6 +11,7 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.infectedhour.core.InfectedHourGame;
+import com.infectedhour.core.audio.SoundtrackCatalog;
 import com.infectedhour.core.bridge.GameBridge;
 import com.infectedhour.core.level.LevelDefinition;
 import com.infectedhour.core.level.LevelLoader;
@@ -56,6 +57,7 @@ public class LevelBriefingScreen implements Screen {
 
     @Override
     public void show() {
+        game.getAudioDirector().playMusic(SoundtrackCatalog.forLevel(levelNumber));
         batch = new SpriteBatch();
         shapes = new ShapeRenderer();
         font = new BitmapFont();
