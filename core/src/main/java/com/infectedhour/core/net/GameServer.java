@@ -219,9 +219,7 @@ public class GameServer {
                 return;
             }
 
-            CharacterType character = playersByConnectionId.isEmpty()
-                    ? hostCharacter
-                    : (hostCharacter == CharacterType.ELRIC ? CharacterType.JANE : CharacterType.ELRIC);
+            CharacterType character = selectCharacterForIncomingNetworkPlayer();
             String playerId = joinRequest.playerId != null && !joinRequest.playerId.isBlank()
                     ? joinRequest.playerId
                     : character.name().toLowerCase() + "-" + connection.getID();
@@ -273,6 +271,15 @@ public class GameServer {
     }
 
     public static final int LOCAL_P2_CONNECTION_ID = 9999;
+
+    /** The local split-screen dummy does not consume the real host's character seat. */
+    CharacterType selectCharacterForIncomingNetworkPlayer() {
+        boolean hasNetworkPlayer = playersByConnectionId.keySet().stream()
+                .anyMatch(id -> id != LOCAL_P2_CONNECTION_ID);
+        return !hasNetworkPlayer
+                ? hostCharacter
+                : (hostCharacter == CharacterType.ELRIC ? CharacterType.JANE : CharacterType.ELRIC);
+    }
 
     public void enableLocalCoopDummy(CharacterType p2Char) {
         synchronized (rosterLock) {
@@ -664,6 +671,15 @@ public class GameServer {
                     } else {
                         connected.entity.setPosition(3.5f, 37.22f);
                     }
+                } else if (definition.levelNumber() == 3 || definition.levelNumber() == 4
+                        || definition.levelNumber() == 5) {
+                    // Begin these maps as one squad in their validated two-tile
+                    // entrance corridor. Character-based slots keep Elric/Jane
+                    // deterministic even though ConcurrentHashMap iteration is
+                    // unspecified.
+                    float x = connected.entity.getCharacter() == CharacterType.ELRIC
+                            ? start.spawnTileX() : start.spawnTileX() + 1.0f;
+                    connected.entity.setPosition(x, start.spawnTileY());
                 } else {
                     connected.entity.setPosition(start.spawnTileX() + (spawnIndex == 0 ? 0f : (spawnIndex % 2 == 1 ? 1.0f : -1.0f)), start.spawnTileY());
                     spawnIndex++;
@@ -955,6 +971,18 @@ public class GameServer {
         }
         if (currentLevelNumber == 2) {
             return character == CharacterType.ELRIC ? 6.3f : 3.5f;
+        }
+        if (currentLevelNumber == 3) {
+            Checkpoint start = CheckpointRegistry.firstOf(3);
+            return character == CharacterType.ELRIC ? start.spawnTileX() : start.spawnTileX() + 1.0f;
+        }
+        if (currentLevelNumber == 4) {
+            Checkpoint start = CheckpointRegistry.firstOf(4);
+            return character == CharacterType.ELRIC ? start.spawnTileX() : start.spawnTileX() + 1.0f;
+        }
+        if (currentLevelNumber == 5) {
+            Checkpoint start = CheckpointRegistry.firstOf(5);
+            return character == CharacterType.ELRIC ? start.spawnTileX() : start.spawnTileX() + 1.0f;
         }
         Checkpoint start = null;
         try {

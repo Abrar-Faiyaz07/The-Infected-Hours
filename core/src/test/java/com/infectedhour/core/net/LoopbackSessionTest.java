@@ -258,4 +258,18 @@ class LoopbackSessionTest {
         assertEquals(40.0f, p2.getX(), 0.01f);
         assertEquals(8.0f, p2.getY(), 0.01f);
     }
+
+    @Test
+    @DisplayName("debug co-op keeps host Elric when dummy Jane is registered first")
+    void debugCoopAssignsDistinctCharactersWhenDummyJoinsFirst() {
+        CampaignSquadState.reset();
+        GameServer localServer = new GameServer();
+        localServer.setHostCharacter(CharacterType.ELRIC);
+        localServer.enableLocalCoopDummy(CharacterType.JANE);
+
+        assertEquals(CharacterType.ELRIC, localServer.selectCharacterForIncomingNetworkPlayer());
+        Player jane = localServer.getPlayerEntity(GameServer.LOCAL_P2_CONNECTION_ID);
+        assertNotNull(jane);
+        assertEquals(CharacterType.JANE, jane.getCharacter());
+    }
 }

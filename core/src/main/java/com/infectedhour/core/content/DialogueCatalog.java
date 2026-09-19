@@ -79,10 +79,7 @@ public final class DialogueCatalog {
             };
             case ENDING -> new String[]{
                     "THE VIRUS HEART FALLS SILENT",
-                    "RESEARCH CELL ZERO: ELENA VANCE",
-                    "THE MOMENT OF TRUTH: MORAL CHOICE",
-                    "A PEACEFUL FAREWELL",
-                    "JANE'S INTERVENTION: CLIMAX DUEL"
+                    "RESEARCH CELL ZERO: ELENA VANCE"
             };
             case BOSS -> new String[]{"THE VIRUS HEART"};
         };

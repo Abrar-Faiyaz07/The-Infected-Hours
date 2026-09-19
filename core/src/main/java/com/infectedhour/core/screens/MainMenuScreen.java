@@ -38,6 +38,7 @@ public class MainMenuScreen implements Screen {
     private enum MenuState {
         MAIN,
         CHARACTER_SELECT,
+        COOP_MAP_SELECT,
         COLLECTION,
         LOAD_GAME,
         CONTROLS
@@ -64,6 +65,7 @@ public class MainMenuScreen implements Screen {
 
     private MenuState state = MenuState.MAIN;
     private List<SaveSlotDto> saveSlots;
+    private boolean coopShowCollision = false;
 
     public MainMenuScreen(InfectedHourGame game, GameClient client, GameBridge bridge) {
         this.game = game;
@@ -160,6 +162,7 @@ public class MainMenuScreen implements Screen {
         switch (state) {
             case MAIN -> renderMainMenu(mouse, clicked);
             case CHARACTER_SELECT -> renderCharacterSelect(mouse, clicked);
+            case COOP_MAP_SELECT -> renderCoopMapSelect(mouse, clicked);
             case COLLECTION -> renderCollection(mouse, clicked);
             case LOAD_GAME -> renderLoadGame(mouse, clicked);
             case CONTROLS -> renderControls(mouse, clicked);
@@ -173,55 +176,60 @@ public class MainMenuScreen implements Screen {
         batch.begin();
         titleFont.setColor(0.910f, 0.690f, 0.165f, 1f);
         layout.setText(titleFont, "THE INFECTED HOUR");
-        titleFont.draw(batch, "THE INFECTED HOUR", centerX - (layout.width / 2f), VIRTUAL_HEIGHT - 90f);
+        titleFont.draw(batch, "THE INFECTED HOUR", centerX - (layout.width / 2f), VIRTUAL_HEIGHT - 85f);
 
         subtitleFont.setColor(0.80f, 0.85f, 0.90f, 0.9f);
         layout.setText(subtitleFont, "EPIDEMIC CONTAINMENT & SURVIVAL CAMPAIGN");
-        subtitleFont.draw(batch, "EPIDEMIC CONTAINMENT & SURVIVAL CAMPAIGN", centerX - (layout.width / 2f), VIRTUAL_HEIGHT - 145f);
+        subtitleFont.draw(batch, "EPIDEMIC CONTAINMENT & SURVIVAL CAMPAIGN", centerX - (layout.width / 2f), VIRTUAL_HEIGHT - 135f);
         batch.end();
 
         // Menu Buttons
-        float btnW = 440f;
-        float btnH = 46f;
-        float startY = VIRTUAL_HEIGHT - 225f;
-        float spacing = 54f;
+        float btnW = 460f;
+        float btnH = 42f;
+        float startY = VIRTUAL_HEIGHT - 200f;
+        float spacing = 48f;
 
-        if (drawButton(centerX - btnW / 2f, startY, btnW, btnH, "1.  STORY MODE (NEW RUN)", mouse, clicked)
+        if (drawButton(centerX - btnW / 2f, startY, btnW, btnH, "1.  STORY MODE (SOLO NEW RUN)", mouse, clicked)
                 || Gdx.input.isKeyJustPressed(Input.Keys.NUM_1) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_1)) {
             state = MenuState.CHARACTER_SELECT;
         }
 
-        if (drawButton(centerX - btnW / 2f, startY - spacing, btnW, btnH, "2.  LOAD SAVED GAME", mouse, clicked)
+        if (drawButton(centerX - btnW / 2f, startY - spacing, btnW, btnH, "2.  DEBUG CO-OP & MAP SELECT (MAPS 1-6)", mouse, clicked)
                 || Gdx.input.isKeyJustPressed(Input.Keys.NUM_2) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_2)) {
+            state = MenuState.COOP_MAP_SELECT;
+        }
+
+        if (drawButton(centerX - btnW / 2f, startY - spacing * 2, btnW, btnH, "3.  LOAD SAVED GAME", mouse, clicked)
+                || Gdx.input.isKeyJustPressed(Input.Keys.NUM_3) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_3)) {
             if (bridge != null) saveSlots = bridge.getSaveSlots();
             state = MenuState.LOAD_GAME;
         }
 
-        if (drawButton(centerX - btnW / 2f, startY - spacing * 2, btnW, btnH, "3.  COLLECTION (OPERATIVE DOSSIERS)", mouse, clicked)
-                || Gdx.input.isKeyJustPressed(Input.Keys.NUM_3) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_3)) {
+        if (drawButton(centerX - btnW / 2f, startY - spacing * 3, btnW, btnH, "4.  COLLECTION (OPERATIVE DOSSIERS)", mouse, clicked)
+                || Gdx.input.isKeyJustPressed(Input.Keys.NUM_4) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_4)) {
             state = MenuState.COLLECTION;
         }
 
-        if (drawButton(centerX - btnW / 2f, startY - spacing * 3, btnW, btnH, "4.  CONTROLS & GUIDE", mouse, clicked)
-                || Gdx.input.isKeyJustPressed(Input.Keys.NUM_4) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_4)) {
+        if (drawButton(centerX - btnW / 2f, startY - spacing * 4, btnW, btnH, "5.  CONTROLS & GUIDE", mouse, clicked)
+                || Gdx.input.isKeyJustPressed(Input.Keys.NUM_5) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_5)) {
             state = MenuState.CONTROLS;
         }
 
-        String displayBtnText = "5.  DISPLAY: [ " + com.infectedhour.core.display.DisplayManager.getModeLabel() + " ] (F11)";
-        if (drawButton(centerX - btnW / 2f, startY - spacing * 4, btnW, btnH, displayBtnText, mouse, clicked)
-                || Gdx.input.isKeyJustPressed(Input.Keys.NUM_5) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_5)) {
+        String displayBtnText = "6.  DISPLAY: [ " + com.infectedhour.core.display.DisplayManager.getModeLabel() + " ] (F11)";
+        if (drawButton(centerX - btnW / 2f, startY - spacing * 5, btnW, btnH, displayBtnText, mouse, clicked)
+                || Gdx.input.isKeyJustPressed(Input.Keys.NUM_6) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_6)) {
             com.infectedhour.core.display.DisplayManager.toggleDisplayMode();
         }
 
-        if (drawButton(centerX - btnW / 2f, startY - spacing * 5, btnW, btnH, "6.  QUIT GAME", mouse, clicked)
-                || Gdx.input.isKeyJustPressed(Input.Keys.NUM_6) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_6)) {
+        if (drawButton(centerX - btnW / 2f, startY - spacing * 6, btnW, btnH, "7.  QUIT GAME", mouse, clicked)
+                || Gdx.input.isKeyJustPressed(Input.Keys.NUM_7) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_7)) {
             Gdx.app.exit();
         }
 
         // Footer Info
         batch.begin();
         font.setColor(Color.GRAY);
-        font.draw(batch, "Mode: " + com.infectedhour.core.display.DisplayManager.getModeLabel() + "  |  Press [1-6] or Click  |  [F11] Toggle Fullscreen", 40f, 35f);
+        font.draw(batch, "Mode: " + com.infectedhour.core.display.DisplayManager.getModeLabel() + "  |  Press [1-7] or Click  |  [F11] Toggle Fullscreen", 40f, 35f);
         batch.end();
     }
 
@@ -285,6 +293,85 @@ public class MainMenuScreen implements Screen {
                 || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE) || Gdx.input.isKeyJustPressed(Input.Keys.BACKSPACE)) {
             state = MenuState.MAIN;
         }
+    }
+
+    private void renderCoopMapSelect(Vector3 mouse, boolean clicked) {
+        float centerX = VIRTUAL_WIDTH / 2f;
+
+        batch.begin();
+        titleFont.setColor(0.910f, 0.690f, 0.165f, 1f);
+        layout.setText(titleFont, "DEBUG CO-OP & MAP SELECT");
+        titleFont.draw(batch, "DEBUG CO-OP & MAP SELECT", centerX - (layout.width / 2f), VIRTUAL_HEIGHT - 65f);
+
+        subtitleFont.setColor(0.78f, 0.82f, 0.88f, 0.9f);
+        layout.setText(subtitleFont, "Select any map below to test in split-screen debug co-op with Elric & Jane.");
+        subtitleFont.draw(batch, "Select any map below to test in split-screen debug co-op with Elric & Jane.", centerX - (layout.width / 2f), VIRTUAL_HEIGHT - 110f);
+        batch.end();
+
+        float btnW = 560f;
+        float btnH = 42f;
+        float startY = VIRTUAL_HEIGHT - 170f;
+        float spacing = 48f;
+
+        // Collision overlay toggle button
+        String collText = (coopShowCollision ? "[✓] COLLISION BLOCKS: ON" : "[ ] COLLISION BLOCKS: OFF") + " [C / Click]";
+        if (drawButton(centerX - btnW / 2f, startY, btnW, btnH, collText, mouse, clicked)
+                || Gdx.input.isKeyJustPressed(Input.Keys.C)) {
+            coopShowCollision = !coopShowCollision;
+        }
+
+        String[][] mapData = {
+                {"1", "1. LEVEL 1: Hospital Ground Floor (map1.png)"},
+                {"2", "2. LEVEL 2: Hospital Second Floor (map1_part2.png)"},
+                {"3", "3. LEVEL 3: Roadside Outskirts (map2.png)"},
+                {"4", "4. LEVEL 4: Subterranean Corridor (map2_part2.png)"},
+                {"5", "5. LEVEL 5: Research Facility (map3.png)"},
+                {"6", "6. LEVEL 6: Secret Lab & Final Boss (map_final.png)"}
+        };
+
+        for (int i = 0; i < 6; i++) {
+            float y = startY - spacing * (i + 1);
+            int lvl = i + 1;
+            boolean selected = drawButton(centerX - btnW / 2f, y, btnW, btnH, mapData[i][1], mouse, clicked)
+                    || (lvl == 1 && (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_1)))
+                    || (lvl == 2 && (Gdx.input.isKeyJustPressed(Input.Keys.NUM_2) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_2)))
+                    || (lvl == 3 && (Gdx.input.isKeyJustPressed(Input.Keys.NUM_3) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_3)))
+                    || (lvl == 4 && (Gdx.input.isKeyJustPressed(Input.Keys.NUM_4) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_4)))
+                    || (lvl == 5 && (Gdx.input.isKeyJustPressed(Input.Keys.NUM_5) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_5)))
+                    || (lvl == 6 && (Gdx.input.isKeyJustPressed(Input.Keys.NUM_6) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_6)));
+
+            if (selected) {
+                launchCoopAtLevel(lvl, coopShowCollision);
+                return;
+            }
+        }
+
+        // Back Button
+        float backW = 280f;
+        float backH = 42f;
+        if (drawButton(centerX - backW / 2f, startY - spacing * 7 - 10f, backW, backH, "BACK TO MAIN MENU (ESC)", mouse, clicked)
+                || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE) || Gdx.input.isKeyJustPressed(Input.Keys.BACKSPACE)) {
+            state = MenuState.MAIN;
+        }
+
+        // Footer hint
+        batch.begin();
+        font.setColor(Color.GRAY);
+        font.draw(batch, "P1 (Elric): WASD/Space/E/X/H  |  P2 (Jane): Arrows/Num 0/Num 3/Num 7/Num 9  |  Collision: [C]", 40f, 30f);
+        batch.end();
+    }
+
+    private void launchCoopAtLevel(int level, boolean showCollision) {
+        if (game.getServer() != null) {
+            game.getServer().setHostCharacter(CharacterType.ELRIC);
+            game.getServer().enableLocalCoopDummy(CharacterType.JANE);
+        }
+        GameScreen gs = new GameScreen(game, client, bridge, level);
+        gs.setDualViewDebugMode(true);
+        if (showCollision) {
+            gs.setShowCollisionOverlay(true);
+        }
+        game.setScreen(gs);
     }
 
     private void renderCollection(Vector3 mouse, boolean clicked) {

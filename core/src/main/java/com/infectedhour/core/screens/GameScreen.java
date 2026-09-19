@@ -32,11 +32,14 @@ import com.infectedhour.core.systems.CollisionSystem;
 import com.infectedhour.core.state.CampaignSquadState;
 import com.infectedhour.shared.constants.GameConstants;
 import com.infectedhour.shared.dto.SaveSlotDto;
+import com.infectedhour.shared.level.Checkpoint;
+import com.infectedhour.shared.level.CheckpointRegistry;
 import com.infectedhour.shared.network.CharacterType;
 import com.infectedhour.shared.network.InputCommand;
 import com.infectedhour.shared.network.WorldSnapshot;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -44,6 +47,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class GameScreen implements Screen {
 
@@ -233,6 +237,19 @@ public class GameScreen implements Screen {
     private float keyX = 24.5f;
     private float keyY = 26.5f;
 
+    // Level 3 ambulance extraction
+    private boolean hasAmbulanceKey = false;
+    private float ambulanceKeyX = -1f;
+    private float ambulanceKeyY = -1f;
+
+    // Level 4 three-part restoration puzzle
+    private static final int LEVEL_4_PUZZLE_PART_COUNT = 3;
+    private final List<Vector2> level4PuzzleParts = new ArrayList<>();
+    private int level4PuzzlePartsCollected = 0;
+
+    // Level 5 laboratory gate
+    private boolean hasLabPasskey = false;
+
     // Economy & Objective Overlay Toggle
     private int coins = 0;
     private boolean showObjectivesOverlay = true;
@@ -266,6 +283,7 @@ public class GameScreen implements Screen {
         boolean isRescued = false;
         boolean isDead = false;
         boolean isStaying = false;
+        String leaderId = null;
         float biteCooldown = 0.8f;
         float stateTime = 0f;
 
@@ -503,6 +521,9 @@ public class GameScreen implements Screen {
         if (game.getSession() != null && game.getSession().debugSplitScreen()) {
             isDualViewDebugMode = true;
         }
+        if (game.getSession() != null && game.getSession().showCollisionOverlay()) {
+            showCollisionOverlay = true;
+        }
 
         if (levelNumber == 1) {
             middleZombieX = 22.0f;
@@ -597,35 +618,70 @@ public class GameScreen implements Screen {
             hasMachete = CampaignSquadState.hasMachete;
             isMacheteEquipped = CampaignSquadState.isMacheteEquipped;
 
-            isJaneRevived = CampaignSquadState.isJaneRevived;
-            janeX = 28.0f;
-            janeY = 10.0f;
+            isJaneRevived = true;
+            CampaignSquadState.isJaneRevived = true;
+            Checkpoint levelStart = CheckpointRegistry.firstOf(levelNumber);
+            boolean squadStartsAtCheckpoint = levelNumber == 3 || levelNumber == 5;
+            janeX = squadStartsAtCheckpoint ? levelStart.spawnTileX() + 1.0f : 28.0f;
+            janeY = squadStartsAtCheckpoint ? levelStart.spawnTileY() : 10.0f;
             janeHp = CampaignSquadState.janeHp > 0f ? CampaignSquadState.janeHp : 100f;
 
             levelVillagers.clear();
-            boolean hasV1 = CampaignSquadState.rescuedVillagers.isEmpty() || CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v1".equals(info.id()));
-            boolean hasV2 = CampaignSquadState.rescuedVillagers.isEmpty() || CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v2".equals(info.id()));
-            if (hasV1) {
-                LevelVillager v1 = new LevelVillager("v1", "Dr. Ramirez", 30.5f, 9.5f);
-                v1.isRescued = true;
-                levelVillagers.add(v1);
-            }
-            if (hasV2) {
-                LevelVillager v2 = new LevelVillager("v2", "Nurse Claire", 29.5f, 9.5f);
-                v2.isRescued = true;
-                levelVillagers.add(v2);
-            }
-            boolean hasV3 = CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v3".equals(info.id()));
-            if (hasV3) {
-                LevelVillager v3 = new LevelVillager("v3", "Survivor Arthur", 32.0f, 9.5f);
-                v3.isRescued = true;
-                levelVillagers.add(v3);
-            }
-            boolean hasV4 = CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v4".equals(info.id()));
-            if (hasV4) {
-                LevelVillager v4 = new LevelVillager("v4", "Survivor Maya", 33.5f, 9.5f);
-                v4.isRescued = true;
-                levelVillagers.add(v4);
+            if (levelNumber == 3 || levelNumber == 5) {
+                // Restore exactly the villagers who survived the previous map,
+                // including their remaining HP, in formation around the two players.
+                float[][] offsets = levelNumber == 5
+                        ? new float[][]{{-1.0f, 0.0f}, {-2.0f, 0.0f}, {-1.0f, -1.0f}, {1.0f, -1.0f}}
+                        : new float[][]{{-1.0f, 0.0f}, {2.0f, 0.0f}, {-1.0f, -1.0f}, {1.0f, -1.0f}};
+                List<CampaignSquadState.RescuedVillagerInfo> arrivingVillagers = CampaignSquadState.rescuedVillagers;
+                boolean directLevelDebug = game.getSession() != null
+                        && game.getSession().startingLevelOverride() == levelNumber;
+                if (arrivingVillagers.isEmpty() && directLevelDebug) {
+                    // A direct level-select run has no earlier maps from which to
+                    // build a roster, so populate all four rescueable villagers
+                    // to make the Level 3 squad start testable in isolation.
+                    arrivingVillagers = List.of(
+                            new CampaignSquadState.RescuedVillagerInfo("v1", "Dr. Ramirez", 100f),
+                            new CampaignSquadState.RescuedVillagerInfo("v2", "Nurse Claire", 100f),
+                            new CampaignSquadState.RescuedVillagerInfo("v3", "Survivor Arthur", 100f),
+                            new CampaignSquadState.RescuedVillagerInfo("v4", "Survivor Maya", 100f));
+                }
+                int slot = 0;
+                for (CampaignSquadState.RescuedVillagerInfo info : arrivingVillagers) {
+                    if (info.hp() <= 0f) continue;
+                    float[] offset = offsets[Math.min(slot, offsets.length - 1)];
+                    LevelVillager villager = new LevelVillager(info.id(), info.name(),
+                            levelStart.spawnTileX() + offset[0], levelStart.spawnTileY() + offset[1]);
+                    villager.hp = Math.min(villager.maxHp, info.hp());
+                    villager.isRescued = true;
+                    levelVillagers.add(villager);
+                    slot++;
+                }
+            } else {
+                boolean hasV1 = CampaignSquadState.rescuedVillagers.isEmpty() || CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v1".equals(info.id()));
+                boolean hasV2 = CampaignSquadState.rescuedVillagers.isEmpty() || CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v2".equals(info.id()));
+                if (hasV1) {
+                    LevelVillager v1 = new LevelVillager("v1", "Dr. Ramirez", 30.5f, 9.5f);
+                    v1.isRescued = true;
+                    levelVillagers.add(v1);
+                }
+                if (hasV2) {
+                    LevelVillager v2 = new LevelVillager("v2", "Nurse Claire", 29.5f, 9.5f);
+                    v2.isRescued = true;
+                    levelVillagers.add(v2);
+                }
+                boolean hasV3 = CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v3".equals(info.id()));
+                if (hasV3) {
+                    LevelVillager v3 = new LevelVillager("v3", "Survivor Arthur", 32.0f, 9.5f);
+                    v3.isRescued = true;
+                    levelVillagers.add(v3);
+                }
+                boolean hasV4 = CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v4".equals(info.id()));
+                if (hasV4) {
+                    LevelVillager v4 = new LevelVillager("v4", "Survivor Maya", 33.5f, 9.5f);
+                    v4.isRescued = true;
+                    levelVillagers.add(v4);
+                }
             }
 
             isZombieDead = true;
@@ -642,6 +698,14 @@ public class GameScreen implements Screen {
                 ambushZombies.add(new AmbushZombie(36.5f, 22.5f, false));
                 ambushZombies.add(new AmbushZombie(28.5f, 26.5f, false));
                 ambushZombies.add(new AmbushZombie(32.5f, 14.5f, false));
+            } else if (levelNumber == 5) {
+                AmbushZombie redBrute = new AmbushZombie(30.5f, 20.5f, true);
+                redBrute.maxHp = 100f;
+                redBrute.hp = 100f;
+                ambushZombies.add(redBrute);
+                // Both regular zombies are on the connected walkable corridor.
+                ambushZombies.add(new AmbushZombie(28.5f, 18.5f, false));
+                ambushZombies.add(new AmbushZombie(35.5f, 22.5f, false));
             } else {
                 AmbushZombie sectorBoss = new AmbushZombie(30.5f, 20.5f, true);
                 sectorBoss.maxHp = 60f;
@@ -653,6 +717,16 @@ public class GameScreen implements Screen {
         }
 
         this.collisionSystem = new CollisionSystem(tileMap);
+
+        if (levelNumber == 3) {
+            hasAmbulanceKey = false;
+            placeAmbulanceKeyAtRandomWalkableLocation();
+        } else if (levelNumber == 4) {
+            level4PuzzlePartsCollected = 0;
+            placeLevelFourPuzzleParts();
+        } else if (levelNumber == 5) {
+            hasLabPasskey = false;
+        }
 
         if (game.isHost()) {
             game.getServer().loadTileMap(tileMap);
@@ -995,6 +1069,80 @@ public class GameScreen implements Screen {
         return !collisionSystem.overlapsBlockedTile(x, y, radius);
     }
 
+    /** Picks a different searchable, reachable floor tile for each Level 3 run. */
+    private void placeAmbulanceKeyAtRandomWalkableLocation() {
+        List<Vector2> candidates = new ArrayList<>();
+        Checkpoint start = CheckpointRegistry.firstOf(3);
+        LevelExit extraction = LevelExit.forLevel(3).orElseThrow();
+
+        for (int tileY = 1; tileY < tileMap.getHeight() - 1; tileY++) {
+            for (int tileX = 1; tileX < tileMap.getWidth() - 1; tileX++) {
+                float x = tileX + 0.5f;
+                float y = tileY + 0.5f;
+                if (!isWalkable(x, y, GameConstants.ENEMY_COLLISION_RADIUS)) continue;
+                if (Math.hypot(x - start.spawnTileX(), y - start.spawnTileY()) < 8.0f) continue;
+                if (Math.hypot(x - extraction.tileX(), y - extraction.tileY()) < 6.0f) continue;
+                candidates.add(new Vector2(x, y));
+            }
+        }
+
+        if (candidates.isEmpty()) {
+            ambulanceKeyX = 30.5f;
+            ambulanceKeyY = 20.5f;
+            return;
+        }
+
+        Vector2 chosen = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
+        ambulanceKeyX = chosen.x;
+        ambulanceKeyY = chosen.y;
+    }
+
+    /** Places three separated puzzle parts only on floor reachable from the Level 4 entrance. */
+    private void placeLevelFourPuzzleParts() {
+        level4PuzzleParts.clear();
+        Checkpoint start = CheckpointRegistry.firstOf(4);
+        LevelExit exit = LevelExit.forLevel(4).orElseThrow();
+        int width = tileMap.getWidth();
+        int height = tileMap.getHeight();
+        boolean[][] visited = new boolean[height][width];
+        ArrayDeque<int[]> frontier = new ArrayDeque<>();
+        int startX = TileMap.toTile(start.spawnTileX());
+        int startY = TileMap.toTile(start.spawnTileY());
+        frontier.add(new int[]{startX, startY});
+        visited[startY][startX] = true;
+        List<Vector2> candidates = new ArrayList<>();
+        int[][] directions = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+
+        while (!frontier.isEmpty()) {
+            int[] cell = frontier.removeFirst();
+            float x = cell[0] + 0.5f;
+            float y = cell[1] + 0.5f;
+            if (Math.hypot(x - start.spawnTileX(), y - start.spawnTileY()) >= 6.0f
+                    && Math.hypot(x - exit.tileX(), y - exit.tileY()) >= 5.0f) {
+                candidates.add(new Vector2(x, y));
+            }
+            for (int[] direction : directions) {
+                int nx = cell[0] + direction[0];
+                int ny = cell[1] + direction[1];
+                if (nx < 0 || ny < 0 || nx >= width || ny >= height || visited[ny][nx]) continue;
+                if (!isWalkable(nx + 0.5f, ny + 0.5f, GameConstants.PLAYER_COLLISION_RADIUS)) continue;
+                visited[ny][nx] = true;
+                frontier.addLast(new int[]{nx, ny});
+            }
+        }
+
+        while (level4PuzzleParts.size() < LEVEL_4_PUZZLE_PART_COUNT && !candidates.isEmpty()) {
+            Vector2 chosen = candidates.remove(ThreadLocalRandom.current().nextInt(candidates.size()));
+            level4PuzzleParts.add(chosen);
+            int stillNeeded = LEVEL_4_PUZZLE_PART_COUNT - level4PuzzleParts.size();
+            List<Vector2> separated = new ArrayList<>();
+            for (Vector2 candidate : candidates) {
+                if (candidate.dst(chosen) >= 6.0f) separated.add(candidate);
+            }
+            if (separated.size() >= stillNeeded) candidates = separated;
+        }
+    }
+
     private boolean hasLineOfSight(float x1, float y1, float x2, float y2) {
         float dist = (float) Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
         int steps = Math.max(1, (int) Math.ceil(dist / 0.2f));
@@ -1071,7 +1219,7 @@ public class GameScreen implements Screen {
             me = client.findLocalPlayer(snapshot);
         }
 
-        boolean healPressed = Gdx.input.isKeyJustPressed(Input.Keys.H) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_3);
+        boolean healPressed = Gdx.input.isKeyJustPressed(Input.Keys.H);
         if (healPressed && !paused && !isInventoryOpen && me != null && !me.downed && me.hp > 0f) {
             boolean isJane = (me.character == CharacterType.JANE);
             float healAmt = isJane ? 50f : 35f;
@@ -1109,6 +1257,31 @@ public class GameScreen implements Screen {
                 }
             } else {
                 showBanner("First Aid on cooldown (" + String.format("%.1f", healCooldown) + "s)");
+            }
+        }
+
+        // P2 (Jane) Healing in Dual-View Mode [NUMPAD 9 / NUM 9]
+        boolean p2HealPressed = Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_9) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_9);
+        if (p2HealPressed && isDualViewDebugMode && !paused && !isInventoryOpen && snapshot != null && snapshot.players != null && snapshot.players.size() > 1) {
+            WorldSnapshot.PlayerState p2 = snapshot.players.get(1);
+            if (p2 != null && !p2.downed && p2.hp > 0f && !(levelNumber == 1 && !isJaneRevived)) {
+                LevelVillager woundedVillager = null;
+                float nearestDist = 2.2f;
+                for (LevelVillager v : levelVillagers) {
+                    if (v.isRescued && !v.isDead && v.hp < v.maxHp) {
+                        float d = (float) Math.hypot(p2.x - v.x, p2.y - v.y);
+                        if (d < nearestDist) {
+                            nearestDist = d;
+                            woundedVillager = v;
+                        }
+                    }
+                }
+                if (woundedVillager != null) {
+                    woundedVillager.hp = Math.min(woundedVillager.maxHp, woundedVillager.hp + 50f);
+                    showBanner("Jane treated " + woundedVillager.name + "! (+50 HP)");
+                } else {
+                    showBanner("Jane: Field Medic ready (+50 HP)");
+                }
             }
         }
 
@@ -1218,6 +1391,16 @@ public class GameScreen implements Screen {
                 } else {
                     showBanner("Defeat the remaining " + remaining + " hostiles first!");
                 }
+            } else if (levelNumber == 3 && !isAmbushDefeated) {
+                long remaining = ambushZombies.stream().filter(z -> !z.dead).count();
+                showBanner("Clear all zombies before returning to the ambulance! (" + remaining + " remaining)");
+            } else if (levelNumber == 3 && !hasAmbulanceKey) {
+                showBanner("The ambulance is locked! Search the map for its key.");
+            } else if (levelNumber == 4 && level4PuzzlePartsCollected < LEVEL_4_PUZZLE_PART_COUNT) {
+                showBanner("The endpoint is locked! Find all 3 puzzle parts first ("
+                        + level4PuzzlePartsCollected + "/3).");
+            } else if (levelNumber == 5 && !hasLabPasskey) {
+                showBanner("The laboratory gate is locked! Defeat the big red zombie for its passkey card.");
             } else if (areLevelObjectivesComplete(snapshot)) {
                 if (levelNumber == 1) {
                     long livingRescued = levelVillagers.stream().filter(v -> !v.isDead && v.isRescued).count();
@@ -1311,14 +1494,39 @@ public class GameScreen implements Screen {
         }
 
         // Villagers Interaction (All levels):
-        if (me != null) {
-            for (LevelVillager v : levelVillagers) {
-                if (!v.isDead && !v.isRescued) {
+        WorldSnapshot.PlayerState p2 = (snapshot != null && snapshot.players != null && snapshot.players.size() > 1) ? snapshot.players.get(1) : null;
+        for (LevelVillager v : levelVillagers) {
+            if (!v.isDead && !v.isRescued) {
+                // Elric / Local Player
+                if (me != null) {
                     float dx = me.x - v.x;
                     float dy = me.y - v.y;
                     if (Math.hypot(dx, dy) <= 1.8f && Gdx.input.isKeyJustPressed(Input.Keys.E)) {
                         v.isRescued = true;
+                        v.leaderId = me.playerId;
                         showBanner(v.name + " joined squad! Protect them from infected bites.");
+                        CampaignSquadState.rescuedVillagers.add(new CampaignSquadState.RescuedVillagerInfo(v.id, v.name, v.hp));
+                        if (levelNumber == 2) {
+                            levelFeatures.stream()
+                                    .filter(f -> f.type() == CampaignLevelPlan.FeatureType.SURVIVOR && !completedFeatureIds.contains(f.actionId()))
+                                    .filter(f -> Math.hypot(f.tileX() - v.x, f.tileY() - v.y) <= 2.2f)
+                                    .findFirst()
+                                    .ifPresent(this::completeFeature);
+                        }
+                    }
+                }
+                // Jane (P2 in local co-op)
+                if (p2 != null && !(levelNumber == 1 && !isJaneRevived)) {
+                    float dx2 = p2.x - v.x;
+                    float dy2 = p2.y - v.y;
+                    boolean p2Interact = Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_3)
+                            || Gdx.input.isKeyJustPressed(Input.Keys.NUM_3)
+                            || Gdx.input.isKeyJustPressed(Input.Keys.PERIOD)
+                            || (isDualViewDebugMode && Gdx.input.isKeyJustPressed(Input.Keys.E));
+                    if (Math.hypot(dx2, dy2) <= 1.8f && p2Interact) {
+                        v.isRescued = true;
+                        v.leaderId = p2.playerId;
+                        showBanner(v.name + " joined Jane's squad! Protect them from infected bites.");
                         CampaignSquadState.rescuedVillagers.add(new CampaignSquadState.RescuedVillagerInfo(v.id, v.name, v.hp));
                         if (levelNumber == 2) {
                             levelFeatures.stream()
@@ -1349,6 +1557,48 @@ public class GameScreen implements Screen {
                     ambushZombies.add(new AmbushZombie(36.5f, 28.5f, false));
                     showBanner("DOOR BREACHED! MUTATED BOSS & ZOMBIE HORDE EMERGE!");
                 }
+            }
+        }
+
+        // Level 3 Ambulance Key Pickup (either co-op player may collect it).
+        if (levelNumber == 3 && !hasAmbulanceKey) {
+            WorldSnapshot.PlayerState keyCollector = null;
+            if (me != null && Math.hypot(me.x - ambulanceKeyX, me.y - ambulanceKeyY) <= 1.5f) {
+                keyCollector = me;
+            } else if (p2 != null && Math.hypot(p2.x - ambulanceKeyX, p2.y - ambulanceKeyY) <= 1.5f) {
+                keyCollector = p2;
+            }
+            boolean keyInteract = Gdx.input.isKeyJustPressed(Input.Keys.E)
+                    || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_3)
+                    || Gdx.input.isKeyJustPressed(Input.Keys.NUM_3)
+                    || Gdx.input.isKeyJustPressed(Input.Keys.PERIOD);
+            if (keyCollector != null && keyInteract) {
+                hasAmbulanceKey = true;
+                showBanner("AMBULANCE KEY FOUND! Clear all zombies, then return to Jane at the ambulance.");
+            }
+        }
+
+        // Level 4 puzzle parts may be collected by either co-op player.
+        if (levelNumber == 4 && !level4PuzzleParts.isEmpty()) {
+            Vector2 nearbyPart = null;
+            for (Vector2 part : level4PuzzleParts) {
+                boolean elricNear = me != null && Math.hypot(me.x - part.x, me.y - part.y) <= 1.5f;
+                boolean janeNear = p2 != null && Math.hypot(p2.x - part.x, p2.y - part.y) <= 1.5f;
+                if (elricNear || janeNear) {
+                    nearbyPart = part;
+                    break;
+                }
+            }
+            boolean partInteract = Gdx.input.isKeyJustPressed(Input.Keys.E)
+                    || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_3)
+                    || Gdx.input.isKeyJustPressed(Input.Keys.NUM_3)
+                    || Gdx.input.isKeyJustPressed(Input.Keys.PERIOD);
+            if (nearbyPart != null && partInteract) {
+                level4PuzzleParts.remove(nearbyPart);
+                level4PuzzlePartsCollected++;
+                showBanner(level4PuzzlePartsCollected == LEVEL_4_PUZZLE_PART_COUNT
+                        ? "PUZZLE SOLVED! Return to the endpoint to clear Level 4."
+                        : "Puzzle part collected (" + level4PuzzlePartsCollected + "/3).");
             }
         }
 
@@ -1409,7 +1659,7 @@ public class GameScreen implements Screen {
             if (Gdx.input.isKeyPressed(Input.Keys.NUMPAD_8) || Gdx.input.isKeyPressed(Input.Keys.NUMPAD_5) || Gdx.input.isKeyPressed(Input.Keys.NUM_8) || Gdx.input.isKeyPressed(Input.Keys.NUM_5) || Gdx.input.isKeyPressed(Input.Keys.UP)) p2MoveY += 1f;
             if (Gdx.input.isKeyPressed(Input.Keys.NUMPAD_2) || Gdx.input.isKeyPressed(Input.Keys.NUM_2) || Gdx.input.isKeyPressed(Input.Keys.DOWN)) p2MoveY -= 1f;
 
-            WorldSnapshot.PlayerState p2 = (snapshot != null && snapshot.players != null && snapshot.players.size() > 1) ? snapshot.players.get(1) : null;
+            p2 = (snapshot != null && snapshot.players != null && snapshot.players.size() > 1) ? snapshot.players.get(1) : null;
             PlayerAnimState p2Anim = p2 != null ? animStates.get(p2.playerId) : null;
             if (p2Anim != null && p2Anim.isAttacking) {
                 p2MoveX = 0f;
@@ -1441,8 +1691,12 @@ public class GameScreen implements Screen {
                     || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_1)
                     || Gdx.input.isKeyJustPressed(Input.Keys.NUM_1)
                     || Gdx.input.isKeyJustPressed(Input.Keys.CONTROL_RIGHT);
-            p2Input.interactPressed = Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_3) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_3);
-            p2Input.interactHeld = Gdx.input.isKeyPressed(Input.Keys.NUMPAD_3) || Gdx.input.isKeyPressed(Input.Keys.NUM_3);
+            p2Input.interactPressed = Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_3)
+                    || Gdx.input.isKeyJustPressed(Input.Keys.NUM_3)
+                    || Gdx.input.isKeyJustPressed(Input.Keys.PERIOD);
+            p2Input.interactHeld = Gdx.input.isKeyPressed(Input.Keys.NUMPAD_3)
+                    || Gdx.input.isKeyPressed(Input.Keys.NUM_3)
+                    || Gdx.input.isKeyPressed(Input.Keys.PERIOD);
             p2Input.abilityPressed = p2WantsToSprint && p2Stamina > 0f;
 
             if (levelNumber == 1 && !isJaneRevived) {
@@ -1465,6 +1719,25 @@ public class GameScreen implements Screen {
                     if (dist <= 1.8f) {
                         client.sendEvent("PLAYER_REVIVE", p1.playerId);
                         showBanner("Jane revived Elric!");
+                    }
+                }
+                for (LevelVillager v : levelVillagers) {
+                    if (!v.isDead && !v.isRescued) {
+                        float dist = (float) Math.hypot(p2.x - v.x, p2.y - v.y);
+                        if (dist <= 1.8f) {
+                            v.isRescued = true;
+                            v.leaderId = p2.playerId;
+                            showBanner(v.name + " joined Jane's squad! Protect them from infected bites.");
+                            CampaignSquadState.rescuedVillagers.add(new CampaignSquadState.RescuedVillagerInfo(v.id, v.name, v.hp));
+                            if (levelNumber == 2) {
+                                levelFeatures.stream()
+                                        .filter(f -> f.type() == CampaignLevelPlan.FeatureType.SURVIVOR && !completedFeatureIds.contains(f.actionId()))
+                                        .filter(f -> Math.hypot(f.tileX() - v.x, f.tileY() - v.y) <= 2.2f)
+                                        .findFirst()
+                                        .ifPresent(this::completeFeature);
+                            }
+                            break;
+                        }
                     }
                 }
             }
@@ -1494,25 +1767,43 @@ public class GameScreen implements Screen {
         }
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.X)) {
-            handleVillagerCommandToggle(me);
+            WorldSnapshot.PlayerState commander = me;
+            if (isDualViewDebugMode && p2 != null) {
+                float distMe = Float.MAX_VALUE;
+                float distP2 = Float.MAX_VALUE;
+                for (LevelVillager v : levelVillagers) {
+                    if (v.isRescued && !v.isDead) {
+                        if (me != null) distMe = Math.min(distMe, (float) Math.hypot(me.x - v.x, me.y - v.y));
+                        distP2 = Math.min(distP2, (float) Math.hypot(p2.x - v.x, p2.y - v.y));
+                    }
+                }
+                if (distP2 < distMe) {
+                    commander = p2;
+                }
+            }
+            handleVillagerCommandToggle(commander);
         }
-        if (isDualViewDebugMode && (Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_7) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_7))) {
-            WorldSnapshot.PlayerState p2 = (snapshot != null && snapshot.players != null && snapshot.players.size() > 1) ? snapshot.players.get(1) : null;
+        if (isDualViewDebugMode && (Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_7) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_7) || Gdx.input.isKeyJustPressed(Input.Keys.COMMA))) {
             if (p2 != null) {
                 handleVillagerCommandToggle(p2);
             }
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.C) || Gdx.input.isKeyJustPressed(Input.Keys.F1)) {
+            showCollisionOverlay = !showCollisionOverlay;
+            showBanner("Collision Overlay: " + (showCollisionOverlay ? "ON" : "OFF") + " [C / F1]");
         }
 
         if (snapshot != null) {
             isBeingBitten = false;
             TextureRegion zombieFrame = updateMiddleZombie(snapshot, me, delta);
             updateAmbushZombies(snapshot, me, delta);
-            updateAlliesAndVillagers(delta, me);
+            updateAlliesAndVillagers(delta, me, snapshot);
             updatePlayerAnimations(snapshot, delta, me);
 
             if (isDualViewDebugMode && snapshot.players != null && !snapshot.players.isEmpty()) {
                 WorldSnapshot.PlayerState p1 = snapshot.players.get(0);
-                WorldSnapshot.PlayerState p2 = snapshot.players.size() > 1 ? snapshot.players.get(1) : p1;
+                p2 = snapshot.players.size() > 1 ? snapshot.players.get(1) : p1;
 
                 int screenW = Gdx.graphics.getWidth();
                 int screenH = Gdx.graphics.getHeight();
@@ -1527,6 +1818,7 @@ public class GameScreen implements Screen {
                 drawLevelMap();
                 drawWorld(snapshot, delta, zombieFrame, me);
                 batch.end();
+                if (showCollisionOverlay) drawCollisionOverlay();
 
                 Gdx.gl.glViewport(halfW, 0, halfW, screenH);
                 camera.position.set(Math.round(p2.x * PIXELS_PER_TILE), Math.round(p2.y * PIXELS_PER_TILE), 0);
@@ -1537,6 +1829,7 @@ public class GameScreen implements Screen {
                 drawLevelMap();
                 drawWorld(snapshot, delta, zombieFrame, me);
                 batch.end();
+                if (showCollisionOverlay) drawCollisionOverlay();
 
                 Gdx.gl.glViewport(0, 0, screenW, screenH);
 
@@ -1557,7 +1850,7 @@ public class GameScreen implements Screen {
                     font.setColor(Color.YELLOW);
                     font.draw(batch, "[UNCONSCIOUS IN LAB]\nTrapped until Elric crafts Mixed Herb Revive Kit!", VIRTUAL_WIDTH * 0.75f - 180f, VIRTUAL_HEIGHT / 2f);
                 } else {
-                    font.draw(batch, "P2: " + (p2.character != null ? p2.character.name() : "JANE") + " [NUM 8-4-5-6 | R-SHIFT sprint | NUM 0 attack | NUM 3 interact]", VIRTUAL_WIDTH / 2f + 20f, VIRTUAL_HEIGHT - 40f);
+                    font.draw(batch, "P2: " + (p2.character != null ? p2.character.name() : "JANE") + " [NUM 8-4-5-6 | R-SHIFT sprint | NUM 0 attack | NUM 3 interact | NUM 7 order | NUM 9 heal]", VIRTUAL_WIDTH / 2f + 20f, VIRTUAL_HEIGHT - 40f);
                 }
                 batch.end();
             } else {
@@ -1571,6 +1864,7 @@ public class GameScreen implements Screen {
                 drawLevelMap();
                 drawWorld(snapshot, delta, zombieFrame, me);
                 batch.end();
+                if (showCollisionOverlay) drawCollisionOverlay();
             }
 
             Gdx.gl.glEnable(GL20.GL_BLEND);
@@ -1671,8 +1965,6 @@ public class GameScreen implements Screen {
             if (isInventoryOpen) {
                 drawInventoryOverlay();
             }
-
-            if (showCollisionOverlay) drawCollisionOverlay();
         }
 
         drawHud(snapshot, delta);
@@ -1702,12 +1994,16 @@ public class GameScreen implements Screen {
             }
         }
 
+        boolean isJaneCmd = (commander.character == CharacterType.JANE || (commander.playerId != null && commander.playerId.contains("p2")));
+        String prefix = isJaneCmd ? "Jane ordered " : "";
+        String hotkeyHint = isJaneCmd ? " [X / NUM 7]" : " [X]";
+
         if (nearest != null) {
             nearest.isStaying = !nearest.isStaying;
             if (nearest.isStaying) {
-                showBanner(nearest.name + " ordered to HOLD POSITION! [X]");
+                showBanner(prefix + nearest.name + " ordered to HOLD POSITION!" + hotkeyHint);
             } else {
-                showBanner(nearest.name + " ordered to FOLLOW SQUAD! [X]");
+                showBanner(prefix + nearest.name + " ordered to FOLLOW SQUAD!" + hotkeyHint);
             }
         } else {
             boolean anyFollowing = false;
@@ -1722,24 +2018,48 @@ public class GameScreen implements Screen {
                 v.isStaying = newState;
             }
             if (newState) {
-                showBanner("All rescued villagers ordered to HOLD POSITION! [X]");
+                showBanner(prefix + "All rescued villagers ordered to HOLD POSITION!" + hotkeyHint);
             } else {
-                showBanner("All rescued villagers ordered to FOLLOW SQUAD! [X]");
+                showBanner(prefix + "All rescued villagers ordered to FOLLOW SQUAD!" + hotkeyHint);
             }
         }
     }
 
-    private void updateAlliesAndVillagers(float delta, WorldSnapshot.PlayerState me) {
+    private void updateAlliesAndVillagers(float delta, WorldSnapshot.PlayerState me, WorldSnapshot snapshot) {
         if (me == null) return;
-
 
         // 2. Villager Escort Following & Bites from Ambush/Middle Zombies (All levels)
         for (LevelVillager v : levelVillagers) {
             if (!v.isRescued || v.isDead) continue;
             v.stateTime += delta;
 
-            float distXP = me.x - v.x;
-            float distYP = me.y - v.y;
+            WorldSnapshot.PlayerState followTarget = null;
+            if (snapshot != null && snapshot.players != null) {
+                if (v.leaderId != null) {
+                    for (WorldSnapshot.PlayerState p : snapshot.players) {
+                        if (v.leaderId.equals(p.playerId) && !p.downed && p.hp > 0f) {
+                            followTarget = p;
+                            break;
+                        }
+                    }
+                }
+                if (followTarget == null) {
+                    float closestD = Float.MAX_VALUE;
+                    for (WorldSnapshot.PlayerState p : snapshot.players) {
+                        if (!p.downed && p.hp > 0f) {
+                            float d = (float) Math.hypot(p.x - v.x, p.y - v.y);
+                            if (d < closestD) {
+                                closestD = d;
+                                followTarget = p;
+                            }
+                        }
+                    }
+                }
+            }
+            if (followTarget == null) followTarget = me;
+
+            float distXP = followTarget.x - v.x;
+            float distYP = followTarget.y - v.y;
             float distP = (float) Math.hypot(distXP, distYP);
 
             if (!v.isStaying && distP > 1.8f) {
@@ -1853,6 +2173,7 @@ public class GameScreen implements Screen {
                                     }
                                     if (targetAz.hp <= 0f) {
                                         targetAz.dead = true;
+                                        grantLabPasskeyIfBoss(targetAz);
                                         coins += 1;
                                         bloodPools.add(new Vector2(targetAz.x, targetAz.y));
                                         checkAmbushCompletion();
@@ -2138,6 +2459,13 @@ public class GameScreen implements Screen {
         }
     }
 
+    private void grantLabPasskeyIfBoss(AmbushZombie zombie) {
+        if (levelNumber == 5 && zombie.isBoss && !hasLabPasskey) {
+            hasLabPasskey = true;
+            showBanner("BIG RED ZOMBIE DEFEATED! Lab Passkey Card acquired — return to the facility gate.");
+        }
+    }
+
     private void checkAmbushCompletion() {
         if (!isAmbushActive || isAmbushDefeated) return;
         long remaining = ambushZombies.stream().filter(z -> !z.dead).count();
@@ -2150,12 +2478,9 @@ public class GameScreen implements Screen {
                 });
             } else if (levelNumber == 3) {
                 coins += 5;
-                showBanner("HORDE DEFEATED! (+5 Coins) Advancing to Subterranean Corridor...");
-                Gdx.app.postRunnable(() -> {
-                    if (game.getServer() != null) {
-                        game.getServer().broadcastLevelTransition(4);
-                    }
-                });
+                showBanner(hasAmbulanceKey
+                        ? "ALL ZOMBIES CLEARED! Return to Jane at the ambulance. (+5 Coins)"
+                        : "ALL ZOMBIES CLEARED! Find the ambulance key, then return to Jane. (+5 Coins)");
             } else {
                 coins += 5;
                 String dest = levelNumber == 1 ? "Hospital Floor 2" : "the next area";
@@ -2375,6 +2700,30 @@ public class GameScreen implements Screen {
             batch.draw(keyTexture, kDrawX, kDrawY, kSize, kSize);
         }
 
+        // The Level 3 ambulance key is deliberately shown only in the world,
+        // not on the minimap, so players must search the map for it.
+        if (levelNumber == 3 && !hasAmbulanceKey && keyTexture != null) {
+            float kSize = 24f;
+            float bob = (float) Math.sin(groundItemStateTime * 4.0f) * 3.0f;
+            float kDrawX = Math.round((ambulanceKeyX * PIXELS_PER_TILE) - (kSize / 2f));
+            float kDrawY = Math.round((ambulanceKeyY * PIXELS_PER_TILE) - (kSize / 2f) + bob);
+            batch.draw(keyTexture, kDrawX, kDrawY, kSize, kSize);
+        }
+
+        if (levelNumber == 4 && markerTexture != null) {
+            float bob = (float) Math.sin(groundItemStateTime * 4.0f) * 3.0f;
+            Color[] colors = {Color.GOLD, Color.CYAN, Color.LIME};
+            for (int i = 0; i < level4PuzzleParts.size(); i++) {
+                Vector2 part = level4PuzzleParts.get(i);
+                float size = 18f;
+                float px = Math.round(part.x * PIXELS_PER_TILE - size / 2f);
+                float py = Math.round(part.y * PIXELS_PER_TILE - size / 2f + bob);
+                batch.setColor(colors[i % colors.length]);
+                batch.draw(markerTexture, px, py, size, size);
+            }
+            batch.setColor(Color.WHITE);
+        }
+
         // Draw Herbs and Floor Medkit in Level 1
         if (levelNumber == 1) {
             float bob = (float) Math.sin(groundItemStateTime * 4.0f) * 3.0f;
@@ -2466,6 +2815,7 @@ public class GameScreen implements Screen {
                             az.hp -= dmgAZ;
                             if (az.hp <= 0f) {
                                 az.dead = true;
+                                grantLabPasskeyIfBoss(az);
                                 bloodPools.add(new Vector2(az.x, az.y));
                             }
                         }
@@ -2763,6 +3113,7 @@ public class GameScreen implements Screen {
                         }
                         if (az.hp <= 0f) {
                             az.dead = true;
+                            grantLabPasskeyIfBoss(az);
                             coins += 1;
                             bloodPools.add(new Vector2(az.x, az.y));
                         }
@@ -3486,8 +3837,50 @@ public class GameScreen implements Screen {
                 objectiveY -= 20f;
             }
 
-            font.setColor(isAmbushDefeated ? Color.GREEN : Color.GRAY);
-            font.draw(batch, (isAmbushDefeated ? "[CLEARED] " : "[OBJECTIVE] ") + "Secure Road Approach", objectiveX, objectiveY);
+            font.setColor(isAmbushDefeated ? Color.GREEN : Color.WHITE);
+            font.draw(batch, (isAmbushDefeated ? "[DONE] " : "[ ] ") + "Clear all zombies", objectiveX, objectiveY);
+            objectiveY -= 20f;
+
+            font.setColor(hasAmbulanceKey ? Color.GREEN : Color.WHITE);
+            font.draw(batch, (hasAmbulanceKey ? "[DONE] " : "[ ] ") + "Find the ambulance key", objectiveX, objectiveY);
+            objectiveY -= 20f;
+
+            boolean extractionReady = isAmbushDefeated && hasAmbulanceKey;
+            font.setColor(extractionReady ? Color.LIME : Color.GRAY);
+            font.draw(batch, (extractionReady ? "[READY] " : "[LOCKED] ") + "Return to Jane at the ambulance", objectiveX, objectiveY);
+        } else if (levelNumber == 4) {
+            font.setColor(0.910f, 0.690f, 0.165f, 1f);
+            font.draw(batch, "SUBTERRANEAN PUZZLE (LEVEL 4)", objectiveX, objectiveY);
+            objectiveY -= 22f;
+
+            boolean puzzleSolved = level4PuzzlePartsCollected == LEVEL_4_PUZZLE_PART_COUNT;
+            font.setColor(puzzleSolved ? Color.GREEN : Color.WHITE);
+            font.draw(batch, (puzzleSolved ? "[DONE] " : "[ ] ") + "Collect puzzle parts ("
+                    + level4PuzzlePartsCollected + "/3)", objectiveX, objectiveY);
+            objectiveY -= 20f;
+
+            font.setColor(puzzleSolved ? Color.LIME : Color.GRAY);
+            font.draw(batch, (puzzleSolved ? "[READY] " : "[LOCKED] ")
+                    + "Return to the endpoint", objectiveX, objectiveY);
+        } else if (levelNumber == 5) {
+            font.setColor(0.910f, 0.690f, 0.165f, 1f);
+            font.draw(batch, "RESEARCH FACILITY (LEVEL 5)", objectiveX, objectiveY);
+            objectiveY -= 22f;
+
+            AmbushZombie redBrute = ambushZombies.stream().filter(z -> z.isBoss).findFirst().orElse(null);
+            boolean bruteDefeated = redBrute == null || redBrute.dead;
+            font.setColor(bruteDefeated ? Color.GREEN : Color.CORAL);
+            String bruteStatus = bruteDefeated ? "[DONE] Defeat the big red zombie"
+                    : "[!] Big red zombie: " + (int) redBrute.hp + "/" + (int) redBrute.maxHp + " HP";
+            font.draw(batch, bruteStatus, objectiveX, objectiveY);
+            objectiveY -= 20f;
+
+            font.setColor(hasLabPasskey ? Color.GREEN : Color.WHITE);
+            font.draw(batch, (hasLabPasskey ? "[DONE] " : "[ ] ") + "Acquire Lab Passkey Card", objectiveX, objectiveY);
+            objectiveY -= 20f;
+
+            font.setColor(hasLabPasskey ? Color.LIME : Color.GRAY);
+            font.draw(batch, (hasLabPasskey ? "[READY] " : "[LOCKED] ") + "Return to the facility gate", objectiveX, objectiveY);
         } else if (snapshot != null && snapshot.objectives != null && !snapshot.objectives.isEmpty()) {
             font.setColor(0.910f, 0.690f, 0.165f, 1f);
             font.draw(batch, "ROADSIDE OBJECTIVES", objectiveX, objectiveY);
@@ -3560,7 +3953,10 @@ public class GameScreen implements Screen {
         CampaignLevelPlan.Feature nearbyFeature = nearbyIncompleteFeature(localPlayer);
         boolean nearLevelExit = localPlayer != null && isNearLevelExit(localPlayer);
         boolean canAdvanceLevel = nearLevelExit && areLevelObjectivesComplete(snapshot)
-                && (levelNumber != 1 || (hasStairsKey && isAmbushDefeated));
+                && (levelNumber != 1 || (hasStairsKey && isAmbushDefeated))
+                && (levelNumber != 3 || (hasAmbulanceKey && isAmbushDefeated))
+                && (levelNumber != 4 || level4PuzzlePartsCollected == LEVEL_4_PUZZLE_PART_COUNT)
+                && (levelNumber != 5 || hasLabPasskey);
 
         boolean canPickUpKey = false;
         if (levelNumber == 1 && !hasStairsKey && localPlayer != null) {
@@ -3568,6 +3964,18 @@ public class GameScreen implements Screen {
             float distY = localPlayer.y - keyY;
             if (Math.hypot(distX, distY) <= 1.5f) {
                 canPickUpKey = true;
+            }
+        }
+
+        boolean canPickUpAmbulanceKey = levelNumber == 3 && !hasAmbulanceKey && localPlayer != null
+                && Math.hypot(localPlayer.x - ambulanceKeyX, localPlayer.y - ambulanceKeyY) <= 1.5f;
+        boolean canPickUpPuzzlePart = false;
+        if (levelNumber == 4 && localPlayer != null) {
+            for (Vector2 part : level4PuzzleParts) {
+                if (Math.hypot(localPlayer.x - part.x, localPlayer.y - part.y) <= 1.5f) {
+                    canPickUpPuzzlePart = true;
+                    break;
+                }
             }
         }
 
@@ -3607,10 +4015,45 @@ public class GameScreen implements Screen {
                 font.draw(batch, "[LOCKED] Defeat Ambush Zombies (" + remaining + " remaining)",
                         promptCenterX - 160f, VIRTUAL_HEIGHT / 2f - 50f);
             }
+        } else if (canPickUpAmbulanceKey) {
+            font.setColor(Color.GOLD);
+            font.draw(batch, "Press [E] — Pick up Ambulance Key",
+                    promptCenterX - 130f, VIRTUAL_HEIGHT / 2f - 50f);
+        } else if (nearLevelExit && levelNumber == 3 && !isAmbushDefeated) {
+            long remaining = ambushZombies.stream().filter(z -> !z.dead).count();
+            font.setColor(Color.FIREBRICK);
+            font.draw(batch, "[LOCKED] Clear all zombies (" + remaining + " remaining)",
+                    promptCenterX - 155f, VIRTUAL_HEIGHT / 2f - 50f);
+        } else if (nearLevelExit && levelNumber == 3 && !hasAmbulanceKey) {
+            font.setColor(Color.CORAL);
+            font.draw(batch, "[LOCKED] Find the ambulance key somewhere on the map",
+                    promptCenterX - 185f, VIRTUAL_HEIGHT / 2f - 50f);
+        } else if (canPickUpPuzzlePart) {
+            font.setColor(Color.GOLD);
+            font.draw(batch, "Press [E] — Collect Puzzle Part ("
+                            + level4PuzzlePartsCollected + "/3)",
+                    promptCenterX - 150f, VIRTUAL_HEIGHT / 2f - 50f);
+        } else if (nearLevelExit && levelNumber == 4
+                && level4PuzzlePartsCollected < LEVEL_4_PUZZLE_PART_COUNT) {
+            font.setColor(Color.CORAL);
+            font.draw(batch, "[LOCKED] Find all puzzle parts ("
+                            + level4PuzzlePartsCollected + "/3)",
+                    promptCenterX - 150f, VIRTUAL_HEIGHT / 2f - 50f);
+        } else if (nearLevelExit && levelNumber == 5 && !hasLabPasskey) {
+            font.setColor(Color.CORAL);
+            font.draw(batch, "[LOCKED] Defeat the big red zombie for the Lab Passkey Card",
+                    promptCenterX - 205f, VIRTUAL_HEIGHT / 2f - 50f);
         } else if (canAdvanceLevel) {
             font.setColor(Color.GOLD);
             String nextName = levelNumber == 1 ? "Hospital Floor 2" : (levelNumber == 2 ? "Roadside Village" : "Level " + (levelNumber + 1));
-            font.draw(batch, "Press [E] to proceed to LEVEL " + (levelNumber + 1) + " (" + nextName + ")",
+            String proceedText = levelNumber == 3
+                    ? "Press [E] — Unlock ambulance and proceed to LEVEL 4"
+                    : (levelNumber == 4
+                    ? "Press [E] — Activate solved puzzle and proceed to LEVEL 5"
+                    : (levelNumber == 5
+                    ? "Press [E] — Use Lab Passkey and proceed to LEVEL 6"
+                    : "Press [E] to proceed to LEVEL " + (levelNumber + 1) + " (" + nextName + ")"));
+            font.draw(batch, proceedText,
                     promptCenterX - 160f, VIRTUAL_HEIGHT / 2f - 50f);
         } else if (nearLevelExit) {
             font.setColor(Color.LIGHT_GRAY);
@@ -3658,8 +4101,77 @@ public class GameScreen implements Screen {
             font.draw(batch, "Press [E] to Pick Up Grenade", promptCenterX - 85f, VIRTUAL_HEIGHT / 2f - 50f);
         }
 
+        // Jane (P2) Prompts in Dual-View Mode
+        if (isDualViewDebugMode && snapshot != null && snapshot.players != null && snapshot.players.size() > 1) {
+            WorldSnapshot.PlayerState p2 = snapshot.players.get(1);
+            if (p2 != null && !(levelNumber == 1 && !isJaneRevived)) {
+                float promptCenterXP2 = VIRTUAL_WIDTH * 0.75f;
+                LevelVillager nearVillagerP2 = null;
+                for (LevelVillager v : levelVillagers) {
+                    if (!v.isDead && Math.hypot(p2.x - v.x, p2.y - v.y) <= 1.8f) {
+                        nearVillagerP2 = v;
+                        break;
+                    }
+                }
+                if (nearVillagerP2 != null && !nearVillagerP2.isRescued) {
+                    font.setColor(Color.CYAN);
+                    font.draw(batch, "Press [NUM 3] or [E] — Talk & Escort " + nearVillagerP2.name, promptCenterXP2 - 150f, VIRTUAL_HEIGHT / 2f - 50f);
+                } else if (nearVillagerP2 != null) {
+                    String actionWord = nearVillagerP2.isStaying ? "FOLLOW squad" : "HOLD position";
+                    if (nearVillagerP2.hp < nearVillagerP2.maxHp) {
+                        font.setColor(Color.LIME);
+                        font.draw(batch, "Press [NUM 9] or [H] — Heal " + nearVillagerP2.name + " (+50 HP)", promptCenterXP2 - 140f, VIRTUAL_HEIGHT / 2f - 40f);
+                        font.setColor(Color.CYAN);
+                        font.draw(batch, "Press [NUM 7] or [X] — Order to " + actionWord, promptCenterXP2 - 120f, VIRTUAL_HEIGHT / 2f - 62f);
+                    } else {
+                        font.setColor(Color.CYAN);
+                        font.draw(batch, "Press [NUM 7] or [X] — Order " + nearVillagerP2.name + " to " + actionWord, promptCenterXP2 - 150f, VIRTUAL_HEIGHT / 2f - 50f);
+                    }
+                }
+            }
+        }
+
         font.setColor(Color.GRAY);
-        font.draw(batch, "WASD move   E interact   SPACE attack   SHIFT sprint   X stay/follow   M map   J coords   H heal   ESC pause   I inventory   F11 fullscreen   F12 screenshot", 20f, 30f);
+        font.draw(batch, "WASD move   E interact   SPACE attack   SHIFT sprint   X stay/follow   M map   J coords   C collision   H heal   ESC pause   I inventory   F11 fullscreen   F12 screenshot", 20f, 30f);
+
+        // Interactive On-Screen Collision Blocks Button
+        float collBtnW = 210f;
+        float collBtnH = 26f;
+        float collBtnX = (VIRTUAL_WIDTH - collBtnW) / 2f;
+        float collBtnY = VIRTUAL_HEIGHT - 32f;
+
+        float mouseX = Gdx.input.getX() * (VIRTUAL_WIDTH / (float) Gdx.graphics.getWidth());
+        float mouseY = (Gdx.graphics.getHeight() - Gdx.input.getY()) * (VIRTUAL_HEIGHT / (float) Gdx.graphics.getHeight());
+        boolean isHovered = mouseX >= collBtnX && mouseX <= collBtnX + collBtnW && mouseY >= collBtnY && mouseY <= collBtnY + collBtnH;
+
+        if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT) && isHovered) {
+            showCollisionOverlay = !showCollisionOverlay;
+            showBanner("Collision Overlay: " + (showCollisionOverlay ? "ON" : "OFF") + " [C / F1]");
+        }
+
+        batch.end();
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        shapes.setProjectionMatrix(hudMatrix);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        if (showCollisionOverlay) {
+            shapes.setColor(isHovered ? new Color(0.2f, 0.7f, 0.3f, 0.95f) : new Color(0.12f, 0.45f, 0.18f, 0.85f));
+        } else {
+            shapes.setColor(isHovered ? new Color(0.35f, 0.35f, 0.4f, 0.9f) : new Color(0.15f, 0.15f, 0.2f, 0.8f));
+        }
+        shapes.rect(collBtnX, collBtnY, collBtnW, collBtnH);
+        shapes.end();
+
+        shapes.begin(ShapeRenderer.ShapeType.Line);
+        shapes.setColor(showCollisionOverlay ? Color.LIME : (isHovered ? Color.GOLD : Color.GRAY));
+        shapes.rect(collBtnX, collBtnY, collBtnW, collBtnH);
+        shapes.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+
+        batch.begin();
+        font.setColor(showCollisionOverlay ? Color.WHITE : Color.LIGHT_GRAY);
+        String collText = (showCollisionOverlay ? "[✓] COLLISION: ON" : "[ ] COLLISION: OFF") + " [Click/C]";
+        font.draw(batch, collText, collBtnX + 12f, collBtnY + 18f);
         batch.end();
 
         drawMinimap(snapshot, hudMatrix, delta);
@@ -3742,7 +4254,13 @@ public class GameScreen implements Screen {
         LevelExit.forLevel(levelNumber).ifPresent(exit -> {
             float ex = mmX + (exit.tileX() / mapTilesW) * mmW;
             float ey = mmY + (exit.tileY() / mapTilesH) * mmH;
-            boolean unlocked = levelNumber != 1 || (hasStairsKey && isAmbushDefeated);
+            boolean unlocked = switch (levelNumber) {
+                case 1 -> hasStairsKey && isAmbushDefeated;
+                case 3 -> hasAmbulanceKey && isAmbushDefeated;
+                case 4 -> level4PuzzlePartsCollected == LEVEL_4_PUZZLE_PART_COUNT;
+                case 5 -> hasLabPasskey;
+                default -> true;
+            };
             shapes.setColor(unlocked ? Color.LIME : Color.ORANGE);
             float pulse = 3.5f + (float) Math.sin(minimapStateTime * 5.0f) * 1.2f;
             shapes.circle(ex, ey, pulse, 10);
@@ -4274,6 +4792,14 @@ public class GameScreen implements Screen {
         } catch (Throwable t) {
             showBanner("Screenshot failed: " + t.getMessage());
         }
+    }
+
+    public void setDualViewDebugMode(boolean enabled) {
+        this.isDualViewDebugMode = enabled;
+    }
+
+    public void setShowCollisionOverlay(boolean show) {
+        this.showCollisionOverlay = show;
     }
 
     @Override

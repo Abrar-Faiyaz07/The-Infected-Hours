@@ -117,3 +117,19 @@ counts, and track/effect path conventions. Run:
 
 Existing map, collision, boss, sprite, and Gemini-created image files were not
 modified by this audio/dialogue change.
+
+## Teammate ownership — Level 6 / `level_final`
+
+The user has assigned the complete final level to a teammate and will fully
+accept that teammate's implementation. Their Level 6 work is the source of
+truth.
+
+- Preserve the teammate's `level_final` map, final-boss logic, gameplay, and
+  assets without rewriting or reverting them.
+- In shared-file conflicts, keep the teammate's Level 6-specific branches and
+  adapt Levels 1–5 around them.
+- Do not modify `core/src/main/resources/maps/level_final.map`,
+  `assets/map_final.png`, `BossScreen.java`, or Level 6-specific code unless
+  the user explicitly requests it.
+- If tool or model limits interrupt the work, continue on other levels and
+  leave the final level untouched for the teammate.

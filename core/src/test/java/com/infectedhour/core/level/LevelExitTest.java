@@ -17,7 +17,26 @@ class LevelExitTest {
     }
 
     @Test
-    void bossLevelHasNoNextLevelExit() {
-        assertTrue(LevelExit.forLevel(3).isEmpty());
+    void levelThreeEndsAtJanesAmbulancePosition() {
+        LevelExit exit = LevelExit.forLevel(3).orElseThrow();
+
+        assertTrue(exit.contains(20.09f, 26.22f));
+        assertFalse(exit.contains(36.10f, 22.63f));
+    }
+
+    @Test
+    void levelFourEndsAtElricsMarkedPosition() {
+        LevelExit exit = LevelExit.forLevel(4).orElseThrow();
+
+        assertTrue(exit.contains(40.63f, 36.27f));
+        assertFalse(exit.contains(11.5f, 34.5f));
+    }
+
+    @Test
+    void levelFiveEndsAtTheLaboratoryGate() {
+        LevelExit exit = LevelExit.forLevel(5).orElseThrow();
+
+        assertTrue(exit.contains(31.77f, 27.08f));
+        assertFalse(exit.contains(34.43f, 8.32f));
     }
 }

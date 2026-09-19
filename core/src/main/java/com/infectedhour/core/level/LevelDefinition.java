@@ -63,6 +63,10 @@ public record LevelDefinition(
                 List.of(), false);
     }
 
+    /**
+     * Teammate-owned final level. Their Level 6 map, boss, and gameplay work is
+     * authoritative; preserve it when editing shared campaign code.
+     */
     public static LevelDefinition level6Boss() {
         return new LevelDefinition(6, "Secret Laboratory",
                 "maps/level6_laboratory.tmx", "maps/level_final.map",
