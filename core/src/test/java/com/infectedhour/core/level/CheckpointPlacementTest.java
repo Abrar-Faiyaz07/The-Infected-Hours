@@ -85,8 +85,8 @@ class CheckpointPlacementTest {
     }
 
     @Test
-    @DisplayName("both Level 4 player spawns are walkable")
-    void levelFourPlayerSpawnsAreWalkable() {
+    @DisplayName("the complete Level 4 squad formation is walkable")
+    void levelFourSquadFormationIsWalkable() {
         TileMap map = new LevelLoader().loadTileMap("maps/map2_part2.map");
         Checkpoint start = CheckpointRegistry.firstOf(4);
 
@@ -94,6 +94,16 @@ class CheckpointPlacementTest {
                 "Elric's Level 4 spawn is blocked");
         assertTrue(isClear(map, start.spawnTileX() + 1.0f, start.spawnTileY()),
                 "Jane's Level 4 spawn is blocked");
+        assertTrue(isClear(map, start.spawnTileX() - 1.0f, start.spawnTileY()),
+                "Level 4 NPC slot 1 is blocked");
+        assertTrue(isClear(map, start.spawnTileX() - 2.0f, start.spawnTileY()),
+                "Level 4 NPC slot 2 is blocked");
+        assertTrue(isClear(map, start.spawnTileX() - 1.0f, start.spawnTileY() - 1.0f),
+                "Level 4 NPC slot 3 is blocked");
+        assertTrue(isClear(map, start.spawnTileX() + 1.0f, start.spawnTileY() - 1.0f),
+                "Level 4 NPC slot 4 is blocked");
+        assertTrue(isClear(map, 25.31f, 4.48f),
+                "Level 4 puzzle endpoint is blocked");
     }
 
     @Test
@@ -104,14 +114,26 @@ class CheckpointPlacementTest {
 
         assertTrue(isClear(map, start.spawnTileX(), start.spawnTileY()), "Elric's Level 5 spawn is blocked");
         assertTrue(isClear(map, start.spawnTileX() + 1.0f, start.spawnTileY()), "Jane's Level 5 spawn is blocked");
-        assertTrue(isClear(map, start.spawnTileX() - 1.0f, start.spawnTileY()), "NPC slot 1 is blocked");
-        assertTrue(isClear(map, start.spawnTileX() - 2.0f, start.spawnTileY()), "NPC slot 2 is blocked");
-        assertTrue(isClear(map, start.spawnTileX() - 1.0f, start.spawnTileY() - 1.0f), "NPC slot 3 is blocked");
-        assertTrue(isClear(map, start.spawnTileX() + 1.0f, start.spawnTileY() - 1.0f), "NPC slot 4 is blocked");
+        assertTrue(isClear(map, start.spawnTileX() + 2.0f, start.spawnTileY()), "NPC slot 1 is blocked");
+        assertTrue(isClear(map, start.spawnTileX() + 3.0f, start.spawnTileY()), "NPC slot 2 is blocked");
+        assertTrue(isClear(map, start.spawnTileX() + 2.0f, start.spawnTileY() + 1.0f), "NPC slot 3 is blocked");
+        assertTrue(isClear(map, start.spawnTileX() + 3.0f, start.spawnTileY() + 1.0f), "NPC slot 4 is blocked");
         assertTrue(isClear(map, 30.5f, 20.5f), "big red zombie is blocked");
         assertTrue(isClear(map, 28.5f, 18.5f), "regular zombie 1 is blocked");
         assertTrue(isClear(map, 35.5f, 22.5f), "regular zombie 2 is blocked");
         assertTrue(isClear(map, 31.77f, 27.08f), "Level 5 endpoint is blocked");
+    }
+
+    @Test
+    @DisplayName("both final-level player spawns are walkable")
+    void finalLevelPlayersStartOnWalkableGround() {
+        TileMap map = new LevelLoader().loadTileMap("maps/level_final.map");
+        Checkpoint start = CheckpointRegistry.firstOf(6);
+
+        assertTrue(isClear(map, start.spawnTileX(), start.spawnTileY()),
+                "Elric's final-level spawn is blocked");
+        assertTrue(isClear(map, start.spawnTileX() + 1.0f, start.spawnTileY()),
+                "Jane's final-level spawn is blocked");
     }
 
     /** Samples every collision cell the player's circle would cover. */

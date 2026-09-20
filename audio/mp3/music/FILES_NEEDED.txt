@@ -1,0 +1,20 @@
+MUSIC MP3 FILES NEEDED
+======================
+
+[ ] main_menu.mp3
+[ ] level_1_hospital.mp3
+[ ] level_2_roadside_village.mp3
+[ ] level_3_hidden_laboratory.mp3
+[ ] boss_virus_heart.mp3
+[ ] jane_duel.mp3
+[ ] story_interlude.mp3
+[ ] victory.mp3
+
+Runtime copies must be exported with the same base names to
+assets/audio/music/*.ogg.
+
+Current temporary mappings in code:
+- Levels 2, 4, and 5 share level_2_roadside_village.
+- Levels 3 and 6 share level_3_hidden_laboratory.
+- Do not alter Level 6 mappings or implementation without an explicit request.
+

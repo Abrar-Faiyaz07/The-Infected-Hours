@@ -1,0 +1,20 @@
+ACTIVE VOICE MP3 FILES NEEDED
+=============================
+
+[ ] intro_01.mp3
+[ ] intro_02.mp3
+[ ] intro_03.mp3
+[ ] after_level_1_01.mp3
+[ ] after_level_1_02.mp3
+[ ] after_level_2_01.mp3
+[ ] after_level_2_02.mp3
+[ ] boss_title.mp3
+[ ] ending_01.mp3
+[ ] ending_02.mp3
+
+Do not add ending_03.mp3, ending_04.mp3, or ending_05.mp3 unless the disabled
+ending branch is explicitly restored.
+
+After delivery, create same-named OGG exports under assets/audio/voice/ and
+update AUDIO_CINEMATIC_IMPLEMENTATION_TRACKER.txt.
+

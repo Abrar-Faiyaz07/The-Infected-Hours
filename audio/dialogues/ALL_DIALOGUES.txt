@@ -1,0 +1,100 @@
+THE INFECTED HOUR - ACTIVE VOICE RECORDING SCRIPT
+=================================================
+
+Source of truth in code:
+core/src/main/java/com/infectedhour/core/content/DialogueCatalog.java
+
+Naming rule:
+Record the MP3 into audio/mp3/voice/ using the MP3 filename shown below.
+Export the matching runtime OGG into assets/audio/voice/.
+
+
+[INTRO - PANEL 1]
+Dialogue ID: intro-01
+Speaker: Narrator
+MP3 source: audio/mp3/voice/intro_01.mp3
+Runtime OGG: assets/audio/voice/intro_01.ogg
+
+Elric arrives in Ashgrove as an elite bio-containment operative for the private Oscorp Organization. A weaponized pathogen -- engineered inside Oscorp's black-budget research laboratories -- was stolen by a rogue insider and released into the civilian population.
+
+
+[INTRO - PANEL 2]
+Dialogue ID: intro-02
+Speaker: Narrator
+MP3 source: audio/mp3/voice/intro_02.mp3
+Runtime OGG: assets/audio/voice/intro_02.ogg
+
+The contagion breached containment at midnight. Oscorp's directive is uncompromising: destroy the viral core at all costs before dawn, or the entire regional population will transform into ravenous mutated infected.
+
+
+[INTRO - PANEL 3]
+Dialogue ID: intro-03
+Speaker: Narrator
+MP3 source: audio/mp3/voice/intro_03.mp3
+Runtime OGG: assets/audio/voice/intro_03.ogg
+
+Inside Ashgrove Hospital, an operative named Jane lies senseless. Unbeknownst to Oscorp, Jane is an undercover intelligence agent deployed by the government to monitor Oscorp's illegal bioweapon testing. Surviving the night requires an uneasy alliance.
+
+
+[AFTER LEVEL 1 - PANEL 1]
+Dialogue ID: after-level-1-01
+Speaker: Narrator
+MP3 source: audio/mp3/voice/after_level_1_01.mp3
+Runtime OGG: assets/audio/voice/after_level_1_01.ogg
+
+Jane has been revived and the stranded hospital villagers guided to safety. Jane confirms the terrible truth: this is no ordinary virus -- it is an engineered extinction weapon that induces hyper-aggressive cellular mutations.
+
+
+[AFTER LEVEL 1 - PANEL 2]
+Dialogue ID: after-level-1-02
+Speaker: Jane
+MP3 source: audio/mp3/voice/after_level_1_02.mp3
+Runtime OGG: assets/audio/voice/after_level_1_02.ogg
+
+The road ahead cuts through the heart of the overrun village. Another wounded agent and three civilians are trapped near the municipal power relay. Secure the relay grid to reach the subterranean facility.
+
+
+[AFTER LEVEL 2 - PANEL 1]
+Dialogue ID: after-level-2-01
+Speaker: Narrator
+MP3 source: audio/mp3/voice/after_level_2_01.mp3
+Runtime OGG: assets/audio/voice/after_level_2_01.ogg
+
+With the wounded field agent and three villagers rescued from the ruins, the roadside power relays hum to life, unlocking the blast doors of the subterranean drainage corridor.
+
+
+[AFTER LEVEL 2 - PANEL 2]
+Dialogue ID: after-level-2-02
+Speaker: Narrator
+MP3 source: audio/mp3/voice/after_level_2_02.mp3
+Runtime OGG: assets/audio/voice/after_level_2_02.ogg
+
+Directly beneath Ashgrove lies Oscorp's covert biological research laboratory. In the deepest containment vault waits the primary bio-organism: the mutated Virus Heart that controls the outbreak.
+
+
+[BOSS INTRODUCTION]
+Dialogue ID: boss-title
+Speaker: Narrator
+MP3 source: audio/mp3/voice/boss_title.mp3
+Runtime OGG: assets/audio/voice/boss_title.ogg
+
+The source of the Ashgrove outbreak is awake.
+
+
+[CURRENT ENDING - PANEL 1]
+Dialogue ID: ending-01
+Speaker: Narrator
+MP3 source: audio/mp3/voice/ending_01.mp3
+Runtime OGG: assets/audio/voice/ending_01.ogg
+
+The gargantuan Virus Heart shudders and collapses into smoldering biological embers. In the shattered containment chamber, Elric recovers an emergency keycard and the sole remaining vial of the synthesized Prototype Antidote.
+
+
+[CURRENT ENDING - PANEL 2]
+Dialogue ID: ending-02
+Speaker: Narrator
+MP3 source: audio/mp3/voice/ending_02.mp3
+Runtime OGG: assets/audio/voice/ending_02.ogg
+
+Elric unlocks the sealed observation cell at the back of the lab. Behind the shattered glass lies Elena Vance -- his closest friend and lead biochemist. With the facility neutralized and the synthesized antidote in hand, the team secures the survivors and signals emergency evacuation. Ashgrove is safe.
+

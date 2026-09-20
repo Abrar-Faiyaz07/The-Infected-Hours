@@ -93,6 +93,7 @@ public class GameServer {
 
     private float reconnectWaitRemainingSeconds = 0f;
     private volatile boolean paused = false;
+    private volatile boolean menuPaused = false;
 
     private volatile SessionListener sessionListener = SessionListener.NO_OP;
 
@@ -337,6 +338,23 @@ public class GameServer {
             return;
         }
 
+        if (GameConstants.EVENT_PAUSE.equals(event.type)) {
+            menuPaused = true;
+            broadcastEvent(GameConstants.EVENT_PAUSE, sender.playerId);
+            return;
+        }
+
+        if (GameConstants.EVENT_RESUME.equals(event.type)) {
+            menuPaused = false;
+            broadcastEvent(GameConstants.EVENT_RESUME, sender.playerId);
+            return;
+        }
+
+        // Ignore queued gameplay actions while the pause menu owns the session.
+        if (menuPaused) {
+            return;
+        }
+
         if ("REVIVE_JANE".equals(event.type)) {
             CampaignSquadState.isJaneRevived = true;
             broadcastEvent("REVIVE_JANE", "JANE_REVIVED");
@@ -437,6 +455,7 @@ public class GameServer {
 
         if (playersByConnectionId.isEmpty()) {
             paused = false;
+            menuPaused = false;
             reconnectWaitRemainingSeconds = 0f;
             return;
         }
@@ -447,8 +466,6 @@ public class GameServer {
     }
 
     public void fixedTimestepUpdate(float delta) {
-        serverTick++;
-
         if (paused) {
             reconnectWaitRemainingSeconds -= delta;
             if (reconnectWaitRemainingSeconds <= 0f) {
@@ -461,6 +478,13 @@ public class GameServer {
             broadcastSnapshotIfDue(delta);
             return;
         }
+
+        if (menuPaused) {
+            broadcastSnapshotIfDue(delta);
+            return;
+        }
+
+        serverTick++;
 
         List<Player> players = livePlayerEntities();
 
@@ -671,8 +695,7 @@ public class GameServer {
                     } else {
                         connected.entity.setPosition(3.5f, 37.22f);
                     }
-                } else if (definition.levelNumber() == 3 || definition.levelNumber() == 4
-                        || definition.levelNumber() == 5) {
+                } else if (definition.levelNumber() >= 3 && definition.levelNumber() <= 6) {
                     // Begin these maps as one squad in their validated two-tile
                     // entrance corridor. Character-based slots keep Elric/Jane
                     // deterministic even though ConcurrentHashMap iteration is
@@ -982,6 +1005,10 @@ public class GameServer {
         }
         if (currentLevelNumber == 5) {
             Checkpoint start = CheckpointRegistry.firstOf(5);
+            return character == CharacterType.ELRIC ? start.spawnTileX() : start.spawnTileX() + 1.0f;
+        }
+        if (currentLevelNumber == 6) {
+            Checkpoint start = CheckpointRegistry.firstOf(6);
             return character == CharacterType.ELRIC ? start.spawnTileX() : start.spawnTileX() + 1.0f;
         }
         Checkpoint start = null;

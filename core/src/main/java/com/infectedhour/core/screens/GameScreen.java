@@ -621,25 +621,27 @@ public class GameScreen implements Screen {
             isJaneRevived = true;
             CampaignSquadState.isJaneRevived = true;
             Checkpoint levelStart = CheckpointRegistry.firstOf(levelNumber);
-            boolean squadStartsAtCheckpoint = levelNumber == 3 || levelNumber == 5;
+            boolean squadStartsAtCheckpoint = levelNumber >= 3 && levelNumber <= 6;
             janeX = squadStartsAtCheckpoint ? levelStart.spawnTileX() + 1.0f : 28.0f;
             janeY = squadStartsAtCheckpoint ? levelStart.spawnTileY() : 10.0f;
             janeHp = CampaignSquadState.janeHp > 0f ? CampaignSquadState.janeHp : 100f;
 
             levelVillagers.clear();
-            if (levelNumber == 3 || levelNumber == 5) {
+            if (levelNumber == 3 || levelNumber == 4 || levelNumber == 5) {
                 // Restore exactly the villagers who survived the previous map,
                 // including their remaining HP, in formation around the two players.
-                float[][] offsets = levelNumber == 5
-                        ? new float[][]{{-1.0f, 0.0f}, {-2.0f, 0.0f}, {-1.0f, -1.0f}, {1.0f, -1.0f}}
-                        : new float[][]{{-1.0f, 0.0f}, {2.0f, 0.0f}, {-1.0f, -1.0f}, {1.0f, -1.0f}};
+                float[][] offsets = levelNumber == 3
+                        ? new float[][]{{-1.0f, 0.0f}, {2.0f, 0.0f}, {-1.0f, -1.0f}, {1.0f, -1.0f}}
+                        : (levelNumber == 5
+                        ? new float[][]{{2.0f, 0.0f}, {3.0f, 0.0f}, {2.0f, 1.0f}, {3.0f, 1.0f}}
+                        : new float[][]{{-1.0f, 0.0f}, {-2.0f, 0.0f}, {-1.0f, -1.0f}, {1.0f, -1.0f}});
                 List<CampaignSquadState.RescuedVillagerInfo> arrivingVillagers = CampaignSquadState.rescuedVillagers;
                 boolean directLevelDebug = game.getSession() != null
                         && game.getSession().startingLevelOverride() == levelNumber;
                 if (arrivingVillagers.isEmpty() && directLevelDebug) {
                     // A direct level-select run has no earlier maps from which to
                     // build a roster, so populate all four rescueable villagers
-                    // to make the Level 3 squad start testable in isolation.
+                    // to make the selected level's squad start testable in isolation.
                     arrivingVillagers = List.of(
                             new CampaignSquadState.RescuedVillagerInfo("v1", "Dr. Ramirez", 100f),
                             new CampaignSquadState.RescuedVillagerInfo("v2", "Nurse Claire", 100f),
@@ -657,7 +659,7 @@ public class GameScreen implements Screen {
                     levelVillagers.add(villager);
                     slot++;
                 }
-            } else {
+            } else if (levelNumber != 6) {
                 boolean hasV1 = CampaignSquadState.rescuedVillagers.isEmpty() || CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v1".equals(info.id()));
                 boolean hasV2 = CampaignSquadState.rescuedVillagers.isEmpty() || CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v2".equals(info.id()));
                 if (hasV1) {
@@ -1025,6 +1027,8 @@ public class GameScreen implements Screen {
                     CampaignLevelPlan.findFeature(levelNumber, event.payload)
                             .ifPresent(feature -> showBanner("Objective updated: " + feature.label()));
                 });
+                case GameConstants.EVENT_PAUSE -> Gdx.app.postRunnable(() -> paused = true);
+                case GameConstants.EVENT_RESUME -> Gdx.app.postRunnable(() -> paused = false);
                 case "REVIVE_JANE" -> Gdx.app.postRunnable(() -> {
                     isJaneRevived = true;
                     CampaignSquadState.isJaneRevived = true;
@@ -1198,18 +1202,20 @@ public class GameScreen implements Screen {
         WorldSnapshot snapshot = client.getInterpolatedSnapshot(System.currentTimeMillis());
         WorldSnapshot.PlayerState me = null;
 
-        if (bombCooldown > 0f) {
-            bombCooldown -= delta;
-        }
+        if (!paused) {
+            if (bombCooldown > 0f) {
+                bombCooldown -= delta;
+            }
 
-        if (healCooldown > 0f) {
-            healCooldown = Math.max(0f, healCooldown - delta);
-        }
-        if (healEffectTimer > 0f) {
-            healEffectTimer = Math.max(0f, healEffectTimer - delta);
-        }
-        if (healFloatingTextTimer > 0f) {
-            healFloatingTextTimer = Math.max(0f, healFloatingTextTimer - delta);
+            if (healCooldown > 0f) {
+                healCooldown = Math.max(0f, healCooldown - delta);
+            }
+            if (healEffectTimer > 0f) {
+                healEffectTimer = Math.max(0f, healEffectTimer - delta);
+            }
+            if (healFloatingTextTimer > 0f) {
+                healFloatingTextTimer = Math.max(0f, healFloatingTextTimer - delta);
+            }
         }
 
         // Infinite Time: immunity does not deplete
@@ -1644,9 +1650,10 @@ public class GameScreen implements Screen {
             }
         }
 
-        checkZombiePatrolObjective();
-
-        game.stepSimulation(delta);
+        if (!paused) {
+            checkZombiePatrolObjective();
+            game.stepSimulation(delta);
+        }
 
         Gdx.gl.glClearColor(0.055f, 0.078f, 0.125f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);        if (!paused) client.sendInputIfDue(readLocalInput(me, delta), delta);
@@ -1743,14 +1750,16 @@ public class GameScreen implements Screen {
             }
         }
 
-        boolean movementKeysPressed = Gdx.input.isKeyPressed(Input.Keys.W) || Gdx.input.isKeyPressed(Input.Keys.A) ||
-                Gdx.input.isKeyPressed(Input.Keys.S) || Gdx.input.isKeyPressed(Input.Keys.D);
-        boolean wantsToSprint = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT) && movementKeysPressed;
+        if (!paused) {
+            boolean movementKeysPressed = Gdx.input.isKeyPressed(Input.Keys.W) || Gdx.input.isKeyPressed(Input.Keys.A) ||
+                    Gdx.input.isKeyPressed(Input.Keys.S) || Gdx.input.isKeyPressed(Input.Keys.D);
+            boolean wantsToSprint = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT) && movementKeysPressed;
 
-        if (wantsToSprint && stamina > 0f) {
-            stamina = Math.max(0f, stamina - (45f * delta));
-        } else if (!wantsToSprint && stamina < maxStamina) {
-            stamina = Math.min(maxStamina, stamina + (30f * delta));
+            if (wantsToSprint && stamina > 0f) {
+                stamina = Math.max(0f, stamina - (45f * delta));
+            } else if (!wantsToSprint && stamina < maxStamina) {
+                stamina = Math.min(maxStamina, stamina + (30f * delta));
+            }
         }
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
@@ -1795,11 +1804,16 @@ public class GameScreen implements Screen {
         }
 
         if (snapshot != null) {
-            isBeingBitten = false;
-            TextureRegion zombieFrame = updateMiddleZombie(snapshot, me, delta);
-            updateAmbushZombies(snapshot, me, delta);
-            updateAlliesAndVillagers(delta, me, snapshot);
-            updatePlayerAnimations(snapshot, delta, me);
+            TextureRegion zombieFrame;
+            if (!paused) {
+                isBeingBitten = false;
+                zombieFrame = updateMiddleZombie(snapshot, me, delta);
+                updateAmbushZombies(snapshot, me, delta);
+                updateAlliesAndVillagers(delta, me, snapshot);
+                updatePlayerAnimations(snapshot, delta, me);
+            } else {
+                zombieFrame = currentMiddleZombieFrame();
+            }
 
             if (isDualViewDebugMode && snapshot.players != null && !snapshot.players.isEmpty()) {
                 WorldSnapshot.PlayerState p1 = snapshot.players.get(0);
@@ -1816,7 +1830,7 @@ public class GameScreen implements Screen {
                 batch.setProjectionMatrix(camera.combined);
                 batch.begin();
                 drawLevelMap();
-                drawWorld(snapshot, delta, zombieFrame, me);
+                drawWorld(snapshot, paused ? 0f : delta, zombieFrame, me);
                 batch.end();
                 if (showCollisionOverlay) drawCollisionOverlay();
 
@@ -1827,7 +1841,7 @@ public class GameScreen implements Screen {
                 batch.setProjectionMatrix(camera.combined);
                 batch.begin();
                 drawLevelMap();
-                drawWorld(snapshot, delta, zombieFrame, me);
+                drawWorld(snapshot, paused ? 0f : delta, zombieFrame, me);
                 batch.end();
                 if (showCollisionOverlay) drawCollisionOverlay();
 
@@ -1862,7 +1876,7 @@ public class GameScreen implements Screen {
                 batch.setProjectionMatrix(camera.combined);
                 batch.begin();
                 drawLevelMap();
-                drawWorld(snapshot, delta, zombieFrame, me);
+                drawWorld(snapshot, paused ? 0f : delta, zombieFrame, me);
                 batch.end();
                 if (showCollisionOverlay) drawCollisionOverlay();
             }
@@ -2322,6 +2336,24 @@ public class GameScreen implements Screen {
         }
 
         return bestTarget;
+    }
+
+    private TextureRegion currentMiddleZombieFrame() {
+        if (isZombieDead) return null;
+
+        TextureRegion[][] frames;
+        if (middleZombieBiting && zombieBiteFrames != null) {
+            frames = zombieBiteFrames;
+        } else if (middleZombieChasing && zombieFrames != null) {
+            frames = zombieFrames;
+        } else {
+            frames = zombieIdleFrames != null ? zombieIdleFrames : zombieFrames;
+        }
+        if (frames == null || frames.length == 0 || frames[0].length == 0) return null;
+
+        int safeRow = Math.floorMod(zombieAnim.currentRow, frames.length);
+        int safeCol = Math.floorMod(zombieAnim.currentColumn, frames[safeRow].length);
+        return frames[safeRow][safeCol];
     }
 
     private TextureRegion updateMiddleZombie(WorldSnapshot snapshot, WorldSnapshot.PlayerState me, float delta) {

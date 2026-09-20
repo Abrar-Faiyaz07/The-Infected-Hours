@@ -6,7 +6,6 @@ import com.infectedhour.fxlauncher.state.SessionState;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.Parent;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
@@ -80,18 +79,7 @@ public class MainMenuController {
 
     @FXML
     private void onAbout() {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("About");
-        alert.setHeaderText("The Infected Hour — " + VERSION);
-        alert.setContentText("""
-                2D top-down co-op action game. Contain the epidemic, destroy the Virus Heart.
-
-                CSE 4402 Visual Programming Lab
-                Islamic University of Technology
-
-                Asset credits: see ASSETS_CREDITS.md""");
-        alert.initOwner(stage);
-        alert.showAndWait();
+        navigate(new IntelView(stage, backendClient).getRoot());
     }
 
     @FXML

@@ -1,0 +1,29 @@
+SOUND-EFFECT MP3 FILES NEEDED
+=============================
+
+CATALOGUED NOW
+[ ] story_advance.mp3
+[ ] level_start.mp3
+[ ] boss_phase_change.mp3
+[ ] boss_telegraph.mp3
+[ ] boss_defeated.mp3
+[ ] objective_complete.mp3
+[ ] player_hit.mp3
+
+PLANNED - FILENAMES TO CONFIRM BEFORE CODE INTEGRATION
+[ ] footsteps
+[ ] interaction
+[ ] barricade placement
+[ ] sanitation spray/hiss
+[ ] enemy hit
+[ ] zombie vocals
+[ ] contamination heartbeat loop
+[ ] boss roars
+[ ] villager rescue vocal/chime
+[ ] global contamination low drone
+[ ] victory stinger
+[ ] defeat stinger
+
+Runtime copies must be exported with the same approved base names to
+assets/audio/sfx/*.ogg.
+

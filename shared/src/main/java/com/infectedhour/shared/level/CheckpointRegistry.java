@@ -116,9 +116,9 @@ public final class CheckpointRegistry {
         return forLevel(levelNumber).stream()
                 .findFirst()
                 .orElseGet(() -> switch (levelNumber) {
-                    case 4 -> new Checkpoint("l4_cp01_start", "Subterranean Corridor", 4, 1, 10.5f, 34.5f);
-                    case 5 -> new Checkpoint("l5_cp01_start", "Research Facility", 5, 1, 34.43f, 8.32f);
-                    case 6 -> new Checkpoint("l6_cp01_start", "Secret Laboratory", 6, 1, 15.5f, 15.5f);
+                    case 4 -> new Checkpoint("l4_cp01_start", "Subterranean Corridor", 4, 1, 31.37f, 35.0f);
+                    case 5 -> new Checkpoint("l5_cp01_start", "Research Facility", 5, 1, 28.68f, 4.43f);
+                    case 6 -> new Checkpoint("l6_cp01_start", "Secret Laboratory", 6, 1, 30.63f, 39.12f);
                     default -> throw new IllegalArgumentException("No checkpoints for level " + levelNumber);
                 });
     }
