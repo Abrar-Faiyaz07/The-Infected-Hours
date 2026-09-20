@@ -31,3 +31,8 @@ dependencies {
     // "Failed to load JUnit Platform".
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
+
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    maxHeapSize = "512m"
+    jvmArgs = listOf("-Xms128m", "-Xmx512m", "-XX:+UseG1GC")
+}

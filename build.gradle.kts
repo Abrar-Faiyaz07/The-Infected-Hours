@@ -28,6 +28,11 @@ subprojects {
     tasks.withType<ProcessResources> {
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
     }
+
+    tasks.withType<JavaExec> {
+        maxHeapSize = "512m"
+        jvmArgs = listOf("-Xms128m", "-Xmx512m", "-XX:+UseG1GC")
+    }
 }
 
 // NOTE: junit-platform-launcher is declared per-module, not here. Adding it from

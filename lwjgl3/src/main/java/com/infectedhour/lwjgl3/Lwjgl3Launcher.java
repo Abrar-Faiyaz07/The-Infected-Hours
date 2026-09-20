@@ -5,6 +5,9 @@ import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.infectedhour.core.InfectedHourGame;
 import com.infectedhour.core.bridge.GameBridge;
 import com.infectedhour.core.net.SessionConfig;
+import com.infectedhour.shared.dto.SaveSlotDto;
+import com.infectedhour.shared.level.Checkpoint;
+import com.infectedhour.shared.level.CheckpointRegistry;
 
 /**
  * Two uses (TRD §3 comment on this module, §11 build target):
@@ -23,6 +26,7 @@ public class Lwjgl3Launcher {
      *   ./gradlew :lwjgl3:run --args="host"               # host, waits for a partner
      *   ./gradlew :lwjgl3:run --args="join 192.168.0.14"  # join that host
      *   ./gradlew :lwjgl3:run --args="join"               # join localhost (two windows, one PC)
+     *   ./gradlew :lwjgl3:run --args="level 2"            # start on that level, at its first checkpoint
      * </pre>
      *
      * The two-windows-on-one-PC form is the fastest way to exercise the whole
@@ -40,7 +44,24 @@ public class Lwjgl3Launcher {
         if (args != null && args.length > 0 && "jane".equalsIgnoreCase(args[0])) {
             return SessionConfig.hosting("dev-host", "Dev Host", null, com.infectedhour.shared.network.CharacterType.JANE);
         }
+        if (args != null && args.length > 1 && "level".equalsIgnoreCase(args[0])) {
+            return devSessionAtLevel(Integer.parseInt(args[1]));
+        }
         return SessionConfig.devSolo();
+    }
+
+    /**
+     * Starts on a given level by handing the session a synthetic save slot,
+     * since {@link SessionConfig#startingLevel()} only leaves level 1 when a
+     * save is being restored. Placed at the level's first checkpoint so the
+     * spawn is somewhere the map actually allows standing.
+     */
+    static SessionConfig devSessionAtLevel(int levelNumber) {
+        Checkpoint start = CheckpointRegistry.firstOf(levelNumber);
+        SaveSlotDto slot = new SaveSlotDto(1, true, levelNumber, "Dev Level " + levelNumber,
+                start.id(), start.name(), 0, 0L, "ELRIC",
+                100f, 0f, 0f, null, null, null);
+        return SessionConfig.hostingFromSave("dev-host", "Dev Host", null, slot);
     }
 
     public static void boot(SessionConfig session, GameBridge bridge) {

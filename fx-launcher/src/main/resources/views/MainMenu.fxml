@@ -62,10 +62,22 @@
                         prefWidth="170" prefHeight="104"
                         styleClass="mode-card"
                         onAction="#onCoopMode"/>
+                <Button text="DEBUG CO-OP&#10;SPLIT SCREEN"
+                        prefWidth="175" prefHeight="104"
+                        styleClass="mode-card, mode-card-compact"
+                        onAction="#onDebugCoop"/>
+                <Button text="FINAL BOSS&#10;FIGHT"
+                        prefWidth="165" prefHeight="104"
+                        styleClass="mode-card, mode-card-compact"
+                        onAction="#onFinalBossFight"/>
                 <Button text="CONTINUE&#10;LOAD GAME"
                         prefWidth="170" prefHeight="104"
                         styleClass="mode-card"
                         onAction="#onLoadGame"/>
+                <Button text="COLLECTION&#10;DOSSIERS"
+                        prefWidth="160" prefHeight="104"
+                        styleClass="mode-card, mode-card-compact"
+                        onAction="#onCollection"/>
                 <Button text="SYSTEM&#10;SETTINGS"
                         prefWidth="155" prefHeight="104"
                         styleClass="mode-card, mode-card-compact"

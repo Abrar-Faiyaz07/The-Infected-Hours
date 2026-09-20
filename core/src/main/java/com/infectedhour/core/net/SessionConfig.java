@@ -19,10 +19,12 @@ import com.infectedhour.shared.network.CharacterType;
  *                           ships it to the client inside JoinAccept (TRD §6)
  * @param loadedSlot         save slot to restore, or null for a fresh game
  * @param preferredCharacter character requested by the host (ELRIC or JANE)
+ * @param debugSplitScreen   true when single-machine split-screen co-op mode is enabled
  */
 public record SessionConfig(boolean host, String hostAddress, String playerId,
                             String displayName, String backendUrl,
-                            SaveSlotDto loadedSlot, CharacterType preferredCharacter) {
+                            SaveSlotDto loadedSlot, CharacterType preferredCharacter,
+                            boolean debugSplitScreen, boolean debugBossFight) {
 
     public SessionConfig {
         playerId = playerId == null || playerId.isBlank() ? "player-" + System.nanoTime() : playerId;
@@ -34,19 +36,42 @@ public record SessionConfig(boolean host, String hostAddress, String playerId,
     }
 
     public SessionConfig(boolean host, String hostAddress, String playerId,
+                         String displayName, String backendUrl,
+                         SaveSlotDto loadedSlot, CharacterType preferredCharacter,
+                         boolean debugSplitScreen) {
+        this(host, hostAddress, playerId, displayName, backendUrl, loadedSlot, preferredCharacter, debugSplitScreen, false);
+    }
+
+    public SessionConfig(boolean host, String hostAddress, String playerId,
+                         String displayName, String backendUrl,
+                         SaveSlotDto loadedSlot, CharacterType preferredCharacter) {
+        this(host, hostAddress, playerId, displayName, backendUrl, loadedSlot, preferredCharacter, false, false);
+    }
+
+    public SessionConfig(boolean host, String hostAddress, String playerId,
                          String displayName, String backendUrl, SaveSlotDto loadedSlot) {
         this(host, hostAddress, playerId, displayName, backendUrl, loadedSlot,
                 (loadedSlot != null && "JANE".equalsIgnoreCase(loadedSlot.characterType()))
-                        ? CharacterType.JANE : CharacterType.ELRIC);
+                        ? CharacterType.JANE : CharacterType.ELRIC, false, false);
     }
 
     /** This laptop hosts: the client connects to its own loopback. */
     public static SessionConfig hosting(String playerId, String displayName, String backendUrl) {
-        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null, CharacterType.ELRIC);
+        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null, CharacterType.ELRIC, false, false);
     }
 
     public static SessionConfig hosting(String playerId, String displayName, String backendUrl, CharacterType preferredCharacter) {
-        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null, preferredCharacter);
+        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null, preferredCharacter, false, false);
+    }
+
+    /** Debug split-screen co-op on a single machine. */
+    public static SessionConfig debugLocalCoop(String playerId, String displayName, String backendUrl) {
+        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null, CharacterType.ELRIC, true, false);
+    }
+
+    /** Direct Final Boss fight debug mode with chosen character. */
+    public static SessionConfig debugBossFight(String playerId, String displayName, String backendUrl, CharacterType preferredCharacter) {
+        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null, preferredCharacter, false, true);
     }
 
     /** Host a run restored from a save slot (Load Game). */
@@ -80,8 +105,9 @@ public record SessionConfig(boolean host, String hostAddress, String playerId,
         return loadedSlot != null && loadedSlot.occupied();
     }
 
-    /** Level to boot into: the save's level, or 1 for a new run. */
+    /** Level to boot into: the save's level, 3 for boss fight, or 1 for a new run. */
     public int startingLevel() {
+        if (debugBossFight) return 3;
         return isLoadingSave() ? Math.max(1, loadedSlot.levelNumber()) : 1;
     }
 

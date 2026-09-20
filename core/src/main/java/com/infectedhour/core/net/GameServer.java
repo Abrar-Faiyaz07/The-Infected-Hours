@@ -18,6 +18,7 @@ import com.infectedhour.core.systems.CombatSystem;
 import com.infectedhour.core.systems.ContaminationSystem;
 import com.infectedhour.core.systems.MovementSystem;
 import com.infectedhour.core.systems.ObjectiveSystem;
+import com.infectedhour.core.state.CampaignSquadState;
 import com.infectedhour.shared.constants.GameConstants;
 import com.infectedhour.shared.dto.SaveSlotDto;
 import com.infectedhour.shared.level.Checkpoint;
@@ -121,7 +122,7 @@ public class GameServer {
         final String displayName;
         final Player entity;
         volatile InputCommand latestInput = new InputCommand();
-        volatile String equippedWeapon = "NONE";
+        volatile String equippedWeapon = "MELEE";
 
         ConnectedPlayer(int connectionId, String playerId, String displayName, CharacterType character) {
             this.connectionId = connectionId;
@@ -176,14 +177,6 @@ public class GameServer {
         running = true;
         LOG.info(() -> "GameServer listening on TCP " + GameConstants.KRYONET_TCP_PORT
                 + " / UDP " + GameConstants.KRYONET_UDP_PORT + " as \"" + this.hostDisplayName + "\"");
-
-        // Spawn test machete to the right of host
-        WorldSnapshot.ItemState testMachete = new WorldSnapshot.ItemState();
-        testMachete.id = "machete_1";
-        testMachete.type = "MELEE";
-        testMachete.x = spawnX(hostCharacter) + 1.5f;
-        testMachete.y = spawnY(hostCharacter);
-        addItem(testMachete);
     }
 
     public void start() throws IOException {
@@ -278,9 +271,37 @@ public class GameServer {
         return backendUrl;
     }
 
+    public static final int LOCAL_P2_CONNECTION_ID = 9999;
+
+    public void enableLocalCoopDummy(CharacterType p2Char) {
+        synchronized (rosterLock) {
+            if (!playersByConnectionId.containsKey(LOCAL_P2_CONNECTION_ID)) {
+                ConnectedPlayer p2 = new ConnectedPlayer(LOCAL_P2_CONNECTION_ID, "local-p2", "Jane (P2)", p2Char);
+                p2.entity.setPosition(spawnX(p2Char), spawnY(p2Char));
+                playersByConnectionId.put(LOCAL_P2_CONNECTION_ID, p2);
+                LOG.info("Local Split-Screen P2 registered as " + p2Char);
+            }
+        }
+    }
+
+    public void injectLocalP2Input(InputCommand input) {
+        ConnectedPlayer player = playersByConnectionId.get(LOCAL_P2_CONNECTION_ID);
+        if (player != null && input != null) {
+            if (currentLevelNumber == 1 && !CampaignSquadState.isJaneRevived && player.entity.getCharacter() == CharacterType.JANE) {
+                player.latestInput = new InputCommand();
+                return;
+            }
+            player.latestInput = input;
+        }
+    }
+
     private void onInput(Connection connection, InputCommand input) {
         ConnectedPlayer player = playersByConnectionId.get(connection.getID());
         if (player != null) {
+            if (currentLevelNumber == 1 && !CampaignSquadState.isJaneRevived && player.entity.getCharacter() == CharacterType.JANE) {
+                player.latestInput = new InputCommand();
+                return;
+            }
             player.latestInput = input;
         }
     }
@@ -291,15 +312,36 @@ public class GameServer {
             return;
         }
 
+        if ("REVIVE_JANE".equals(event.type)) {
+            CampaignSquadState.isJaneRevived = true;
+            broadcastEvent("REVIVE_JANE", "JANE_REVIVED");
+            return;
+        }
+
         // Handle zombie bite damage only if the player is still alive & not downed
         if ("ZOMBIE_BITE_DAMAGE".equals(event.type)) {
-            if (sender.entity.getHp() > 0f && !sender.entity.isDowned()) {
-                try {
-                    float damage = Float.parseFloat(event.payload);
-                    sender.entity.applyDamage(damage);
-                } catch (NumberFormatException e) {
-                    LOG.warning("Invalid zombie bite damage payload: " + event.payload);
+            ConnectedPlayer target = sender;
+            float damage = 20f;
+            try {
+                if (event.payload != null && event.payload.contains(":")) {
+                    String[] parts = event.payload.split(":", 2);
+                    damage = Float.parseFloat(parts[0]);
+                    String targetId = parts[1];
+                    for (ConnectedPlayer cp : playersByConnectionId.values()) {
+                        if (cp.playerId.equals(targetId) || cp.entity.getCharacter().name().equalsIgnoreCase(targetId)) {
+                            target = cp;
+                            break;
+                        }
+                    }
+                } else if (event.payload != null) {
+                    damage = Float.parseFloat(event.payload);
                 }
+            } catch (NumberFormatException e) {
+                LOG.warning("Invalid zombie bite damage payload: " + event.payload);
+            }
+
+            if (target != null && target.entity.getHp() > 0f && !target.entity.isDowned()) {
+                target.entity.applyDamage(damage);
             }
             return;
         }
@@ -313,6 +355,24 @@ public class GameServer {
                 } catch (NumberFormatException ignored) {}
                 sender.entity.heal(healAmount);
                 LOG.info(() -> sender.displayName + " healed (" + sender.entity.getHp() + " HP)");
+            }
+            return;
+        }
+
+        // Handle reviving downed teammate
+        if ("PLAYER_REVIVE".equals(event.type)) {
+            if (sender.entity.getHp() > 0f && !sender.entity.isDowned()) {
+                String targetId = event.payload;
+                for (ConnectedPlayer cp : playersByConnectionId.values()) {
+                    if (cp.entity.isDowned() && (targetId == null || cp.playerId.equals(targetId) || cp.entity.getCharacter().name().equalsIgnoreCase(targetId))) {
+                        float dist = (float) Math.hypot(cp.entity.getX() - sender.entity.getX(), cp.entity.getY() - sender.entity.getY());
+                        if (dist <= 2.5f) {
+                            cp.entity.revive();
+                            LOG.info(() -> sender.displayName + " revived " + cp.displayName);
+                            break;
+                        }
+                    }
+                }
             }
             return;
         }
@@ -577,7 +637,15 @@ public class GameServer {
             Checkpoint start = CheckpointRegistry.firstOf(definition.levelNumber());
             int playerIndex = 0;
             for (ConnectedPlayer connected : playersByConnectionId.values()) {
-                connected.entity.setPosition(start.spawnTileX() + playerIndex * 0.5f, start.spawnTileY());
+                if (definition.levelNumber() == 1 && connected.entity.getCharacter() == CharacterType.JANE && !CampaignSquadState.isJaneRevived) {
+                    connected.entity.setPosition(42.0f, 5.5f);
+                } else {
+                    connected.entity.setPosition(start.spawnTileX() + playerIndex * 0.5f, start.spawnTileY());
+                }
+                connected.entity.revive();
+                connected.entity.heal(100f);
+                connected.entity.cleanseContamination();
+                connected.equippedWeapon = "MELEE";
                 playerIndex++;
             }
         }
@@ -840,11 +908,17 @@ public class GameServer {
      * boundary between two tiles, so a 0.25-radius collider straddles both and
      * can clip a wall that touches only one of them.
      */
-    private static float spawnX(CharacterType character) {
+    private float spawnX(CharacterType character) {
+        if (currentLevelNumber == 1 && character == CharacterType.JANE && !CampaignSquadState.isJaneRevived) {
+            return 42.0f;
+        }
         return character == CharacterType.ELRIC ? 9.5f : 10.5f;
     }
 
-    private static float spawnY(CharacterType character) {
+    private float spawnY(CharacterType character) {
+        if (currentLevelNumber == 1 && character == CharacterType.JANE && !CampaignSquadState.isJaneRevived) {
+            return 5.5f;
+        }
         return 8.5f;
     }
 
