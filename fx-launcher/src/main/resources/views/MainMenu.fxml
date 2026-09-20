@@ -100,7 +100,7 @@
             <Label text="FEATURED  /  STORY MODE" styleClass="hero-eyebrow"/>
             <Label text="THE INFECTED" styleClass="hero-title"/>
             <Label text="HOUR" styleClass="hero-title, hero-title-accent"/>
-            <Label text="The night is spreading. Contain the epidemic, rescue the survivors, and destroy the Virus Heart before dawn."
+            <Label text="Enter St. Mercy Hospital, rescue the survivors, and uncover Ashgrove Corporation's last cure."
                    wrapText="true" maxWidth="560" styleClass="hero-description"/>
             <Region prefHeight="8"/>
             <HBox alignment="CENTER_LEFT" spacing="12">

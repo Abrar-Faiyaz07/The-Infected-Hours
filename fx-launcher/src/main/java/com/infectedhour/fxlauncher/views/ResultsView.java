@@ -43,7 +43,7 @@ public class ResultsView {
         banner.getStyleClass().addAll("results-title", victory ? "results-title-victory" : "results-title-defeat");
 
         Label narrative = new Label(victory
-                ? "The Virus Heart is silent. The district survived the night."
+                ? "The final mutation is dead. The antidote data survived."
                 : "The infection breached the perimeter. Regroup, rearm, and return before Ashgrove is lost.");
         narrative.setWrapText(true);
         narrative.setMaxWidth(520);

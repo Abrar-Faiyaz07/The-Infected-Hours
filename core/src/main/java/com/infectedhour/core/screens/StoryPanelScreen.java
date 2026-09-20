@@ -11,50 +11,92 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.Align;
 import com.infectedhour.core.InfectedHourGame;
+import com.infectedhour.core.audio.SoundtrackCatalog;
 import com.infectedhour.core.bridge.GameBridge;
+import com.infectedhour.core.content.DialogueCatalog;
 import com.infectedhour.core.net.GameClient;
 import com.infectedhour.shared.constants.GameConstants;
 import com.infectedhour.shared.network.MatchMode;
 
+import java.util.List;
+
 /**
- * Full-screen illustrated story panels (UI/UX doc §6). Advances only when
- * BOTH players press E (UX rule 5) with a 20s auto-ready fallback — mirrors
- * the LevelBriefingScreen ready-gate pattern, and for the same reason: a
- * co-op story beat that advances on one screen but not the other desyncs the
- * whole session.
+ * Full-screen cinematic player for the campaign's generated images, subtitles,
+ * and optional OGG narration.
  */
 public class StoryPanelScreen implements Screen {
 
     public enum Sequence {
-        INTRO, AFTER_LEVEL_1, AFTER_LEVEL_2, ENDING
+        INTRO(DialogueCatalog.Scene.INTRO),
+        LEVEL_2_START(DialogueCatalog.Scene.LEVEL_2_START),
+        LEVEL_3_START(DialogueCatalog.Scene.LEVEL_3_START),
+        LEVEL_4_START(DialogueCatalog.Scene.LEVEL_4_START),
+        LEVEL_5_START(DialogueCatalog.Scene.LEVEL_5_START),
+        LEVEL_6_START(DialogueCatalog.Scene.LEVEL_6_START),
+        ENDING(DialogueCatalog.Scene.ENDING);
+
+        private final DialogueCatalog.Scene dialogueScene;
+
+        Sequence(DialogueCatalog.Scene dialogueScene) {
+            this.dialogueScene = dialogueScene;
+        }
+
+        public DialogueCatalog.Scene dialogueScene() {
+            return dialogueScene;
+        }
+
+        public static Sequence afterCompletedLevel(int levelNumber) {
+            return switch (levelNumber) {
+                case 1 -> LEVEL_2_START;
+                case 2 -> LEVEL_3_START;
+                case 3 -> LEVEL_4_START;
+                case 4 -> LEVEL_5_START;
+                case 5 -> LEVEL_6_START;
+                case 6 -> ENDING;
+                default -> throw new IllegalArgumentException("No cinematic follows level " + levelNumber);
+            };
+        }
+
+        /** Used by developer co-op when launching directly into a selected map. */
+        public static Sequence beforeLevel(int levelNumber) {
+            return switch (levelNumber) {
+                case 1 -> INTRO;
+                case 2 -> LEVEL_2_START;
+                case 3 -> LEVEL_3_START;
+                case 4 -> LEVEL_4_START;
+                case 5 -> LEVEL_5_START;
+                case 6 -> LEVEL_6_START;
+                default -> throw new IllegalArgumentException("No cinematic precedes level " + levelNumber);
+            };
+        }
     }
 
     private static final String STORY_ADVANCE_EVENT = "STORY_ADVANCE";
+    private static final String STORY_SKIP_EVENT = "STORY_SKIP";
+    private static final float TYPEWRITER_CHARS_PER_SEC = 52f;
+    private static final float AUTO_READY_FALLBACK_SECONDS = 20f;
+    private static final float FADE_IN_SECONDS = 0.65f;
 
     private final InfectedHourGame game;
     private final GameClient client;
     private final GameBridge bridge;
     private final Sequence sequence;
-    private final int justCompletedOrUpcomingLevel;
+    private final int levelContext;
 
     private SpriteBatch batch;
-    private BitmapFont font;
+    private BitmapFont subtitleFont;
+    private BitmapFont speakerFont;
     private BitmapFont titleFont;
-    private Texture storyBackground;
+    private Texture cinematicTexture;
     private Texture overlayPixel;
+    private List<DialogueCatalog.Line> panels;
 
-    private String[] panels;
-    private String[] panelTitles;
-    private int currentPanelIndex = 0;
-    private float typewriterElapsed = 0f;
-    private float panelElapsed = 0f;
-    private boolean localAdvanceRequested = false;
-    private volatile boolean partnerAdvanceRequested = false;
-
-    private static final float TYPEWRITER_CHARS_PER_SEC = 40f; // UI/UX doc §6
-    private static final float AUTO_READY_FALLBACK_SECONDS = 20f;
-
-    private int moralChoice = 0; // 0 = undecided, 1 = save Elena, 2 = deliver to Oscorp
+    private int currentPanelIndex;
+    private float typewriterElapsed;
+    private float panelElapsed;
+    private boolean localAdvanceRequested;
+    private volatile boolean partnerAdvanceRequested;
+    private boolean transitioning;
 
     public StoryPanelScreen(InfectedHourGame game, GameClient client, GameBridge bridge,
                             Sequence sequence, int levelContext) {
@@ -62,23 +104,19 @@ public class StoryPanelScreen implements Screen {
         this.client = client;
         this.bridge = bridge;
         this.sequence = sequence;
-        this.justCompletedOrUpcomingLevel = levelContext;
+        this.levelContext = levelContext;
     }
 
     @Override
     public void show() {
         batch = new SpriteBatch();
-        font = new BitmapFont();
-        font.getData().setScale(1.15f);
+        subtitleFont = new BitmapFont();
+        subtitleFont.getData().setScale(1.18f);
+        speakerFont = new BitmapFont();
+        speakerFont.getData().setScale(1.05f);
         titleFont = new BitmapFont();
-        titleFont.getData().setScale(2.05f);
-        panels = panelsFor(sequence);
-        panelTitles = panelTitlesFor(sequence);
-
-        if (Gdx.files.internal("story_intro.png").exists()) {
-            storyBackground = new Texture(Gdx.files.internal("story_intro.png"));
-            storyBackground.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-        }
+        titleFont.getData().setScale(1.55f);
+        panels = DialogueCatalog.lines(sequence.dialogueScene());
 
         Pixmap pixel = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         pixel.setColor(Color.WHITE);
@@ -87,192 +125,185 @@ public class StoryPanelScreen implements Screen {
         pixel.dispose();
 
         client.setOnEvent(event -> {
-            if (STORY_ADVANCE_EVENT.equals(event.type)) {
+            if (event.type == null) return;
+            if (STORY_ADVANCE_EVENT.equals(event.type) && panelToken().equals(event.payload)) {
                 partnerAdvanceRequested = true;
-            } else if ("STORY_CHOICE".equals(event.type)) {
-                try {
-                    moralChoice = Integer.parseInt(event.payload);
-                } catch (Exception ignored) { }
+            } else if (STORY_SKIP_EVENT.equals(event.type) && sequence.name().equals(event.payload)) {
+                Gdx.app.postRunnable(this::finishSequence);
             }
         });
+
+        loadCurrentPanel();
     }
 
     @Override
     public void render(float delta) {
         game.stepSimulation(delta);
-
         typewriterElapsed += delta;
         panelElapsed += delta;
 
-        // Friendship / Humanity choice temporarily commented out
-        boolean isEndingChoicePanel = false;
-        /*
-        boolean isEndingChoicePanel = (sequence == Sequence.ENDING && currentPanelIndex == 2);
+        DialogueCatalog.Line line = currentLine();
+        String subtitle = sanitize(line.text());
+        int visibleChars = Math.min(subtitle.length(), (int) (typewriterElapsed * TYPEWRITER_CHARS_PER_SEC));
+        boolean fullyRevealed = visibleChars >= subtitle.length();
 
-        if (isEndingChoicePanel && moralChoice == 0) {
-            if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_1)) {
-                moralChoice = 1;
-                client.sendEvent("STORY_CHOICE", "1");
-                nextPanel();
-                return;
-            } else if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_2) || Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_2)) {
-                moralChoice = 2;
-                client.sendEvent("STORY_CHOICE", "2");
-                nextPanel();
-                return;
-            }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.S)) {
+            client.sendEvent(STORY_SKIP_EVENT, sequence.name());
+            finishSequence();
+            return;
         }
-        */
 
-        String text = panels[currentPanelIndex];
-        int visibleChars = Math.min(text.length(), (int) (typewriterElapsed * TYPEWRITER_CHARS_PER_SEC));
-        boolean fullyRevealed = visibleChars >= text.length();
-
-        if (!isEndingChoicePanel && (Gdx.input.isKeyJustPressed(Input.Keys.E)
+        if (Gdx.input.isKeyJustPressed(Input.Keys.E)
                 || Gdx.input.isKeyJustPressed(Input.Keys.SPACE)
                 || Gdx.input.isKeyJustPressed(Input.Keys.ENTER)
-                || Gdx.input.isButtonJustPressed(Input.Buttons.LEFT))) {
+                || Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
             if (!fullyRevealed) {
-                typewriterElapsed = text.length() / TYPEWRITER_CHARS_PER_SEC + 1f; // reveal the rest instantly
+                typewriterElapsed = subtitle.length() / TYPEWRITER_CHARS_PER_SEC + 1f;
             } else if (!localAdvanceRequested) {
                 localAdvanceRequested = true;
-                client.sendEvent(STORY_ADVANCE_EVENT, sequence.name() + ":" + currentPanelIndex);
+                client.sendEvent(STORY_ADVANCE_EVENT, panelToken());
             }
         }
 
-        // Nobody is held hostage by a partner who walked away (UX rule 5).
         boolean partnerOk = partnerAdvanceRequested
                 || panelElapsed >= AUTO_READY_FALLBACK_SECONDS
                 || client.getMatchMode() == MatchMode.SOLO
                 || (game.getSession() != null && game.getSession().debugSplitScreen())
                 || (game.getServer() != null && game.getServer().getConnectedPlayerCount() <= 1);
 
-        Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-
-        float screenWidth = Gdx.graphics.getWidth();
-        float screenHeight = Gdx.graphics.getHeight();
-        float marginX = Math.max(54f, screenWidth * 0.055f);
-        float contentWidth = Math.min(720f, screenWidth * 0.42f);
-        float top = screenHeight - Math.max(64f, screenHeight * 0.075f);
-
-        batch.begin();
-        if (storyBackground != null) {
-            batch.setColor(Color.WHITE);
-            batch.draw(storyBackground, 0f, 0f, screenWidth, screenHeight);
-        }
-
-        // 1. Cinematic gradient blend from left to right (eliminates harsh 50/50 vertical split)
-        batch.setColor(0.01f, 0.02f, 0.035f, 0.25f);
-        batch.draw(overlayPixel, 0f, 0f, screenWidth, screenHeight);
-
-        float overlayWidth = Math.min(screenWidth * 0.58f, 980f);
-        int gradientSlices = 36;
-        float sliceW = overlayWidth / gradientSlices;
-        for (int i = 0; i < gradientSlices; i++) {
-            float t = (float) i / gradientSlices;
-            float alpha = 0.88f * (1.0f - (float) Math.pow(t, 1.55));
-            batch.setColor(0.012f, 0.022f, 0.038f, alpha);
-            batch.draw(overlayPixel, i * sliceW, 0f, sliceW + 1f, screenHeight);
-        }
-
-        // 2. Tactical Briefing Card Background & Framing
-        float cardX = marginX - 20f;
-        float cardY = 88f;
-        float cardW = contentWidth + 40f;
-        float cardH = (top - cardY) + 20f;
-
-        // Semi-transparent acrylic glass
-        batch.setColor(0.018f, 0.028f, 0.045f, 0.65f);
-        batch.draw(overlayPixel, cardX, cardY, cardW, cardH);
-
-        // Muted Card Border
-        batch.setColor(0.18f, 0.24f, 0.32f, 0.70f);
-        batch.draw(overlayPixel, cardX, cardY, cardW, 1f);
-        batch.draw(overlayPixel, cardX, cardY + cardH, cardW, 1f);
-        batch.draw(overlayPixel, cardX, cardY, 1f, cardH);
-        batch.draw(overlayPixel, cardX + cardW, cardY, 1f, cardH);
-
-        // Tactical Corner Brackets (Biohazard Amber / Gold)
-        batch.setColor(0.910f, 0.690f, 0.165f, 1f);
-        float bLen = 16f;
-        float bThick = 2f;
-        // Top-Left
-        batch.draw(overlayPixel, cardX, cardY + cardH - bThick, bLen, bThick);
-        batch.draw(overlayPixel, cardX, cardY + cardH - bLen, bThick, bLen);
-        // Top-Right
-        batch.draw(overlayPixel, cardX + cardW - bLen, cardY + cardH - bThick, bLen, bThick);
-        batch.draw(overlayPixel, cardX + cardW - bThick, cardY + cardH - bLen, bThick, bLen);
-        // Bottom-Left
-        batch.draw(overlayPixel, cardX, cardY, bLen, bThick);
-        batch.draw(overlayPixel, cardX, cardY, bThick, bLen);
-        // Bottom-Right
-        batch.draw(overlayPixel, cardX + cardW - bLen, cardY, bLen, bThick);
-        batch.draw(overlayPixel, cardX + cardW - bThick, cardY, bThick, bLen);
-
-        // 3. Header & Classification Stamps
-        batch.setColor(0.910f, 0.690f, 0.165f, 1f);
-        batch.draw(overlayPixel, marginX, top - 30f, 120f, 2f);
-        batch.setColor(Color.WHITE);
-
-        font.setColor(0.910f, 0.690f, 0.165f, 1f);
-        font.draw(batch, "[ // " + sequenceLabel(sequence) + " // ]", marginX, top);
-
-        font.setColor(0.55f, 0.62f, 0.72f, 0.9f);
-        font.draw(batch, "SECURITY CLEARANCE: LEVEL-4 RESTRICTED", marginX + contentWidth - 280f, top);
-
-        titleFont.setColor(Color.WHITE);
-        titleFont.draw(batch, panelTitles[currentPanelIndex], marginX, top - 52f,
-                contentWidth, Align.left, true);
-
-        // 4. Body Copy (Sanitized against missing glyphs)
-        String sanitizedText = sanitize(text);
-        int safeChars = Math.min(sanitizedText.length(), visibleChars);
-        font.setColor(0.88f, 0.91f, 0.94f, 1f);
-        font.draw(batch, sanitizedText.substring(0, safeChars), marginX, top - 138f,
-                contentWidth, Align.left, true);
-
-        // 5. Interactive Footer: Stylized Keycap Badge & Segmented Progress
-        if (isEndingChoicePanel) {
-            titleFont.setColor(0.910f, 0.690f, 0.165f, 1f);
-            font.setColor(0.88f, 0.90f, 0.92f, 1f);
-            font.draw(batch, "[1] Save Elena (Friendship)   |   [2] Deliver to Oscorp (Humanity)", marginX, 56f);
-        } else {
-            // Keycap button badge for [ E ]
-            float keyBadgeX = marginX;
-            float keyBadgeY = 40f;
-            float keyBadgeW = 28f;
-            float keyBadgeH = 26f;
-
-            batch.setColor(0.12f, 0.16f, 0.24f, 0.95f);
-            batch.draw(overlayPixel, keyBadgeX, keyBadgeY, keyBadgeW, keyBadgeH);
-            batch.setColor(0.45f, 0.55f, 0.70f, 0.9f);
-            batch.draw(overlayPixel, keyBadgeX, keyBadgeY, keyBadgeW, 1f);
-            batch.draw(overlayPixel, keyBadgeX, keyBadgeY + keyBadgeH, keyBadgeW, 1f);
-            batch.draw(overlayPixel, keyBadgeX, keyBadgeY, 1f, keyBadgeH);
-            batch.draw(overlayPixel, keyBadgeX + keyBadgeW, keyBadgeY, 1f, keyBadgeH);
-            batch.setColor(Color.WHITE);
-
-            font.setColor(Color.WHITE);
-            font.draw(batch, "E", keyBadgeX + 9f, keyBadgeY + 18f);
-
-            font.setColor(0.72f, 0.78f, 0.86f, 1f);
-            String promptText = !fullyRevealed ? "REVEAL ALL" : (!localAdvanceRequested ? "CONTINUE DIRECTIVE" : (partnerOk ? "PROCEEDING..." : "WAITING FOR PARTNER..."));
-            font.draw(batch, promptText, keyBadgeX + keyBadgeW + 12f, keyBadgeY + 18f);
-        }
-
-        // Segmented Progress Pip: [ ■ ■ □ ] PAGE 01 / 03
-        StringBuilder pips = new StringBuilder();
-        for (int i = 0; i < panels.length; i++) {
-            pips.append(i <= currentPanelIndex ? "■ " : "□ ");
-        }
-        font.setColor(0.60f, 0.68f, 0.78f, 1f);
-        font.draw(batch, String.format("[ %s]   PAGE %02d / %02d", pips.toString(), currentPanelIndex + 1, panels.length),
-                marginX + contentWidth - 170f, 56f);
-        batch.end();
+        drawCinematic(line, subtitle.substring(0, visibleChars), fullyRevealed, partnerOk);
 
         if (localAdvanceRequested && partnerOk) {
             nextPanel();
+        }
+    }
+
+    private void drawCinematic(DialogueCatalog.Line line, String visibleSubtitle,
+                               boolean fullyRevealed, boolean partnerOk) {
+        Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
+        float width = Gdx.graphics.getWidth();
+        float height = Gdx.graphics.getHeight();
+        float fade = Math.min(1f, panelElapsed / FADE_IN_SECONDS);
+        float zoom = 1f + Math.min(0.035f, panelElapsed * 0.0015f);
+
+        batch.begin();
+        if (cinematicTexture != null) {
+            float drawWidth = width * zoom;
+            float drawHeight = height * zoom;
+            batch.setColor(1f, 1f, 1f, fade);
+            batch.draw(cinematicTexture, (width - drawWidth) / 2f, (height - drawHeight) / 2f,
+                    drawWidth, drawHeight);
+        }
+
+        batch.setColor(0.01f, 0.015f, 0.025f, 0.18f * fade);
+        batch.draw(overlayPixel, 0f, 0f, width, height);
+
+        // Jane lies close to the lower edge in the Map 1 discovery artwork.
+        // Use a compact panel only for that shot so her face remains visible.
+        boolean compactJaneDiscoveryPanel = "intro-03".equals(line.id());
+        float subtitleHeight = compactJaneDiscoveryPanel
+                ? Math.max(170f, height * 0.18f)
+                : Math.max(235f, height * 0.285f);
+        batch.setColor(0.008f, 0.012f, 0.022f, 0.88f * fade);
+        batch.draw(overlayPixel, 0f, 0f, width, subtitleHeight);
+        batch.setColor(0.32f, 0.68f, 0.86f, 0.9f * fade);
+        batch.draw(overlayPixel, 0f, subtitleHeight - 2f, width, 2f);
+
+        float margin = Math.max(48f, width * 0.075f);
+        float textWidth = width - margin * 2f;
+
+        titleFont.setColor(0.94f, 0.97f, 1f, fade);
+        titleFont.draw(batch, line.title(), margin, height - 38f, textWidth, Align.left, false);
+
+        speakerFont.setColor(0.96f, 0.72f, 0.22f, fade);
+        speakerFont.draw(batch, line.speaker(), margin, subtitleHeight - 28f);
+
+        subtitleFont.setColor(0.95f, 0.96f, 0.98f, fade);
+        subtitleFont.draw(batch, visibleSubtitle, margin, subtitleHeight - 58f,
+                textWidth, Align.left, true);
+
+        speakerFont.setColor(0.70f, 0.78f, 0.86f, fade);
+        String prompt = !fullyRevealed
+                ? "[E] REVEAL SUBTITLE"
+                : (!localAdvanceRequested
+                ? "[E] CONTINUE"
+                : (partnerOk ? "CONTINUING..." : "WAITING FOR PARTNER..."));
+        speakerFont.draw(batch, prompt + "     [S] SKIP CINEMATIC", margin, 28f);
+        speakerFont.draw(batch,
+                String.format("%02d / %02d", currentPanelIndex + 1, panels.size()),
+                width - margin - 72f, 28f);
+
+        batch.setColor(Color.WHITE);
+        batch.end();
+    }
+
+    private void nextPanel() {
+        game.getAudioDirector().stopVoice();
+        game.getAudioDirector().playEffect(SoundtrackCatalog.Effect.STORY_ADVANCE);
+        currentPanelIndex++;
+        if (currentPanelIndex >= panels.size()) {
+            finishSequence();
+            return;
+        }
+        loadCurrentPanel();
+    }
+
+    private void loadCurrentPanel() {
+        localAdvanceRequested = false;
+        partnerAdvanceRequested = false;
+        typewriterElapsed = 0f;
+        panelElapsed = 0f;
+
+        if (cinematicTexture != null) {
+            cinematicTexture.dispose();
+            cinematicTexture = null;
+        }
+
+        DialogueCatalog.Line line = currentLine();
+        String imagePath = line.imageAsset();
+        try {
+            if (Gdx.files.internal(imagePath).exists()) {
+                cinematicTexture = new Texture(Gdx.files.internal(imagePath));
+            } else if (Gdx.files.internal("story_intro.png").exists()) {
+                Gdx.app.log("StoryPanelScreen", "Cinematic image missing: " + imagePath);
+                cinematicTexture = new Texture(Gdx.files.internal("story_intro.png"));
+            }
+            if (cinematicTexture != null) {
+                cinematicTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            }
+        } catch (RuntimeException error) {
+            Gdx.app.log("StoryPanelScreen", "Could not load cinematic image: " + imagePath);
+        }
+
+        game.getAudioDirector().playVoice(line);
+    }
+
+    private DialogueCatalog.Line currentLine() {
+        return panels.get(currentPanelIndex);
+    }
+
+    private String panelToken() {
+        return sequence.name() + ":" + currentPanelIndex;
+    }
+
+    private void finishSequence() {
+        if (transitioning) return;
+        transitioning = true;
+        game.getAudioDirector().stopVoice();
+
+        if (sequence == Sequence.ENDING) {
+            bridge.notifyMatchEnded(new GameBridge.MatchOutcome("VICTORY", GameConstants.BOSS_LEVEL_NUMBER));
+            if (bridge.hasLauncher()) {
+                bridge.requestReturnToLauncher(() -> Gdx.app.postRunnable(Gdx.app::exit));
+            } else {
+                game.setScreen(new MainMenuScreen(game, client, bridge));
+            }
+        } else if (sequence == Sequence.INTRO) {
+            game.setScreen(new GameScreen(game, client, bridge, levelContext));
+        } else {
+            game.setScreen(new LevelBriefingScreen(game, client, bridge, levelContext + 1));
         }
     }
 
@@ -287,132 +318,6 @@ public class StoryPanelScreen implements Screen {
                 .replace("’", "'");
     }
 
-    private static String sequenceLabel(Sequence sequence) {
-        return switch (sequence) {
-            case INTRO -> "OPERATION ASHGROVE: OSCORP BIO-CONTAINMENT";
-            case AFTER_LEVEL_1 -> "FIELD REPORT 01: THE EVACUATION ROUTE";
-            case AFTER_LEVEL_2 -> "FIELD REPORT 02: THE SUBTERRANEAN BREACH";
-            case ENDING -> "FINAL REPORT: PROJECT EXTINCTION";
-        };
-    }
-
-    private static String[] panelTitlesFor(Sequence sequence) {
-        return switch (sequence) {
-            case INTRO -> new String[]{
-                    "OSCORP BIO-CONTAINMENT DIRECTIVE",
-                    "A WEAPONIZED PATHOGEN LOOSE",
-                    "THE UNDERCOVER OPERATIVE"
-            };
-            case AFTER_LEVEL_1 -> new String[]{
-                    "BEYOND ASHGROVE HOSPITAL",
-                    "THE ROAD TO THE OUTPOST"
-            };
-            case AFTER_LEVEL_2 -> new String[]{
-                    "THE UNDERGROUND DRAINAGE TUNNEL",
-                    "OSCORP SECRET FACILITY ZERO"
-            };
-            case ENDING -> new String[]{
-                    "THE VIRUS HEART FALLS SILENT",
-                    "RESEARCH CELL ZERO: ELENA VANCE",
-                    "THE MOMENT OF TRUTH: MORAL CHOICE",
-                    "A PEACEFUL FAREWELL",
-                    "JANE'S INTERVENTION: CLIMAX DUEL"
-            };
-        };
-    }
-
-    private String footerHint(boolean fullyRevealed, boolean partnerOk) {
-        if (!fullyRevealed) {
-            return "[E] skip text";
-        }
-        if (!localAdvanceRequested) {
-            return "[E] continue   (" + (currentPanelIndex + 1) + "/" + panels.length + ")";
-        }
-        return partnerOk ? "" : "Waiting for your partner...";
-    }
-
-    private void nextPanel() {
-        localAdvanceRequested = false;
-        partnerAdvanceRequested = false;
-        typewriterElapsed = 0f;
-        panelElapsed = 0f;
-
-        /*
-        // Moral choice branching and Jane duel transition temporarily commented out
-        if (sequence == Sequence.ENDING) {
-            if (currentPanelIndex == 2) {
-                // After choice panel
-                if (moralChoice == 1) {
-                    currentPanelIndex = 3; // Peaceful farewell panel
-                    return;
-                } else if (moralChoice == 2) {
-                    currentPanelIndex = 4; // Jane confrontation panel
-                    return;
-                }
-            } else if (currentPanelIndex == 3) {
-                // Choice 1 completed: Elena passes peacefully, victory!
-                bridge.notifyMatchEnded(new GameBridge.MatchOutcome("VICTORY", GameConstants.BOSS_LEVEL_NUMBER));
-                if (bridge.hasLauncher()) {
-                    bridge.requestReturnToLauncher(() -> Gdx.app.postRunnable(Gdx.app::exit));
-                } else {
-                    game.setScreen(new MainMenuScreen(game, client, bridge));
-                }
-                return;
-            } else if (currentPanelIndex == 4) {
-                // Choice 2: Transition to boss duel against Agent Jane!
-                game.setScreen(new JaneDuelScreen(game, client, bridge));
-                return;
-            }
-        }
-        */
-
-        currentPanelIndex++;
-
-        if (currentPanelIndex < panels.length) {
-            return;
-        }
-
-        if (sequence == Sequence.ENDING) {
-            bridge.notifyMatchEnded(new GameBridge.MatchOutcome("VICTORY", GameConstants.BOSS_LEVEL_NUMBER));
-            if (bridge.hasLauncher()) {
-                bridge.requestReturnToLauncher(() -> Gdx.app.postRunnable(Gdx.app::exit));
-            } else {
-                game.setScreen(new MainMenuScreen(game, client, bridge));
-            }
-            return;
-        }
-        if (sequence == Sequence.INTRO) {
-            game.setScreen(new GameScreen(game, client, bridge, justCompletedOrUpcomingLevel));
-        } else {
-            game.setScreen(new LevelBriefingScreen(game, client, bridge, justCompletedOrUpcomingLevel + 1));
-        }
-    }
-
-    private static String[] panelsFor(Sequence sequence) {
-        return switch (sequence) {
-            case INTRO -> new String[]{
-                    "Elric arrives in Ashgrove as an elite bio-containment operative for the private Oscorp Organization. A weaponized pathogen -- engineered inside Oscorp's black-budget research laboratories -- was stolen by a rogue insider and released into the civilian population.",
-                    "The contagion breached containment at midnight. Oscorp's directive is uncompromising: destroy the viral core at all costs before dawn, or the entire regional population will transform into ravenous mutated infected.",
-                    "Inside Ashgrove Hospital, an operative named Jane lies senseless. Unbeknownst to Oscorp, Jane is an undercover intelligence agent deployed by the government to monitor Oscorp's illegal bioweapon testing. Surviving the night requires an uneasy alliance."
-            };
-            case AFTER_LEVEL_1 -> new String[]{
-                    "Jane has been revived and the stranded hospital villagers guided to safety. Jane confirms the terrible truth: this is no ordinary virus -- it is an engineered extinction weapon that induces hyper-aggressive cellular mutations.",
-                    "The road ahead cuts through the heart of the overrun village. Jane warns that another wounded agent and three civilians are trapped near the municipal power relay. They must secure the relay grid to reach the subterranean facility."
-            };
-            case AFTER_LEVEL_2 -> new String[]{
-                    "With the wounded field agent and three villagers rescued from the ruins, the roadside power relays hum to life, unlocking the blast doors of the subterranean drainage corridor.",
-                    "Directly beneath Ashgrove lies Oscorp's covert biological research laboratory. In the deepest containment vault waits the primary bio-organism: the mutated Virus Heart that controls the outbreak."
-            };
-            case ENDING -> new String[]{
-                    "The gargantuan Virus Heart shudders and collapses into smoldering biological embers. In the shattered containment chamber, Elric recovers an emergency keycard and the sole remaining vial of the synthesized Prototype Antidote.",
-                    "Elric unlocks the sealed observation cell at the back of the lab. Behind the shattered glass lies Elena Vance -- his closest friend and lead biochemist, who disappeared two months ago investigating Oscorp's weaponization program. Elena is infected, slipping into cellular necrosis.",
-                    "There is only ONE vial of the Antidote. Two irreconcilable choices stand before Elric:\n\n[1] SAVE ELENA -- Administer the antidote immediately to save your dearest friend.\n\n[2] SECURE FOR OSCORP -- Sacrifice Elena and deliver the antidote to Oscorp Corporation to synthesize a cure for humanity.\n\nPress [1] or [2] to decide.",
-                    "Elric presses the injector into Elena's trembling arm. The mutagenic seizure subsides, and her fever breaks. For one tender moment, Elena opens her eyes and whispers: 'Thank you, Elric... you came for me.' She smiles softly and passes away peacefully in his arms, spared from becoming a monster. No combat takes place. Ashgrove is silent at last.",
-                    "Elric turns away and locks the antidote canister into his tactical harness for Oscorp transport. Behind him, the unsheathing of a katana echoes. Agent Jane stands in the doorway, her federal intelligence badge gleaming.\n\nJane: 'Oscorp created this plague, Elric! I can't let you deliver that weapon back to the corporate board. Hand over the antidote, or neither of us walks out of here alive!'"
-            };
-        };
-    }
-
     @Override public void resize(int width, int height) { }
     @Override public void pause() { }
     @Override public void resume() { }
@@ -420,14 +325,16 @@ public class StoryPanelScreen implements Screen {
     @Override
     public void hide() {
         client.setOnEvent(null);
+        game.getAudioDirector().stopVoice();
     }
 
     @Override
     public void dispose() {
         if (batch != null) batch.dispose();
-        if (font != null) font.dispose();
+        if (subtitleFont != null) subtitleFont.dispose();
+        if (speakerFont != null) speakerFont.dispose();
         if (titleFont != null) titleFont.dispose();
-        if (storyBackground != null) storyBackground.dispose();
+        if (cinematicTexture != null) cinematicTexture.dispose();
         if (overlayPixel != null) overlayPixel.dispose();
     }
 }

@@ -8,6 +8,7 @@ import com.infectedhour.core.net.GameServer;
 import com.infectedhour.core.net.SessionConfig;
 import com.infectedhour.core.screens.GameScreen;
 import com.infectedhour.core.screens.LevelBriefingScreen;
+import com.infectedhour.core.screens.StoryPanelScreen;
 import com.infectedhour.shared.constants.GameConstants;
 
 import java.io.IOException;
@@ -90,7 +91,13 @@ public class InfectedHourGame extends Game {
         if (session.debugBossFight()) {
             setScreen(new com.infectedhour.core.screens.BossScreen(this, client, bridge, session.preferredCharacter()));
         } else if (session.debugSplitScreen()) {
-            setScreen(new GameScreen(this, client, bridge, session.startingLevel()));
+            int startingLevel = session.startingLevel();
+            if (startingLevel == 1) {
+                setScreen(new LevelBriefingScreen(this, client, bridge, 1));
+            } else {
+                StoryPanelScreen.Sequence cinematic = StoryPanelScreen.Sequence.beforeLevel(startingLevel);
+                setScreen(new StoryPanelScreen(this, client, bridge, cinematic, startingLevel - 1));
+            }
         } else if (bridge.hasLauncher() || session.isLoadingSave()) {
             setScreen(new LevelBriefingScreen(this, client, bridge, session.startingLevel()));
         } else {

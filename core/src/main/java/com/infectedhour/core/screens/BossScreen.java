@@ -2088,12 +2088,7 @@ public class BossScreen implements Screen {
         victoryTimer += Gdx.graphics.getDeltaTime();
         if (!returningToLauncher && victoryTimer > 1.2f && (Gdx.input.isKeyJustPressed(Input.Keys.ANY_KEY) || Gdx.input.isButtonJustPressed(Input.Buttons.LEFT))) {
             returningToLauncher = true;
-            bridge.notifyMatchEnded(new GameBridge.MatchOutcome("VICTORY", 6));
-            if (bridge.hasLauncher()) {
-                bridge.requestReturnToLauncher(() -> Gdx.app.postRunnable(Gdx.app::exit));
-            } else {
-                game.setScreen(new MainMenuScreen(game, client, bridge));
-            }
+            game.setScreen(new StoryPanelScreen(game, client, bridge, StoryPanelScreen.Sequence.ENDING, 6));
         }
     }
 

@@ -23,13 +23,13 @@ public record LevelDefinition(
     }
 
     public static LevelDefinition level1() {
-        return new LevelDefinition(1, "Ashgrove Hospital",
+        return new LevelDefinition(1, "St. Mercy Hospital",
                 "maps/level1_hospital.tmx", "maps/level1.map",
                 List.of(), false);
     }
 
     public static LevelDefinition level2() {
-        return new LevelDefinition(2, "Roadside Village",
+        return new LevelDefinition(2, "St. Mercy Upper Wing",
                 "maps/level2_roadside_village.tmx", "maps/level2.map",
                 List.of(
                         new ObjectiveSpec("l2_infected", "CLEAR_INFECTED", 1),
@@ -39,26 +39,26 @@ public record LevelDefinition(
     }
 
     public static LevelDefinition level3() {
-        return new LevelDefinition(3, "Road Approach",
+        return new LevelDefinition(3, "St. Mercy Hospital Grounds",
                 "maps/level3_road.tmx", "maps/map2.map",
                 List.of(), false);
     }
 
     /** Compatibility for legacy unit tests referencing level3Boss(). */
     public static LevelDefinition level3Boss() {
-        return new LevelDefinition(3, "Hidden Laboratory",
+        return new LevelDefinition(3, "St. Mercy Hospital Grounds",
                 "maps/level3_hidden_laboratory.tmx", "maps/map2.map",
                 List.of(), true);
     }
 
     public static LevelDefinition level4() {
-        return new LevelDefinition(4, "Subterranean Corridor",
+        return new LevelDefinition(4, "Abandoned Hospital District",
                 "maps/level4_corridor.tmx", "maps/map2_part2.map",
                 List.of(), false);
     }
 
     public static LevelDefinition level5() {
-        return new LevelDefinition(5, "Research Facility",
+        return new LevelDefinition(5, "Ashgrove Research Perimeter",
                 "maps/level5_facility.tmx", "maps/level3.map",
                 List.of(), false);
     }
@@ -68,7 +68,7 @@ public record LevelDefinition(
      * authoritative; preserve it when editing shared campaign code.
      */
     public static LevelDefinition level6Boss() {
-        return new LevelDefinition(6, "Secret Laboratory",
+        return new LevelDefinition(6, "Ashgrove Research Laboratory",
                 "maps/level6_laboratory.tmx", "maps/level_final.map",
                 List.of(), true);
     }

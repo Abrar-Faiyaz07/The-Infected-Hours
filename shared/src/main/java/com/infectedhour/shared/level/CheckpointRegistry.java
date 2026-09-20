@@ -40,7 +40,7 @@ public final class CheckpointRegistry {
      * can clip a wall that touches only one of them.
      */
     private static final List<Checkpoint> ORDERED = List.of(
-            // ---- Level 1 — Ashgrove Hospital, 45x33 (7) ----
+            // ---- Level 1 — St. Mercy Hospital, 45x33 (7) ----
             new Checkpoint("l1_cp01_gate",        "Hospital Entrance",        1, 1,  9.5f,  8.5f),
             new Checkpoint("l1_cp02_well",        "Reception Wing",           1, 2,  1.5f, 19.5f),
             new Checkpoint("l1_cp03_barricade",   "Emergency Ward",           1, 3, 15.5f, 22.5f),

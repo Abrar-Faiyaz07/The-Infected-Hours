@@ -11,7 +11,6 @@ Folder layout
 -------------
 dialogues/
   ALL_DIALOGUES.txt              Recording script for every active voice line.
-  DISABLED_DIALOGUES.txt         Archived lines that must not be enabled yet.
 
 mp3/music/
   Put the mastered music MP3 files here.
@@ -38,8 +37,8 @@ the game, export or convert a matching OGG copy and place it under:
 
 Example:
 
-  audio/mp3/voice/intro_01.mp3
-      -> assets/audio/voice/intro_01.ogg
+  audio/mp3/voice/intro_elric.mp3
+      -> assets/audio/voice/intro_elric.ogg
 
 Do not rename the base filename during conversion. The code already refers to
 the OGG names recorded in the tracker.
@@ -54,4 +53,3 @@ Asset rules
    or replaced.
 6. Level 6 gameplay and its owned files are teammate-controlled. Do not edit
    them unless the user explicitly requests a Level 6 change.
-

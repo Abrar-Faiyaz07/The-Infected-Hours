@@ -893,9 +893,12 @@ public class GameServer {
 
     private static String levelNameFor(int levelNumber) {
         return switch (levelNumber) {
-            case 1 -> "Ashgrove Hospital";
-            case 2 -> "Roadside Village";
-            case 3 -> "Hidden Laboratory";
+            case 1 -> "St. Mercy Hospital";
+            case 2 -> "St. Mercy Upper Wing";
+            case 3 -> "St. Mercy Hospital Grounds";
+            case 4 -> "Abandoned Hospital District";
+            case 5 -> "Ashgrove Research Perimeter";
+            case 6 -> "Ashgrove Research Laboratory";
             default -> "Level " + levelNumber;
         };
     }

@@ -1,7 +1,7 @@
 package com.infectedhour.core.systems;
 
 /**
- * 3-phase boss state machine for "The Virus Heart" (PRD §8). Reuses
+ * 3-phase boss state machine for the Final Mutation (PRD §8). Reuses
  * ObjectiveSystem/CombatSystem/AISystem rather than bespoke boss code,
  * per TRD's risk mitigation for boss complexity.
  *

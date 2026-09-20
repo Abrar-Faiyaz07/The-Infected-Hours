@@ -1057,13 +1057,8 @@ public class GameScreen implements Screen {
                 }
             }
             Gdx.app.postRunnable(() -> {
-                if (levelNumber == 1) {
-                    game.setScreen(new StoryPanelScreen(game, client, bridge, StoryPanelScreen.Sequence.AFTER_LEVEL_1, levelNumber));
-                } else if (levelNumber == 2) {
-                    game.setScreen(new StoryPanelScreen(game, client, bridge, StoryPanelScreen.Sequence.AFTER_LEVEL_2, levelNumber));
-                } else {
-                    game.setScreen(new LevelBriefingScreen(game, client, bridge, transition.nextLevelNumber));
-                }
+                StoryPanelScreen.Sequence cinematic = StoryPanelScreen.Sequence.afterCompletedLevel(levelNumber);
+                game.setScreen(new StoryPanelScreen(game, client, bridge, cinematic, levelNumber));
             });
         });
     }
@@ -2504,7 +2499,7 @@ public class GameScreen implements Screen {
         if (remaining == 0) {
             isAmbushDefeated = true;
             if (levelNumber == 6) {
-                showBanner("VIRUS HEART DESTROYED! ASHGROVE IS SAVED!");
+                showBanner("FINAL MUTATION DESTROYED! THE ANTIDOTE IS SECURE!");
                 Gdx.app.postRunnable(() -> {
                     game.setScreen(new StoryPanelScreen(game, client, bridge, StoryPanelScreen.Sequence.ENDING, 6));
                 });
@@ -3803,7 +3798,7 @@ public class GameScreen implements Screen {
             }
         } else if (levelNumber == 6) {
             font.setColor(0.910f, 0.690f, 0.165f, 1f);
-            font.draw(batch, "VIRUS HEART CONTAINMENT (FINAL)", objectiveX, objectiveY);
+            font.draw(batch, "FINAL MUTATION CONTAINMENT", objectiveX, objectiveY);
             objectiveY -= 22f;
 
             if (isAmbushActive) {
@@ -3817,10 +3812,10 @@ public class GameScreen implements Screen {
 
                 if (boss != null) {
                     font.setColor(Color.CORAL);
-                    font.draw(batch, "[!] Virus Heart: " + (int) boss.hp + "/" + (int) boss.maxHp + " HP", objectiveX, objectiveY);
+                    font.draw(batch, "[!] Final Mutation: " + (int) boss.hp + "/" + (int) boss.maxHp + " HP", objectiveX, objectiveY);
                 } else {
                     font.setColor(Color.GREEN);
-                    font.draw(batch, "[DONE] Virus Heart Destroyed", objectiveX, objectiveY);
+                    font.draw(batch, "[DONE] Final Mutation Destroyed", objectiveX, objectiveY);
                 }
                 objectiveY -= 20f;
 

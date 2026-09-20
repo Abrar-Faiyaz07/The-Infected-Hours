@@ -29,3 +29,6 @@ replay_pid*.log
 
 # --- Local player data (App Flow §6 offline cache) ---
 .infectedhour/
+# Regenerable TTS paragraph cache and intermediate WAV mixes.
+audio/voice-production/generated/
+audio/voice-production/tools/

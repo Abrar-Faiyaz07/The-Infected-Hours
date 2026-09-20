@@ -1,144 +1,133 @@
-THE INFECTED HOUR - AUDIO & CINEMATIC IMPLEMENTATION TRACKER
-============================================================
+ASHGROVE: THE LAST CURE - AUDIO & CINEMATIC TRACKER
+====================================================
 
-Last updated: 2026-09-20
-Status key: WIRED = code requests it; NOT WIRED = file is catalogued but no
-playback call exists at the intended point; MISSING = binary asset is absent.
+Last updated: 2026-09-21
 
+Runtime voice format: OGG
+Runtime voice folder: assets/audio/voice/
+Optional MP3 masters: audio/mp3/voice/
 
-1. CINEMATIC IMAGE USAGE
-------------------------
+STATUS
+------
+All 14 post-menu cinematic images are generated and WIRED.
+All 14 subtitle panels are WIRED.
+Optional voice playback is WIRED and safely tolerates missing files.
+Voice OGG binaries are READY for bg_menu and all post-menu scenes 01-14.
+The complete cinematic voice set is present in the runtime asset folder.
 
-Scene: Level briefing (currently all levels)
-Image: assets/briefing_level1.png
-Fallback image: assets/briefing_bg_mockup.png
-Code file: core/src/main/java/com/infectedhour/core/screens/LevelBriefingScreen.java
-Status: WIRED; images exist.
-Notes: One shared layout is currently used for all level briefings.
+Voice-production preparation is COMPLETE:
+- Verified source: audio/dialogues/CINEMATIC_DIALOGUE_VERIFIED.txt
+- Cast configuration: audio/voice-production/voice_cast.json
+- Generator: audio/tools/generate_voiceovers.cmd
+- Validation: 15 scenes / 75 spoken segments pass dry-run checks
+- Portable ffmpeg 9.0.2 is ready with MP3 and OGG encoders
+- Generation is waiting only for OPENAI_API_KEY; no paid request has run
 
-Scene: Story intro, after Level 1, after Level 2, and ending
-Image: assets/story_intro.png
-Code file: core/src/main/java/com/infectedhour/core/screens/StoryPanelScreen.java
-Status: WIRED; image exists.
-Notes: One shared background is currently used for every story sequence.
-
-Scene: Boss loading/introduction
-Image: assets/boss_load.png
-Code file: core/src/main/java/com/infectedhour/core/screens/BossScreen.java
-Status: WIRED; image exists.
-Notes: BossScreen is Level 6-owned. Treat teammate implementation as final.
-
-Scene: Jane duel background (disabled ending route)
-Image: assets/story_intro.png
-Code file: core/src/main/java/com/infectedhour/core/screens/JaneDuelScreen.java
-Status: WIRED image, but route is currently disabled.
+The menu uses assets/bg_menu.png. It is identical to
+assets/cinematics/bg_menu.png and appears before this sequence.
+Its planned narration master/runtime names are bg_menu.mp3 and bg_menu.ogg.
 
 
-2. VOICE / NARRATION
---------------------
+ORDER AND ASSET MAPPING
+-----------------------
 
-MP3 source folder: audio/mp3/voice/
-Runtime OGG folder: assets/audio/voice/
-Catalog/code owner: core/src/main/java/com/infectedhour/core/content/DialogueCatalog.java
-Playback manager: core/src/main/java/com/infectedhour/core/audio/AudioDirector.java
+01 intro_elric
+   Image: assets/cinematics/intro_elric.png
+   Voice: assets/audio/voice/intro_elric.ogg [READY]
+   Trigger: opening sequence before Map 1
 
-ID                    MP3 filename                  Cinematic image       Playback location/status
-intro-01              intro_01.mp3                  story_intro.png       StoryPanelScreen - NOT WIRED, MISSING
-intro-02              intro_02.mp3                  story_intro.png       StoryPanelScreen - NOT WIRED, MISSING
-intro-03              intro_03.mp3                  story_intro.png       StoryPanelScreen - NOT WIRED, MISSING
-after-level-1-01      after_level_1_01.mp3          story_intro.png       StoryPanelScreen - NOT WIRED, MISSING
-after-level-1-02      after_level_1_02.mp3          story_intro.png       StoryPanelScreen - NOT WIRED, MISSING
-after-level-2-01      after_level_2_01.mp3          story_intro.png       StoryPanelScreen - NOT WIRED, MISSING
-after-level-2-02      after_level_2_02.mp3          story_intro.png       StoryPanelScreen - NOT WIRED, MISSING
-boss-title            boss_title.mp3                boss_load.png         BossScreen - WIRED, MISSING
-ending-01             ending_01.mp3                 story_intro.png       StoryPanelScreen - NOT WIRED, MISSING
-ending-02             ending_02.mp3                 story_intro.png       StoryPanelScreen - NOT WIRED, MISSING
+02 intro_jane
+   Image: assets/cinematics/intro_jane.png
+   Voice: assets/audio/voice/intro_jane.ogg [READY]
+   Trigger: opening sequence before Map 1
 
-Important mismatch to resolve during integration:
-StoryPanelScreen still contains its own panel text instead of reading all text
-from DialogueCatalog. The after-Level-1 panel 2 and ending text differ between
-those files. DialogueCatalog and dialogues/ALL_DIALOGUES.txt are the intended
-recording source; update StoryPanelScreen carefully when narration is wired.
+03 map1_starting
+   Image: assets/cinematics/map1_starting.png
+   Voice: assets/audio/voice/map1_starting.ogg [READY]
+   Trigger: opening sequence before Map 1
+
+04 map1_part2_starting
+   Image: assets/cinematics/map1_part2_starting.png
+   Voice: assets/audio/voice/map1_part2_starting.ogg [READY]
+   Trigger: after Map 1, before Map 1 Part 2
+
+05 map1_part2_escaping
+   Image: assets/cinematics/map1_part2_escaping.png
+   Voice: assets/audio/voice/map1_part2_escaping.ogg [READY]
+   Trigger: after Map 1 Part 2
+
+06 map2_part1_starting
+   Image: assets/cinematics/map2_part1_starting.png
+   Voice: assets/audio/voice/map2_part1_starting.ogg [READY]
+   Trigger: immediately after scene 05, before Map 2 Part 1
+
+07 map2_part1_ending
+   Image: assets/cinematics/map2_part1_ending.png
+   Voice: assets/audio/voice/map2_part1_ending.ogg [READY]
+   Trigger: after Map 2 Part 1
+
+08 map2_part2_starting
+   Image: assets/cinematics/map2_part2_starting.png
+   Voice: assets/audio/voice/map2_part2_starting.ogg [READY]
+   Trigger: immediately after scene 07, before Map 2 Part 2
+
+09 map2_part2_ending
+   Image: assets/cinematics/map2_part2_ending.png
+   Voice: assets/audio/voice/map2_part2_ending.ogg [READY]
+   Trigger: after Map 2 Part 2
+
+10 map3_starting
+   Image: assets/cinematics/map3_starting.png
+   Voice: assets/audio/voice/map3_starting.ogg [READY]
+   Trigger: immediately after scene 09, before Map 3
+
+11 map3_ending
+   Image: assets/cinematics/map3_ending.png
+   Voice: assets/audio/voice/map3_ending.ogg [READY]
+   Trigger: after Map 3
+
+12 map3_final_starting
+   Image: assets/cinematics/map3_final_starting.png
+   Voice: assets/audio/voice/map3_final_starting.ogg [READY]
+   Trigger: immediately after scene 11, before the final level
+
+13 map3_final_ending1
+   Image: assets/cinematics/map3_final_ending1.png
+   Voice: assets/audio/voice/map3_final_ending1.ogg [READY]
+   Trigger: final boss victory
+
+14 map3_final_ending2
+   Image: assets/cinematics/map3_final_ending2.png
+   Voice: assets/audio/voice/map3_final_ending2.ogg [READY]
+   Trigger: immediately after scene 13, before campaign results
 
 
-3. MUSIC
---------
-
-MP3 source folder: audio/mp3/music/
-Runtime OGG folder: assets/audio/music/
-Catalog/code owner: core/src/main/java/com/infectedhour/core/audio/SoundtrackCatalog.java
-Playback manager: core/src/main/java/com/infectedhour/core/audio/AudioDirector.java
-
-MP3 filename                       Requested by / mapping                         Status
-main_menu.mp3                      MainMenuScreen                                 WIRED, MISSING
-level_1_hospital.mp3               LevelBriefingScreen, Level 1                  WIRED, MISSING
-level_2_roadside_village.mp3       LevelBriefingScreen, Levels 2/4/5             WIRED, MISSING
-level_3_hidden_laboratory.mp3      LevelBriefingScreen, Levels 3/6               WIRED, MISSING
-boss_virus_heart.mp3               BossScreen                                     WIRED, MISSING
-jane_duel.mp3                      SoundtrackCatalog only                         NOT WIRED, MISSING
-story_interlude.mp3                Unknown/default level mapping                  CATALOGUED, MISSING
-victory.mp3                        SoundtrackCatalog only                         NOT WIRED, MISSING
-
-
-4. SOUND EFFECTS
-----------------
-
-MP3 source folder: audio/mp3/sfx/
-Runtime OGG folder: assets/audio/sfx/
-Catalog/code owner: core/src/main/java/com/infectedhour/core/audio/SoundtrackCatalog.java
-
-MP3 filename                 Intended use                         Status
-story_advance.mp3            Change story panel                   NOT WIRED, MISSING
-level_start.mp3              Gameplay begins                      NOT WIRED, MISSING
-boss_phase_change.mp3        Boss phase change                    CATALOGUED, MISSING
-boss_telegraph.mp3           Boss attack telegraph                CATALOGUED, MISSING
-boss_defeated.mp3            Boss defeated                        CATALOGUED, MISSING
-objective_complete.mp3       Objective completes                  CATALOGUED, MISSING
-player_hit.mp3               Player takes damage                  CATALOGUED, MISSING
-
-
-5. RELEVANT CODE FILES
-----------------------
-
-core/src/main/java/com/infectedhour/core/audio/AudioDirector.java
-  Loads, caches, plays, stops, and disposes music, voice, and SFX safely.
-
-core/src/main/java/com/infectedhour/core/audio/SoundtrackCatalog.java
-  Defines stable runtime OGG paths for music and catalogued SFX.
+CODE OWNERS
+-----------
 
 core/src/main/java/com/infectedhour/core/content/DialogueCatalog.java
-  Defines dialogue IDs, speakers, subtitle text, and runtime voice paths.
+  Exact image, subtitle, speaker, title, and OGG mapping for every scene.
 
 core/src/main/java/com/infectedhour/core/screens/StoryPanelScreen.java
-  Displays intro/interlude/ending images and text. Narration is not wired yet.
+  Loads images, renders subtitles, plays/stops narration, handles continue/skip,
+  synchronizes co-op advancement, and routes to the next level.
 
-core/src/main/java/com/infectedhour/core/screens/LevelBriefingScreen.java
-  Displays the mission briefing image and starts the mapped level music.
-
-core/src/main/java/com/infectedhour/core/screens/MainMenuScreen.java
-  Starts main-menu music.
+core/src/main/java/com/infectedhour/core/screens/GameScreen.java
+  Sends completed Maps 1-5 into their next cinematic sequence.
 
 core/src/main/java/com/infectedhour/core/screens/BossScreen.java
-  Starts boss music and boss-title voice. Level 6-owned; do not modify unless
-  explicitly requested.
+  Sends final victory into the two ending cinematics.
 
-fx-launcher/src/main/java/com/infectedhour/fxlauncher/views/SettingsView.java
-  Displays volume sliders; handoff notes say they are not fully connected to
-  AudioDirector or persistent settings yet.
+core/src/main/java/com/infectedhour/core/InfectedHourGame.java
+  Routes developer split-screen map selections through their matching opening
+  cinematic; normal LAN co-op uses the same StoryPanelScreen event flow.
 
-ASSETS_CREDITS.md
-  Must list the creator/source/license for every externally sourced asset.
+core/src/main/java/com/infectedhour/core/audio/AudioDirector.java
+  Safely plays optional OGG narration. Missing files never crash the game.
 
 
-6. UPDATE CHECKLIST FOR EACH NEW AUDIO FILE
--------------------------------------------
+CONTROLS
+--------
 
-[ ] Put the production MP3 in the matching audio/mp3/ subfolder.
-[ ] Export a same-base-name OGG to the matching assets/audio/ subfolder.
-[ ] Confirm the runtime OGG path matches DialogueCatalog or SoundtrackCatalog.
-[ ] Confirm the relevant screen/gameplay system actually requests playback.
-[ ] Test advance/skip/leave so narration cannot overlap.
-[ ] Test with the OGG temporarily absent; the game must continue safely.
-[ ] Add source and license information to ASSETS_CREDITS.md.
-[ ] Change this tracker entry from MISSING/NOT WIRED to its new status.
-
+E / Space / Enter / Left Click: reveal subtitle, then continue
+S: skip the current cinematic sequence

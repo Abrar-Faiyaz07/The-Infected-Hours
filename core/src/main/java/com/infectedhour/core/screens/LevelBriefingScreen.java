@@ -199,7 +199,7 @@ public class LevelBriefingScreen implements Screen {
 
                 subFont.setColor(0.85f, 0.90f, 0.95f, 1f);
                 subFont.draw(batch, "Role: High Agility & Objective Runner", dossierX + 25f, portY - 48f);
-                subFont.draw(batch, "Affiliation: Undercover Government Agent", dossierX + 25f, portY - 72f);
+                subFont.draw(batch, "Affiliation: Ashgrove Corporation", dossierX + 25f, portY - 72f);
                 subFont.draw(batch, "Gear: Tactical Katana + Medkit Kit", dossierX + 25f, portY - 96f);
             }
 

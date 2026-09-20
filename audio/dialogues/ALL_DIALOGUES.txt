@@ -1,100 +1,111 @@
-THE INFECTED HOUR - ACTIVE VOICE RECORDING SCRIPT
-=================================================
+ASHGROVE: THE LAST CURE - ACTIVE RECORDING SCRIPT
+==================================================
 
-Source of truth in code:
+Runtime format: OGG
+Runtime folder: assets/audio/voice/
+Source/master MP3 folder: audio/mp3/voice/
+
+The exact subtitle source of truth is:
 core/src/main/java/com/infectedhour/core/content/DialogueCatalog.java
 
-Naming rule:
-Record the MP3 into audio/mp3/voice/ using the MP3 filename shown below.
-Export the matching runtime OGG into assets/audio/voice/.
+One OGG is used per cinematic image. A file may contain multiple performed
+speakers where the subtitle names more than one character.
 
-
-[INTRO - PANEL 1]
-Dialogue ID: intro-01
+intro_elric.ogg
 Speaker: Narrator
-MP3 source: audio/mp3/voice/intro_01.mp3
-Runtime OGG: assets/audio/voice/intro_01.ogg
+Elric was one of Ashgrove Corporation's highest-ranked field agents. When
+classified intelligence surfaced from St. Mercy Hospital, Ashgrove sent him to
+investigate.
 
-Elric arrives in Ashgrove as an elite bio-containment operative for the private Oscorp Organization. A weaponized pathogen -- engineered inside Oscorp's black-budget research laboratories -- was stolen by a rogue insider and released into the civilian population.
+intro_jane.ogg
+Speakers: Narrator, Jane recording
+Three weeks earlier, Agent Jane disappeared during an operation inside the same
+facility.
+JANE: If anyone receives this transmission... the experiment is still alive.
+Do not trust the official report.
 
+map1_starting.ogg
+Speakers: Narrator, Elric
+Jane's final signal led Elric to St. Mercy Hospital, a medical center connected
+to Ashgrove's biological research division. Somewhere inside, Jane was still
+alive.
+ELRIC: Hold on, Jane. I'm coming.
 
-[INTRO - PANEL 2]
-Dialogue ID: intro-02
-Speaker: Narrator
-MP3 source: audio/mp3/voice/intro_02.mp3
-Runtime OGG: assets/audio/voice/intro_02.ogg
+map1_part2_starting.ogg
+Speakers: Narrator, Jane, Elric
+Elric found Jane injured but alive and helped her recover. Together, they
+entered the hospital's upper wing.
+JANE: Laboratory assistants are trapped near the emergency entrance.
+ELRIC: Then we clear the building and bring them out.
 
-The contagion breached containment at midnight. Oscorp's directive is uncompromising: destroy the viral core at all costs before dawn, or the entire regional population will transform into ravenous mutated infected.
+map1_part2_escaping.ogg
+Speakers: Narrator, Laboratory Assistant, Jane
+Elric and Jane reached the trapped laboratory assistants, but another horde was
+closing on the entrance.
+LAB ASSISTANT: The ambulance is still operational!
+JANE: Stay between us. Keep moving.
 
+map2_part1_starting.ogg
+Speakers: Narrator, Elric, Jane
+The survivors reached the hospital grounds, but the route to the ambulance was
+surrounded.
+ELRIC: Protect the assistants. I'll clear a path.
+JANE: You're not doing it alone.
 
-[INTRO - PANEL 3]
-Dialogue ID: intro-03
-Speaker: Narrator
-MP3 source: audio/mp3/voice/intro_03.mp3
-Runtime OGG: assets/audio/voice/intro_03.ogg
+map2_part1_ending.ogg
+Speakers: Narrator, Laboratory Assistant, Jane
+With the hospital grounds secured, the laboratory assistants escaped in the
+ambulance.
+LAB ASSISTANT: The outbreak began at another facility hidden beyond the forest.
+JANE: Then that is where we find the cure.
 
-Inside Ashgrove Hospital, an operative named Jane lies senseless. Unbeknownst to Oscorp, Jane is an undercover intelligence agent deployed by the government to monitor Oscorp's illegal bioweapon testing. Surviving the night requires an uneasy alliance.
+map2_part2_starting.ogg
+Speakers: Narrator, Jane, Elric
+The ambulance could go no farther. Elric and Jane continued on foot through the
+infected hospital district.
+JANE: There are too many ahead.
+ELRIC: Then we remove them and keep moving.
 
+map2_part2_ending.ogg
+Speakers: Narrator, Jane, Elric
+Among the remains of an Ashgrove security officer, Elric found a damaged
+laboratory access card. Its encrypted coordinates were still readable.
+JANE: This belongs to the original research laboratory.
+ELRIC: Then that is our next destination.
 
-[AFTER LEVEL 1 - PANEL 1]
-Dialogue ID: after-level-1-01
-Speaker: Narrator
-MP3 source: audio/mp3/voice/after_level_1_01.mp3
-Runtime OGG: assets/audio/voice/after_level_1_01.ogg
+map3_starting.ogg
+Speakers: Narrator, Jane, Elric
+The damaged card led them deep into the forest, where an abandoned Ashgrove
+research facility remained powered.
+JANE: The missing authorization data must be inside this perimeter.
+ELRIC: We recover it and open that door.
 
-Jane has been revived and the stranded hospital villagers guided to safety. Jane confirms the terrible truth: this is no ordinary virus -- it is an engineered extinction weapon that induces hyper-aggressive cellular mutations.
+map3_ending.ogg
+Speakers: Narrator, Jane, Elric
+After breaking through the infected perimeter, Elric and Jane restored the
+access card. It identified the facility as the origin of the St. Mercy outbreak.
+JANE: The card will open the laboratory.
+ELRIC: Then Ashgrove's experiment ends now.
 
+map3_final_starting.ogg
+Speakers: Narrator, Scientist, Jane
+Inside, they found the lead scientist transforming into the final mutation.
+SCIENTIST: This virus was never a mistake. It was evolution.
+JANE: You destroyed St. Mercy for this.
 
-[AFTER LEVEL 1 - PANEL 2]
-Dialogue ID: after-level-1-02
-Speaker: Jane
-MP3 source: audio/mp3/voice/after_level_1_02.mp3
-Runtime OGG: assets/audio/voice/after_level_1_02.ogg
+map3_final_ending1.ogg
+Speakers: Narrator, Jane, Elric
+After a brutal battle, the final mutation was defeated. Elric recovered the
+last completed dose of the antidote.
+JANE: The antidote survived.
+ELRIC: Then we recover its research data and destroy every remaining sample.
 
-The road ahead cuts through the heart of the overrun village. Another wounded agent and three civilians are trapped near the municipal power relay. Secure the relay grid to reach the subterranean facility.
-
-
-[AFTER LEVEL 2 - PANEL 1]
-Dialogue ID: after-level-2-01
-Speaker: Narrator
-MP3 source: audio/mp3/voice/after_level_2_01.mp3
-Runtime OGG: assets/audio/voice/after_level_2_01.ogg
-
-With the wounded field agent and three villagers rescued from the ruins, the roadside power relays hum to life, unlocking the blast doors of the subterranean drainage corridor.
-
-
-[AFTER LEVEL 2 - PANEL 2]
-Dialogue ID: after-level-2-02
-Speaker: Narrator
-MP3 source: audio/mp3/voice/after_level_2_02.mp3
-Runtime OGG: assets/audio/voice/after_level_2_02.ogg
-
-Directly beneath Ashgrove lies Oscorp's covert biological research laboratory. In the deepest containment vault waits the primary bio-organism: the mutated Virus Heart that controls the outbreak.
-
-
-[BOSS INTRODUCTION]
-Dialogue ID: boss-title
-Speaker: Narrator
-MP3 source: audio/mp3/voice/boss_title.mp3
-Runtime OGG: assets/audio/voice/boss_title.ogg
-
-The source of the Ashgrove outbreak is awake.
-
-
-[CURRENT ENDING - PANEL 1]
-Dialogue ID: ending-01
-Speaker: Narrator
-MP3 source: audio/mp3/voice/ending_01.mp3
-Runtime OGG: assets/audio/voice/ending_01.ogg
-
-The gargantuan Virus Heart shudders and collapses into smoldering biological embers. In the shattered containment chamber, Elric recovers an emergency keycard and the sole remaining vial of the synthesized Prototype Antidote.
-
-
-[CURRENT ENDING - PANEL 2]
-Dialogue ID: ending-02
-Speaker: Narrator
-MP3 source: audio/mp3/voice/ending_02.mp3
-Runtime OGG: assets/audio/voice/ending_02.ogg
-
-Elric unlocks the sealed observation cell at the back of the lab. Behind the shattered glass lies Elena Vance -- his closest friend and lead biochemist. With the facility neutralized and the synthesized antidote in hand, the team secures the survivors and signals emergency evacuation. Ashgrove is safe.
+map3_final_ending2.ogg
+Speakers: Computer, Narrator, Jane, Elric
+COMPUTER: Antidote data verified. Virus purge initiated. All active samples
+destroyed.
+NARRATOR: The St. Mercy outbreak was over, but the truth could no longer remain
+buried.
+JANE: It's over.
+ELRIC: No. Now we find out who authorized it.
 

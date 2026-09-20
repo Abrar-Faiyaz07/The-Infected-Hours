@@ -48,7 +48,7 @@ public class BossCharacterSelectView {
         Label title = new Label("FINAL BOSS FIGHT: CHOOSE YOUR OPERATIVE");
         title.getStyleClass().add("title-gold");
 
-        Label subtitle = new Label("Select your lead survivor against the Virus Heart. The other operative will fight by your side!");
+        Label subtitle = new Label("Select your lead agent against the Final Mutation. The other agent will fight by your side!");
         subtitle.setStyle("-fx-text-fill: #E2E8F0; -fx-font-size: 14px; -fx-font-weight: bold;");
 
         HBox cardsBox = new HBox(36);
@@ -88,7 +88,7 @@ public class BossCharacterSelectView {
             }
         });
 
-        Label bossTip = new Label("Arena Intel: Destroy the shield injection nodes, then coordinate your strikes against the Virus Heart.");
+        Label bossTip = new Label("Arena Intel: Destroy the shield injection nodes, then coordinate your strikes against the Final Mutation.");
         bossTip.setStyle("-fx-text-fill: #94A3B8; -fx-font-size: 11px;");
 
         root.getChildren().addAll(title, subtitle, cardsBox, backBtn, bossTip);

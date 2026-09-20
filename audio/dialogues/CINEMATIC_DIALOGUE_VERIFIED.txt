@@ -1,0 +1,287 @@
+ASHGROVE: THE LAST CURE
+CINEMATIC DIALOGUE - VERIFIED VOICE SOURCE
+
+SCENE 1 - bg_menu.png
+
+Speaker: Narrator
+
+"For decades, Ashgrove Corporation operated beyond the public eye—developing advanced medicine, biological defenses, and experimental treatments."
+
+"But inside one of its facilities, an experiment escaped containment."
+
+"And before the night was over, St. Mercy Hospital fell silent."
+
+SCENE 2 - intro_elric.png
+
+Speaker: Narrator
+
+"Elric was one of Ashgrove Corporation's highest-ranked field agents."
+
+"He was trained to enter places others could not—and finish missions others would never survive."
+
+"When classified intelligence surfaced from St. Mercy Hospital, Ashgrove sent him to investigate."
+
+SCENE 3 - intro_jane.png
+
+Speaker: Narrator
+
+"Three weeks earlier, Agent Jane disappeared during an operation inside the same facility."
+
+"Her team lost contact without warning. Ashgrove declared the mission compromised and listed Jane as missing."
+
+"But Elric refused to believe she was dead."
+
+Speaker: Jane - damaged recording
+
+"If anyone receives this transmission… the experiment is still alive."
+
+"Don't trust the official report."
+
+SCENE 4 - map1_starting.png
+
+Speaker: Narrator
+
+"Jane's final signal led Elric to St. Mercy Hospital—a medical center secretly connected to Ashgrove's biological research division."
+
+"The building appeared abandoned, but movement behind the shattered windows told a different story."
+
+"Somewhere inside, Jane was still alive."
+
+Speaker: Elric
+
+"Hold on, Jane. I'm coming."
+
+GAMEPLAY: MAP 1 BEGINS
+
+SCENE 5 - map1_part2_starting.png
+
+Speaker: Narrator
+
+"Elric found Jane injured but alive and helped her recover."
+
+"Together, they entered the hospital's upper wing, where the infection had spread through the remaining wards."
+
+Speaker: Jane
+
+"There are laboratory assistants trapped near the emergency entrance."
+
+"If they're still alive, they may know what happened here."
+
+Speaker: Elric
+
+"Then we clear the building and bring them out."
+
+GAMEPLAY: MAP 1 PART 2 BEGINS
+
+SCENE 6 - map1_part2_escaping.png
+
+Speaker: Narrator
+
+"Elric and Jane eliminated the infected inside the hospital and reached the trapped laboratory assistants."
+
+"But the noise had drawn another horde toward the entrance."
+
+Speaker: Laboratory Assistant
+
+"The ambulance is still operational. Get us outside, and we can escape!"
+
+Speaker: Jane
+
+"Stay between us. Keep moving, and don't look back."
+
+SCENE 7 - map2_part1_starting.png
+
+Speaker: Narrator
+
+"The survivors reached the hospital grounds, but the route to the ambulance was surrounded."
+
+"Infected patients and personnel poured from every entrance."
+
+Speaker: Elric
+
+"Jane, protect the assistants. I'll clear a path to the ambulance."
+
+Speaker: Jane
+
+"You're not doing it alone."
+
+GAMEPLAY: MAP 2 PART 1 BEGINS
+
+SCENE 8 - map2_part1_ending.png
+
+Speaker: Narrator
+
+"With the hospital grounds temporarily secured, Elric and Jane moved the laboratory assistants into the ambulance."
+
+"The survivors escaped, carrying Ashgrove's first witnesses to the disaster."
+
+Speaker: Laboratory Assistant
+
+"The outbreak didn't begin in the hospital."
+
+"The original virus came from another research facility—hidden beyond the forest."
+
+Speaker: Jane
+
+"Then that's where we find the cure."
+
+SCENE 9 - map2_part2_starting.png
+
+Speaker: Narrator
+
+"The route through the abandoned hospital district had become overgrown and infested."
+
+"The ambulance could go no farther."
+
+"Elric and Jane continued on foot, following the coordinates recovered from the surviving assistants."
+
+Speaker: Jane
+
+"There are too many infected ahead."
+
+Speaker: Elric
+
+"Then we remove them and keep moving."
+
+GAMEPLAY: MAP 2 PART 2 BEGINS
+
+SCENE 10 - map2_part2_ending.png
+
+Speaker: Narrator
+
+"After clearing the district, Elric discovered a damaged laboratory access card among the remains of an Ashgrove security officer."
+
+"Half of its data was destroyed—but its encrypted coordinates were still readable."
+
+Speaker: Jane
+
+"This card belongs to the original research laboratory."
+
+Speaker: Elric
+
+"Can it open the facility?"
+
+Speaker: Jane
+
+"Not like this. We need to recover the missing authorization data."
+
+SCENE 11 - map3_starting.png
+
+Speaker: Narrator
+
+"The damaged card led them deep into the forest, where an abandoned Ashgrove research facility stood hidden beneath years of vegetation."
+
+"The entrance was still powered."
+
+"And something inside was still controlling the infected outside."
+
+Speaker: Jane
+
+"The missing card data must be somewhere inside this perimeter."
+
+Speaker: Elric
+
+"We recover it, open that door, and finish this."
+
+GAMEPLAY: MAP 3 BEGINS
+
+SCENE 12 - map3_ending.png
+
+Speaker: Narrator
+
+"After breaking through the infected perimeter, Elric and Jane recovered the missing authorization component."
+
+"The restored access card identified the facility as the origin point of the St. Mercy outbreak."
+
+Speaker: Jane
+
+"Full authorization restored. The card will open the laboratory."
+
+Speaker: Elric
+
+"Then it's time Ashgrove's experiment came to an end."
+
+SCENE 13 - map3_final_starting.png
+
+Speaker: Narrator
+
+"Beyond the sealed entrance, Elric and Jane found the laboratory's lead scientist."
+
+"He had survived the outbreak—but only by injecting himself with the final strain of the virus."
+
+Speaker: Scientist
+
+"You call this an infection because you're afraid to understand it."
+
+"This virus is not a disease. It is the next stage of human evolution."
+
+Speaker: Jane
+
+"You destroyed St. Mercy for this."
+
+Speaker: Scientist
+
+"St. Mercy was only the beginning."
+
+Speaker: Narrator
+
+"The scientist's body collapsed beneath the mutation."
+
+"The creator of the virus became its final weapon."
+
+GAMEPLAY: FINAL MAP BEGINS
+
+SCENE 14 - map3_final_ending1.png
+
+Speaker: Narrator
+
+"After a brutal battle, the final mutation was defeated."
+
+"Within the scientist's containment device, Elric found the last completed dose of the antidote."
+
+Speaker: Jane
+
+"Elric… the antidote survived."
+
+Speaker: Elric
+
+"One dose isn't enough. We need its research data."
+
+Speaker: Jane
+
+"The main computer can reproduce it—but first, we have to destroy every remaining virus sample."
+
+SCENE 15 - map3_final_ending2.png
+
+Speaker: Computer
+
+"ANTIDOTE DATA VERIFIED."
+
+"VIRUS PURGE INITIATED."
+
+"ALL ACTIVE SAMPLES DESTROYED."
+
+Speaker: Narrator
+
+"Elric and Jane transmitted the antidote formula before permanently erasing the virus from Ashgrove's systems."
+
+"The outbreak at St. Mercy Hospital was over."
+
+"But the truth behind the experiment could no longer remain buried."
+
+Speaker: Jane
+
+"It's over."
+
+Speaker: Elric
+
+"No. Now we find out who authorized it."
+
+Speaker: Narrator
+
+"St. Mercy was only the first chapter."
+
+"Every experiment leaves a trace—and every secret has a price."
+
+ASHGROVE: THE LAST CURE
+END OF CHAPTER ONE
