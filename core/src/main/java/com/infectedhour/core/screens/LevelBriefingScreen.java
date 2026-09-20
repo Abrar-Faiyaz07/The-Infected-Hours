@@ -283,6 +283,9 @@ public class LevelBriefingScreen implements Screen {
     private void advance() {
         if (levelNumber == 1) {
             game.setScreen(new StoryPanelScreen(game, client, bridge, StoryPanelScreen.Sequence.INTRO, levelNumber));
+        } else if (levelNumber == 6) {
+            CharacterType pref = (game.getSession() != null) ? game.getSession().preferredCharacter() : CharacterType.ELRIC;
+            game.setScreen(new BossScreen(game, client, bridge, pref));
         } else {
             game.setScreen(new GameScreen(game, client, bridge, levelNumber));
         }

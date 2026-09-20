@@ -225,11 +225,20 @@ public class BossScreen implements Screen {
     private final List<ActiveBomb> activeBombs = new ArrayList<>();
     private final List<ActiveExplosion> activeExplosions = new ArrayList<>();
 
-    // Player State
+    // Player State & Match Progression
     private float playerX = 640f, playerY = 140f;
     private int playerFacing = 3;
     private boolean playerMoving, playerAttacking, playerSprinting, attackTriggeredThisFrame = false;
     private float playerAnimTime, playerAttackTime, playerStamina = 100f;
+    private float playerHp = 100f;
+    private static final float MAX_PLAYER_HP = 100f;
+    private float playerInvulnTimer = 0f;
+    private float playerDamageFlashTimer = 0f;
+    private boolean isGameOver = false;
+    private boolean isVictory = false;
+    private boolean returningToLauncher = false;
+    private float victoryTimer = 0f;
+    private float defeatTimer = 0f;
     private boolean paused;
 
     public BossScreen(InfectedHourGame game, GameClient client, GameBridge bridge, CharacterType playerCharacter) {
@@ -553,6 +562,10 @@ public class BossScreen implements Screen {
     }
 
     private void handleInput(float delta) {
+        if (isGameOver || isVictory) {
+            return;
+        }
+
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
             paused = !paused;
             if (paused) Gdx.input.setCursorCatched(false);
@@ -580,6 +593,19 @@ public class BossScreen implements Screen {
                 isBombEquipped = !isBombEquipped;
                 if (isBombEquipped) isMacheteEquipped = false;
             }
+        }
+    }
+
+    private void damagePlayer(float amount) {
+        if (isGameOver || isVictory || playerInvulnTimer > 0f) return;
+        playerHp = Math.max(0f, playerHp - amount);
+        playerInvulnTimer = 0.5f;
+        playerDamageFlashTimer = 0.25f;
+        game.getAudioDirector().playEffect(SoundtrackCatalog.Effect.PLAYER_HIT);
+        if (playerHp <= 0f) {
+            isGameOver = true;
+            isVictory = false;
+            defeatTimer = 0f;
         }
     }
 
@@ -616,6 +642,9 @@ public class BossScreen implements Screen {
 
         // Random Roam & Flee Logic
         float distToPlayer = (float) Math.hypot(playerX - scientistX, playerY - scientistY);
+        if (distToPlayer <= 35f) {
+            damagePlayer(8f);
+        }
         if (distToPlayer < 180f) {
             float fleeAngle = MathUtils.atan2(scientistY - playerY, scientistX - playerX);
             moveX = MathUtils.cos(fleeAngle) * 110f;
@@ -685,6 +714,14 @@ public class BossScreen implements Screen {
     }
 
     private void updatePlayer(float delta) {
+        if (playerInvulnTimer > 0f) playerInvulnTimer -= delta;
+        if (playerDamageFlashTimer > 0f) playerDamageFlashTimer -= delta;
+        if (isGameOver || isVictory) {
+            playerMoving = false;
+            playerAttacking = false;
+            return;
+        }
+
         if (bombCooldown > 0f) bombCooldown -= delta;
 
         float moveX = 0f, moveY = 0f;
@@ -747,6 +784,24 @@ public class BossScreen implements Screen {
 
     private void updateBoss(float delta) {
         if (!isBossLoaded || bossSpawnState != BossSpawnState.ACTIVE) return;
+
+        // Check for Boss Defeat / Victory Condition
+        if (bossHp <= 0f) {
+            bossHp = 0f;
+            if (!isVictory && !isGameOver) {
+                isVictory = true;
+                victoryTimer = 0f;
+                isFiringLaser = false;
+                activeSpiralVoids.clear();
+                activeVoids.clear();
+                activeHealOrbs.clear();
+                game.getAudioDirector().playEffect(SoundtrackCatalog.Effect.BOSS_DEFEATED);
+                game.getAudioDirector().playMusic(SoundtrackCatalog.Track.VICTORY);
+            }
+            return;
+        }
+
+        if (isVictory) return;
         bossPulseTimer += delta;
         if (bossHitCooldown > 0f) bossHitCooldown -= delta;
 
@@ -1050,6 +1105,9 @@ public class BossScreen implements Screen {
             // Normal tracking behavior (if chasing)
             if (bossBehaviorState == BossBehaviorState.CHASING) {
                 float dx = playerX - bossX, dy = playerY - bossY, dist = (float) Math.sqrt(dx * dx + dy * dy);
+                if (dist <= 42f) {
+                    damagePlayer(10f);
+                }
                 if (dist > 2f) {
                     bossX += (dx / dist) * bossSpeed * delta;
                     bossY += (dy / dist) * bossSpeed * delta;
@@ -1264,6 +1322,22 @@ public class BossScreen implements Screen {
             float laserW = mapCrossingWidth;
             float laserH = laserHeight * LASER_SCALE;
             batch.draw(currentFrame, startX, startY - laserH / 2f, 0f, laserH / 2f, laserW, laserH, 1f, 1f, laserTargetAngle);
+
+            // Check laser beam collision against player
+            if (!paused && !isInventoryOpen && !isGameOver && !isVictory && elapsed >= 0.1f) {
+                float rad = laserTargetAngle * MathUtils.degreesToRadians;
+                float dirX = MathUtils.cos(rad);
+                float dirY = MathUtils.sin(rad);
+                float toPlayerX = playerX - startX;
+                float toPlayerY = playerY - startY;
+                float proj = toPlayerX * dirX + toPlayerY * dirY;
+                if (proj > 10f && proj < laserW) {
+                    float perpDist = Math.abs(-toPlayerX * dirY + toPlayerY * dirX);
+                    if (perpDist <= (laserH * 0.5f) + 16f) {
+                        damagePlayer(25f);
+                    }
+                }
+            }
         }
     }
 
@@ -1275,6 +1349,12 @@ public class BossScreen implements Screen {
             if (v.timeElapsed >= 0.5f) {
                 activeVoids.remove(i);
                 continue;
+            }
+
+            if (!paused && !isInventoryOpen && !isGameOver && !isVictory && v.timeElapsed >= 0.15f && v.timeElapsed <= 0.45f) {
+                if (Math.hypot(playerX - v.x, playerY - v.y) <= 40f) {
+                    damagePlayer(20f);
+                }
             }
 
             if (voidAnimation != null) {
@@ -1330,6 +1410,16 @@ public class BossScreen implements Screen {
 
             sv.x = bossX + MathUtils.cos(currentAngle) * currentRadius;
             sv.y = bossY + MathUtils.sin(currentAngle) * currentRadius;
+
+            // Damage player on contact
+            if (!paused && !isInventoryOpen && !isGameOver && !isVictory) {
+                float distToPlayer = (float) Math.hypot(playerX - sv.x, playerY - sv.y);
+                if (distToPlayer <= 28f) {
+                    damagePlayer(15f);
+                    activeSpiralVoids.remove(i);
+                    continue;
+                }
+            }
 
             if (void2Animation != null) {
                 TextureRegion frame = void2Animation.getKeyFrame(sv.timeElapsed, true);
@@ -1683,21 +1773,177 @@ public class BossScreen implements Screen {
 
     private void drawInterface() {
         Matrix4 uiMatrix = new Matrix4().setToOrtho2D(0f, 0f, WIDTH, HEIGHT);
+
+        // 1. Damage Flash Overlay
+        if (playerDamageFlashTimer > 0f) {
+            Gdx.gl.glEnable(GL20.GL_BLEND);
+            shapes.setProjectionMatrix(uiMatrix);
+            shapes.begin(ShapeRenderer.ShapeType.Filled);
+            shapes.setColor(0.85f, 0.05f, 0.05f, Math.min(0.40f, playerDamageFlashTimer * 1.5f));
+            shapes.rect(0f, 0f, WIDTH, HEIGHT);
+            shapes.end();
+            Gdx.gl.glDisable(GL20.GL_BLEND);
+        }
+
         shapes.setProjectionMatrix(uiMatrix);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
-        shapes.setColor(0.12f, 0.15f, 0.2f, 0.8f);
-        shapes.rect(30f, 30f, 180f, 12f);
+
+        // 2. Boss / Scientist Health Bar (Top Center)
+        float barW = 560f, barH = 18f;
+        float barX = (WIDTH - barW) / 2f;
+        float barY = HEIGHT - 46f;
+
+        if (isScientistAlive) {
+            shapes.setColor(0.08f, 0.10f, 0.14f, 0.85f);
+            shapes.rect(barX - 2f, barY - 2f, barW + 4f, barH + 4f);
+            shapes.setColor(0.95f, 0.55f, 0.15f, 1f);
+            shapes.rect(barX, barY, barW * Math.max(0f, scientistHp / 500f), barH);
+        } else if (isBossLoaded) {
+            shapes.setColor(0.08f, 0.10f, 0.14f, 0.85f);
+            shapes.rect(barX - 2f, barY - 2f, barW + 4f, barH + 4f);
+            shapes.setColor(0.85f, 0.15f, 0.18f, 1f);
+            shapes.rect(barX, barY, barW * Math.max(0f, Math.min(1f, bossHp / 1000f)), barH);
+        }
+
+        // 3. Player Health & Stamina Bars (Bottom Left)
+        shapes.setColor(0.08f, 0.10f, 0.14f, 0.85f);
+        shapes.rect(28f, 48f, 184f, 14f);
+        float hpRatio = Math.max(0f, playerHp / MAX_PLAYER_HP);
+        if (hpRatio > 0.5f) {
+            shapes.setColor(0.2f, 0.85f, 0.35f, 1f);
+        } else if (hpRatio > 0.25f) {
+            shapes.setColor(0.95f, 0.75f, 0.2f, 1f);
+        } else {
+            shapes.setColor(0.9f, 0.2f, 0.2f, 1f);
+        }
+        shapes.rect(30f, 50f, 180f * hpRatio, 10f);
+
+        shapes.setColor(0.08f, 0.10f, 0.14f, 0.85f);
+        shapes.rect(28f, 28f, 184f, 14f);
         shapes.setColor(0.2f, 0.75f, 0.95f, 1f);
-        shapes.rect(30f, 30f, 180f * (playerStamina / 100f), 12f);
+        shapes.rect(30f, 30f, 180f * (playerStamina / 100f), 10f);
         shapes.end();
 
         batch.setProjectionMatrix(uiMatrix);
         batch.begin();
+
+        if (isScientistAlive) {
+            font.setColor(0.95f, 0.85f, 0.35f, 1f);
+            font.draw(batch, "TARGET: DR. SEBASTIAN (ROGUE RESEARCHER)  [" + (int)Math.max(0, scientistHp) + " / 500 HP]", barX, barY + 34f);
+            font.setColor(0.75f, 0.8f, 0.85f, 1f);
+            font.draw(batch, "Objective: Subdue the rogue scientist to breach the inner quarantine", barX + 50f, barY - 8f);
+        } else if (isBossLoaded) {
+            font.setColor(0.95f, 0.25f, 0.25f, 1f);
+            font.draw(batch, "PATIENT ZERO: THE INFECTED OVERMIND  [" + (int)Math.max(0, bossHp) + " / 1000 HP]", barX, barY + 34f);
+
+            if (isBossStunned) {
+                font.setColor(1.0f, 0.9f, 0.2f, 1f);
+                font.draw(batch, "STATUS: [STUNNED - WEAK SPOT EXPOSED! ATTACK NOW!]", barX + 80f, barY - 8f);
+            } else if (bossSpecialState == BossSpecialState.AURA_RETURN) {
+                font.setColor(0.7f, 0.5f, 1.0f, 1f);
+                font.draw(batch, "STATUS: [SHIELD ACTIVE - DODGE VOID BURSTS! (" + (int)Math.ceil(bossInvulnerableTimer) + "s)]", barX + 70f, barY - 8f);
+            } else if (bossSpecialState == BossSpecialState.PHASE_THREE) {
+                font.setColor(0.3f, 1.0f, 0.5f, 1f);
+                font.draw(batch, "STATUS: [REGENERATION ACTIVE - DESTROY SPAWNING HEAL ORBS!]", barX + 60f, barY - 8f);
+            } else if (bossSpecialState == BossSpecialState.POST_PHASE_THREE_LOOP) {
+                font.setColor(1.0f, 0.6f, 0.2f, 1f);
+                font.draw(batch, "STATUS: [SPIRAL VOID WAVE " + Math.min(5, postPhaseThreeLoopCount + 1) + "/5 - HIT BOSS 3x TO INTERRUPT!]", barX + 40f, barY - 8f);
+            } else if (isFiringLaser) {
+                font.setColor(1.0f, 0.25f, 0.25f, 1f);
+                font.draw(batch, "STATUS: [FIRING HIGH-OUTPUT LASER! TAKE COVER!]", barX + 90f, barY - 8f);
+            } else {
+                font.setColor(0.75f, 0.8f, 0.85f, 1f);
+                font.draw(batch, "STATUS: [COMBAT ENGAGED - ATTACK WITH MACHETE & GRENADES]", barX + 60f, barY - 8f);
+            }
+        }
+
         font.setColor(0.95f, 0.85f, 0.35f, 1f);
-        font.draw(batch, "OPERATIVE: " + playerCharacter.name() + "   (STAMINA)", 30f, 58f);
+        font.draw(batch, "OPERATIVE: " + playerCharacter.name(), 30f, 82f);
+        font.setColor(Color.WHITE);
+        font.draw(batch, "HP: " + (int)playerHp, 220f, 60f);
+        font.draw(batch, "STM: " + (int)playerStamina + "%", 220f, 40f);
+
         font.setColor(Color.LIGHT_GRAY);
-        font.draw(batch, "Press [I] to open Inventory | [1] Machete | [2] Grenade", 230f, 40f);
+        font.draw(batch, "[I] Inventory | [1] Machete | [2] Grenade", 320f, 40f);
         batch.end();
+
+        if (isGameOver) {
+            drawDefeatOverlay();
+        }
+
+        if (isVictory) {
+            drawVictoryOverlay();
+        }
+    }
+
+    private void drawDefeatOverlay() {
+        Matrix4 uiMatrix = new Matrix4().setToOrtho2D(0f, 0f, WIDTH, HEIGHT);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        shapes.setProjectionMatrix(uiMatrix);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(0.10f, 0.02f, 0.02f, 0.85f);
+        shapes.rect(0f, 0f, WIDTH, HEIGHT);
+        shapes.setColor(0.25f, 0.06f, 0.06f, 0.95f);
+        shapes.rect(WIDTH / 2f - 260f, HEIGHT / 2f - 110f, 520f, 220f);
+        shapes.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+
+        batch.setProjectionMatrix(uiMatrix);
+        batch.begin();
+        font.setColor(0.95f, 0.25f, 0.25f, 1f);
+        font.draw(batch, "OPERATIVE COMPROMISED", WIDTH / 2f - 100f, HEIGHT / 2f + 60f);
+        font.setColor(0.85f, 0.85f, 0.85f, 1f);
+        font.draw(batch, "Vital signs lost. The outbreak continues unabated.", WIDTH / 2f - 170f, HEIGHT / 2f + 15f);
+        font.setColor(0.95f, 0.85f, 0.35f, 1f);
+        font.draw(batch, "Press [SPACE] or Click to Return to Main Menu", WIDTH / 2f - 165f, HEIGHT / 2f - 40f);
+        batch.end();
+
+        defeatTimer += Gdx.graphics.getDeltaTime();
+        if (!returningToLauncher && defeatTimer > 0.8f && (Gdx.input.isKeyJustPressed(Input.Keys.ANY_KEY) || Gdx.input.isButtonJustPressed(Input.Buttons.LEFT))) {
+            returningToLauncher = true;
+            bridge.notifyMatchEnded(new GameBridge.MatchOutcome("DEFEAT", 6));
+            if (bridge.hasLauncher()) {
+                bridge.requestReturnToLauncher(() -> Gdx.app.postRunnable(Gdx.app::exit));
+            } else {
+                game.setScreen(new MainMenuScreen(game, client, bridge));
+            }
+        }
+    }
+
+    private void drawVictoryOverlay() {
+        Matrix4 uiMatrix = new Matrix4().setToOrtho2D(0f, 0f, WIDTH, HEIGHT);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        shapes.setProjectionMatrix(uiMatrix);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(0.02f, 0.08f, 0.04f, 0.85f);
+        shapes.rect(0f, 0f, WIDTH, HEIGHT);
+        shapes.setColor(0.05f, 0.22f, 0.12f, 0.95f);
+        shapes.rect(WIDTH / 2f - 280f, HEIGHT / 2f - 120f, 560f, 240f);
+        shapes.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+
+        batch.setProjectionMatrix(uiMatrix);
+        batch.begin();
+        font.setColor(0.3f, 1.0f, 0.5f, 1f);
+        font.draw(batch, "PATIENT ZERO NEUTRALIZED", WIDTH / 2f - 110f, HEIGHT / 2f + 70f);
+        font.setColor(Color.WHITE);
+        font.draw(batch, "The primary pathogen host has been eliminated. Outbreak contained.", WIDTH / 2f - 230f, HEIGHT / 2f + 25f);
+        font.setColor(0.95f, 0.85f, 0.35f, 1f);
+        font.draw(batch, "CAMPAIGN VICTORY", WIDTH / 2f - 75f, HEIGHT / 2f - 15f);
+        font.setColor(Color.LIGHT_GRAY);
+        font.draw(batch, "Press [SPACE] or Click to View Mission Debrief", WIDTH / 2f - 165f, HEIGHT / 2f - 55f);
+        batch.end();
+
+        victoryTimer += Gdx.graphics.getDeltaTime();
+        if (!returningToLauncher && victoryTimer > 1.2f && (Gdx.input.isKeyJustPressed(Input.Keys.ANY_KEY) || Gdx.input.isButtonJustPressed(Input.Buttons.LEFT))) {
+            returningToLauncher = true;
+            bridge.notifyMatchEnded(new GameBridge.MatchOutcome("VICTORY", 6));
+            if (bridge.hasLauncher()) {
+                bridge.requestReturnToLauncher(() -> Gdx.app.postRunnable(Gdx.app::exit));
+            } else {
+                game.setScreen(new MainMenuScreen(game, client, bridge));
+            }
+        }
     }
 
     private void drawPauseOverlay() {
