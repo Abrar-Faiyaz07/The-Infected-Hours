@@ -2,6 +2,7 @@ package com.infectedhour.core;
 
 import com.badlogic.gdx.Game;
 import com.infectedhour.core.bridge.GameBridge;
+import com.infectedhour.core.audio.AudioDirector;
 import com.infectedhour.core.net.GameClient;
 import com.infectedhour.core.net.GameServer;
 import com.infectedhour.core.net.SessionConfig;
@@ -29,6 +30,7 @@ public class InfectedHourGame extends Game {
 
     private final SessionConfig session;
     private final GameBridge bridge;
+    private final AudioDirector audioDirector = new AudioDirector();
 
     private GameServer server; // non-null only on the host
     private GameClient client;
@@ -69,12 +71,12 @@ public class InfectedHourGame extends Game {
         // Applied before the first tick, so the very first snapshot clients
         // receive already reflects the restored world — nobody ever sees the
         // pre-load state flash on screen.
-        if (server != null && session.isLoadingSave()) {
-            server.restoreFrom(session.loadedSlot());
-        }
-
         if (server != null && session.debugSplitScreen()) {
             server.enableLocalCoopDummy(com.infectedhour.shared.network.CharacterType.JANE);
+        }
+
+        if (server != null && session.isLoadingSave()) {
+            server.restoreFrom(session.loadedSlot());
         }
 
         bridge.setOnSaveConfirmed(slotNumber -> {
@@ -125,6 +127,11 @@ public class InfectedHourGame extends Game {
         return bridge;
     }
 
+    /** Shared music/voice/SFX owner; screens only request cues from it. */
+    public AudioDirector getAudioDirector() {
+        return audioDirector;
+    }
+
     /**
      * Drives the authoritative simulation from the render loop's accumulator
      * (TRD §4). One clock, one owner — the sim never gets its own thread.
@@ -148,6 +155,7 @@ public class InfectedHourGame extends Game {
     @Override
     public void dispose() {
         if (getScreen() != null) getScreen().dispose();
+        audioDirector.dispose();
         if (client != null) client.disconnect();
         if (server != null) server.stop();
         bridge.onGameWindowClosed();

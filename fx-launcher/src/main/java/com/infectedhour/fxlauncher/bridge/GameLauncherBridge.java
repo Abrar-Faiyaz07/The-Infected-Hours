@@ -60,14 +60,24 @@ public class GameLauncherBridge {
     }
 
     public void startAsHost(String customName, com.infectedhour.shared.network.CharacterType character, Runnable onReturnToLauncher) {
+        startAsHost(customName, character, 0, false, onReturnToLauncher);
+    }
+
+    public void startAsHost(String customName, com.infectedhour.shared.network.CharacterType character, int levelNumber, boolean showCollision, Runnable onReturnToLauncher) {
         String name = (customName != null && !customName.isBlank()) ? customName.trim() : displayName();
         var slot = SessionState.get().getLoadedSlot();
         com.infectedhour.shared.network.CharacterType preferred = character != null ? character : com.infectedhour.shared.network.CharacterType.ELRIC;
-        SessionConfig config = slot != null && slot.occupied()
-                ? SessionConfig.hostingFromSave(playerId(), name,
-                        SessionState.get().getBackendUrl(), slot, preferred)
-                : SessionConfig.hosting(playerId(), name,
-                        SessionState.get().getBackendUrl(), preferred);
+        SessionConfig config;
+        if (slot != null && slot.occupied()) {
+            config = SessionConfig.hostingFromSave(playerId(), name,
+                    SessionState.get().getBackendUrl(), slot, preferred);
+        } else if (levelNumber > 0 || showCollision) {
+            config = SessionConfig.hosting(playerId(), name,
+                    SessionState.get().getBackendUrl(), preferred, levelNumber, showCollision);
+        } else {
+            config = SessionConfig.hosting(playerId(), name,
+                    SessionState.get().getBackendUrl(), preferred);
+        }
         // Consumed once — returning to the menu must not silently reload the
         // same save the next time the player presses Play.
         SessionState.get().clearLoadedSlot();
@@ -86,8 +96,12 @@ public class GameLauncherBridge {
 
     /** Boots directly into single-machine local split-screen co-op with Elric (P1) and Jane (P2). */
     public void startDebugLocalCoop(Runnable onReturnToLauncher) {
+        startDebugLocalCoop(1, false, onReturnToLauncher);
+    }
+
+    public void startDebugLocalCoop(int levelNumber, boolean showCollision, Runnable onReturnToLauncher) {
         SessionConfig config = SessionConfig.debugLocalCoop(
-                playerId(), displayName(), SessionState.get().getBackendUrl());
+                playerId(), displayName(), SessionState.get().getBackendUrl(), levelNumber, showCollision);
         startMatch(config, onReturnToLauncher);
     }
 

@@ -15,6 +15,8 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Matrix4;
 import com.infectedhour.core.InfectedHourGame;
+import com.infectedhour.core.audio.SoundtrackCatalog;
+import com.infectedhour.core.content.DialogueCatalog;
 import com.infectedhour.core.bridge.GameBridge;
 import com.infectedhour.core.net.GameClient;
 import com.infectedhour.shared.network.CharacterType;
@@ -182,6 +184,8 @@ public class BossScreen implements Screen {
 
     @Override
     public void show() {
+        game.getAudioDirector().playMusic(SoundtrackCatalog.Track.VIRUS_HEART_BOSS);
+        game.getAudioDirector().playVoice(DialogueCatalog.line(DialogueCatalog.Scene.BOSS, 0));
         batch = new SpriteBatch(); shapes = new ShapeRenderer(); font = new BitmapFont();
         projection = new Matrix4().setToOrtho2D(0f, 0f, WIDTH, HEIGHT);
 

@@ -40,7 +40,10 @@ public class LevelLoader {
         return switch (levelNumber) {
             case 1 -> LevelDefinition.level1();
             case 2 -> LevelDefinition.level2();
-            case 3 -> LevelDefinition.level3Boss();
+            case 3 -> LevelDefinition.level3();
+            case 4 -> LevelDefinition.level4();
+            case 5 -> LevelDefinition.level5();
+            case 6 -> LevelDefinition.level6Boss();
             default -> throw new IllegalArgumentException("Unknown level: " + levelNumber);
         };
     }

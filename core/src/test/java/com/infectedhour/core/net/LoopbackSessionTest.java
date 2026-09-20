@@ -1,6 +1,8 @@
 package com.infectedhour.core.net;
 
 import com.infectedhour.core.bridge.GameBridge;
+import com.infectedhour.core.entities.Player;
+import com.infectedhour.core.state.CampaignSquadState;
 import com.infectedhour.shared.constants.GameConstants;
 import com.infectedhour.shared.network.CharacterType;
 import com.infectedhour.shared.network.InputCommand;
@@ -226,5 +228,48 @@ class LoopbackSessionTest {
             Thread.sleep(20);
         }
         return null;
+    }
+
+    @Test
+    @DisplayName("split screen dummy Jane spawns in lab in level 1 when unrevived")
+    void splitScreenJaneSpawnsInPharmacyWhenUnrevived() {
+        CampaignSquadState.reset();
+        GameServer localServer = new GameServer();
+        localServer.configureLevel(1);
+        localServer.enableLocalCoopDummy(CharacterType.JANE);
+
+        Player p2 = localServer.getPlayerEntity(GameServer.LOCAL_P2_CONNECTION_ID);
+        assertNotNull(p2);
+        assertEquals(40.0f, p2.getX(), 0.01f);
+        assertEquals(8.0f, p2.getY(), 0.01f);
+    }
+
+    @Test
+    @DisplayName("split screen dummy Jane stays in lab even after host Elric joins")
+    void splitScreenJaneStaysInPharmacyWithHostPresent() throws Exception {
+        CampaignSquadState.reset();
+        startServer();
+        joinAndAwaitAccept("p1", "Elric Host");
+        server.configureLevel(1);
+        server.enableLocalCoopDummy(CharacterType.JANE);
+
+        Player p2 = server.getPlayerEntity(GameServer.LOCAL_P2_CONNECTION_ID);
+        assertNotNull(p2);
+        assertEquals(40.0f, p2.getX(), 0.01f);
+        assertEquals(8.0f, p2.getY(), 0.01f);
+    }
+
+    @Test
+    @DisplayName("debug co-op keeps host Elric when dummy Jane is registered first")
+    void debugCoopAssignsDistinctCharactersWhenDummyJoinsFirst() {
+        CampaignSquadState.reset();
+        GameServer localServer = new GameServer();
+        localServer.setHostCharacter(CharacterType.ELRIC);
+        localServer.enableLocalCoopDummy(CharacterType.JANE);
+
+        assertEquals(CharacterType.ELRIC, localServer.selectCharacterForIncomingNetworkPlayer());
+        Player jane = localServer.getPlayerEntity(GameServer.LOCAL_P2_CONNECTION_ID);
+        assertNotNull(jane);
+        assertEquals(CharacterType.JANE, jane.getCharacter());
     }
 }

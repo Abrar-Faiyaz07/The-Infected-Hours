@@ -73,8 +73,8 @@ public final class GameConstants {
     public static final String REJECT_HOST_LOST = "HOST_LOST";
 
     // --- Gameplay (PRD §7, §10) ---
-    public static final int LEVEL_COUNT = 3;
-    public static final int BOSS_LEVEL_NUMBER = 3;
+    public static final int LEVEL_COUNT = 6;
+    public static final int BOSS_LEVEL_NUMBER = 6;
     public static final float GLOBAL_CONTAMINATION_MAX = 100f;
     public static final float PERSONAL_CONTAMINATION_MAX = 100f;
     public static final int REVIVE_WINDOW_SECONDS = 30;

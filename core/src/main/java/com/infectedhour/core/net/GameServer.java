@@ -77,6 +77,7 @@ public class GameServer {
     private final List<WorldSnapshot.ItemState> items = new ArrayList<>();
     private int mapWidthInTiles = 64;
     private volatile int currentLevelNumber = 1;
+    private volatile boolean levelConfigured = false;
     private volatile LevelExit activeLevelExit = LevelExit.forLevel(1).orElse(null);
     private volatile boolean levelTransitionBroadcast;
     private final Set<String> completedObjectiveActions = new HashSet<>();
@@ -218,9 +219,7 @@ public class GameServer {
                 return;
             }
 
-            CharacterType character = playersByConnectionId.isEmpty()
-                    ? hostCharacter
-                    : (hostCharacter == CharacterType.ELRIC ? CharacterType.JANE : CharacterType.ELRIC);
+            CharacterType character = selectCharacterForIncomingNetworkPlayer();
             String playerId = joinRequest.playerId != null && !joinRequest.playerId.isBlank()
                     ? joinRequest.playerId
                     : character.name().toLowerCase() + "-" + connection.getID();
@@ -273,11 +272,37 @@ public class GameServer {
 
     public static final int LOCAL_P2_CONNECTION_ID = 9999;
 
+    /** The local split-screen dummy does not consume the real host's character seat. */
+    CharacterType selectCharacterForIncomingNetworkPlayer() {
+        boolean hasNetworkPlayer = playersByConnectionId.keySet().stream()
+                .anyMatch(id -> id != LOCAL_P2_CONNECTION_ID);
+        return !hasNetworkPlayer
+                ? hostCharacter
+                : (hostCharacter == CharacterType.ELRIC ? CharacterType.JANE : CharacterType.ELRIC);
+    }
+
     public void enableLocalCoopDummy(CharacterType p2Char) {
         synchronized (rosterLock) {
             if (!playersByConnectionId.containsKey(LOCAL_P2_CONNECTION_ID)) {
                 ConnectedPlayer p2 = new ConnectedPlayer(LOCAL_P2_CONNECTION_ID, "local-p2", "Jane (P2)", p2Char);
-                p2.entity.setPosition(spawnX(p2Char), spawnY(p2Char));
+                float x = spawnX(p2Char);
+                float y = spawnY(p2Char);
+                boolean isUnconsciousJane = (currentLevelNumber == 1 && p2Char == CharacterType.JANE && !CampaignSquadState.isJaneRevived);
+                if (!isUnconsciousJane) {
+                    if (currentLevelNumber == 2) {
+                        x = 3.5f;
+                        y = 37.22f;
+                    } else {
+                        for (ConnectedPlayer cp : playersByConnectionId.values()) {
+                            if (cp.connectionId != LOCAL_P2_CONNECTION_ID) {
+                                x = cp.entity.getX() > 1.5f ? cp.entity.getX() - 1.0f : cp.entity.getX() + 1.0f;
+                                y = cp.entity.getY();
+                                break;
+                            }
+                        }
+                    }
+                }
+                p2.entity.setPosition(x, y);
                 playersByConnectionId.put(LOCAL_P2_CONNECTION_ID, p2);
                 LOG.info("Local Split-Screen P2 registered as " + p2Char);
             }
@@ -623,7 +648,8 @@ public class GameServer {
     }
 
     public synchronized void configureLevel(LevelDefinition definition) {
-        boolean enteringNewLevel = this.currentLevelNumber != definition.levelNumber();
+        boolean enteringNewLevel = !levelConfigured || this.currentLevelNumber != definition.levelNumber();
+        this.levelConfigured = true;
         this.currentLevelNumber = definition.levelNumber();
         this.activeLevelExit = LevelExit.forLevel(definition.levelNumber()).orElse(null);
         this.levelTransitionBroadcast = false;
@@ -635,18 +661,33 @@ public class GameServer {
         }
         if (enteringNewLevel) {
             Checkpoint start = CheckpointRegistry.firstOf(definition.levelNumber());
-            int playerIndex = 0;
+            int spawnIndex = 0;
             for (ConnectedPlayer connected : playersByConnectionId.values()) {
                 if (definition.levelNumber() == 1 && connected.entity.getCharacter() == CharacterType.JANE && !CampaignSquadState.isJaneRevived) {
-                    connected.entity.setPosition(42.0f, 5.5f);
+                    connected.entity.setPosition(40.0f, 8.0f);
+                } else if (definition.levelNumber() == 2) {
+                    if (connected.entity.getCharacter() == CharacterType.ELRIC) {
+                        connected.entity.setPosition(6.3f, 37.22f);
+                    } else {
+                        connected.entity.setPosition(3.5f, 37.22f);
+                    }
+                } else if (definition.levelNumber() == 3 || definition.levelNumber() == 4
+                        || definition.levelNumber() == 5) {
+                    // Begin these maps as one squad in their validated two-tile
+                    // entrance corridor. Character-based slots keep Elric/Jane
+                    // deterministic even though ConcurrentHashMap iteration is
+                    // unspecified.
+                    float x = connected.entity.getCharacter() == CharacterType.ELRIC
+                            ? start.spawnTileX() : start.spawnTileX() + 1.0f;
+                    connected.entity.setPosition(x, start.spawnTileY());
                 } else {
-                    connected.entity.setPosition(start.spawnTileX() + playerIndex * 0.5f, start.spawnTileY());
+                    connected.entity.setPosition(start.spawnTileX() + (spawnIndex == 0 ? 0f : (spawnIndex % 2 == 1 ? 1.0f : -1.0f)), start.spawnTileY());
+                    spawnIndex++;
                 }
                 connected.entity.revive();
                 connected.entity.heal(100f);
                 connected.entity.cleanseContamination();
                 connected.equippedWeapon = "MELEE";
-                playerIndex++;
             }
         }
         LOG.info(() -> "Configured " + definition.name() + " with "
@@ -663,7 +704,8 @@ public class GameServer {
         if (sender == null || feature == null || completedObjectiveActions.contains(actionId)) {
             return;
         }
-        if (!feature.contains(sender.entity.getX(), sender.entity.getY())) {
+        if (feature.type() != CampaignLevelPlan.FeatureType.ZOMBIE_ENCOUNTER
+                && !feature.contains(sender.entity.getX(), sender.entity.getY())) {
             return;
         }
         if (!objectiveSystem.getObjectives().containsKey(feature.objectiveId())) {
@@ -791,7 +833,17 @@ public class GameServer {
         contaminationSystem.setGlobalContaminationPct(slot.globalContaminationPct());
 
         for (ConnectedPlayer connected : playersByConnectionId.values()) {
-            connected.entity.setPosition(checkpoint.spawnTileX(), checkpoint.spawnTileY());
+            float sx = checkpoint.spawnTileX();
+            float sy = checkpoint.spawnTileY();
+            if (connected.entity.getCharacter() == CharacterType.JANE) {
+                if (currentLevelNumber == 1 && !CampaignSquadState.isJaneRevived) {
+                    sx = 40.0f;
+                    sy = 8.0f;
+                } else {
+                    sx = sx > 1.5f ? sx - 1.0f : sx + 1.0f;
+                }
+            }
+            connected.entity.setPosition(sx, sy);
             connected.entity.restoreVitals(slot.playerHp(), slot.personalContaminationPct());
         }
         LOG.info(() -> "Restored save at " + slot.checkpointId());
@@ -908,16 +960,53 @@ public class GameServer {
      * boundary between two tiles, so a 0.25-radius collider straddles both and
      * can clip a wall that touches only one of them.
      */
+    public Player getPlayerEntity(int connectionId) {
+        ConnectedPlayer cp = playersByConnectionId.get(connectionId);
+        return cp != null ? cp.entity : null;
+    }
+
     private float spawnX(CharacterType character) {
         if (currentLevelNumber == 1 && character == CharacterType.JANE && !CampaignSquadState.isJaneRevived) {
-            return 42.0f;
+            return 40.0f;
+        }
+        if (currentLevelNumber == 2) {
+            return character == CharacterType.ELRIC ? 6.3f : 3.5f;
+        }
+        if (currentLevelNumber == 3) {
+            Checkpoint start = CheckpointRegistry.firstOf(3);
+            return character == CharacterType.ELRIC ? start.spawnTileX() : start.spawnTileX() + 1.0f;
+        }
+        if (currentLevelNumber == 4) {
+            Checkpoint start = CheckpointRegistry.firstOf(4);
+            return character == CharacterType.ELRIC ? start.spawnTileX() : start.spawnTileX() + 1.0f;
+        }
+        if (currentLevelNumber == 5) {
+            Checkpoint start = CheckpointRegistry.firstOf(5);
+            return character == CharacterType.ELRIC ? start.spawnTileX() : start.spawnTileX() + 1.0f;
+        }
+        Checkpoint start = null;
+        try {
+            start = CheckpointRegistry.firstOf(currentLevelNumber);
+        } catch (Exception ignored) { }
+        if (start != null) {
+            return character == CharacterType.ELRIC ? start.spawnTileX() : (start.spawnTileX() > 1.5f ? start.spawnTileX() - 1.0f : start.spawnTileX() + 1.0f);
         }
         return character == CharacterType.ELRIC ? 9.5f : 10.5f;
     }
 
     private float spawnY(CharacterType character) {
         if (currentLevelNumber == 1 && character == CharacterType.JANE && !CampaignSquadState.isJaneRevived) {
-            return 5.5f;
+            return 8.0f;
+        }
+        if (currentLevelNumber == 2) {
+            return 37.22f;
+        }
+        Checkpoint start = null;
+        try {
+            start = CheckpointRegistry.firstOf(currentLevelNumber);
+        } catch (Exception ignored) { }
+        if (start != null) {
+            return start.spawnTileY();
         }
         return 8.5f;
     }

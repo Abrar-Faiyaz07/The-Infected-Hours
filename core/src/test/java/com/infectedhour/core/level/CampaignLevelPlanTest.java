@@ -43,6 +43,14 @@ class CampaignLevelPlanTest {
     }
 
     @Test
+    void levelTwoZombiePatrolStartsAtThePatientRoomHallway() {
+        CampaignLevelPlan.Feature patrol = CampaignLevelPlan.findFeature(2, "road_patrol").orElseThrow();
+
+        assertEquals(25.75f, patrol.tileX());
+        assertEquals(32.42f, patrol.tileY());
+    }
+
+    @Test
     void otherLevelsHaveNoRoadsideFeatures() {
         assertTrue(CampaignLevelPlan.featuresFor(1).isEmpty());
         assertTrue(CampaignLevelPlan.featuresFor(3).isEmpty());

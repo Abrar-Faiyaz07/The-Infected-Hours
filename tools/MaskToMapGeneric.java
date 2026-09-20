@@ -21,7 +21,7 @@ import java.util.List;
  * hospital walls in map2.png as walkable.
  *
  * <pre>
- *   java tools/MaskToMapGeneric.java assets/collision_mask2.png core/src/main/resources/maps/level1_part2.map 60 40 1 5.5 4.5 6.5 4.5
+ *   java tools/MaskToMapGeneric.java assets/collision_mask2.png core/src/main/resources/maps/level2.map 60 40 1 5.5 4.5 6.5 4.5
  * </pre>
  * Args: maskImage, outMapFile, cols, rows, subdivisions, spawnWorldX, spawnWorldY, [extraWorldX, extraWorldY]...
  *

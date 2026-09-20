@@ -24,7 +24,8 @@ import com.infectedhour.shared.network.CharacterType;
 public record SessionConfig(boolean host, String hostAddress, String playerId,
                             String displayName, String backendUrl,
                             SaveSlotDto loadedSlot, CharacterType preferredCharacter,
-                            boolean debugSplitScreen, boolean debugBossFight) {
+                            boolean debugSplitScreen, boolean debugBossFight,
+                            int startingLevelOverride, boolean showCollisionOverlay) {
 
     public SessionConfig {
         playerId = playerId == null || playerId.isBlank() ? "player-" + System.nanoTime() : playerId;
@@ -38,40 +39,55 @@ public record SessionConfig(boolean host, String hostAddress, String playerId,
     public SessionConfig(boolean host, String hostAddress, String playerId,
                          String displayName, String backendUrl,
                          SaveSlotDto loadedSlot, CharacterType preferredCharacter,
+                         boolean debugSplitScreen, boolean debugBossFight) {
+        this(host, hostAddress, playerId, displayName, backendUrl, loadedSlot, preferredCharacter, debugSplitScreen, debugBossFight, 0, false);
+    }
+
+    public SessionConfig(boolean host, String hostAddress, String playerId,
+                         String displayName, String backendUrl,
+                         SaveSlotDto loadedSlot, CharacterType preferredCharacter,
                          boolean debugSplitScreen) {
-        this(host, hostAddress, playerId, displayName, backendUrl, loadedSlot, preferredCharacter, debugSplitScreen, false);
+        this(host, hostAddress, playerId, displayName, backendUrl, loadedSlot, preferredCharacter, debugSplitScreen, false, 0, false);
     }
 
     public SessionConfig(boolean host, String hostAddress, String playerId,
                          String displayName, String backendUrl,
                          SaveSlotDto loadedSlot, CharacterType preferredCharacter) {
-        this(host, hostAddress, playerId, displayName, backendUrl, loadedSlot, preferredCharacter, false, false);
+        this(host, hostAddress, playerId, displayName, backendUrl, loadedSlot, preferredCharacter, false, false, 0, false);
     }
 
     public SessionConfig(boolean host, String hostAddress, String playerId,
                          String displayName, String backendUrl, SaveSlotDto loadedSlot) {
         this(host, hostAddress, playerId, displayName, backendUrl, loadedSlot,
                 (loadedSlot != null && "JANE".equalsIgnoreCase(loadedSlot.characterType()))
-                        ? CharacterType.JANE : CharacterType.ELRIC, false, false);
+                        ? CharacterType.JANE : CharacterType.ELRIC, false, false, 0, false);
     }
 
     /** This laptop hosts: the client connects to its own loopback. */
     public static SessionConfig hosting(String playerId, String displayName, String backendUrl) {
-        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null, CharacterType.ELRIC, false, false);
+        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null, CharacterType.ELRIC, false, false, 0, false);
     }
 
     public static SessionConfig hosting(String playerId, String displayName, String backendUrl, CharacterType preferredCharacter) {
-        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null, preferredCharacter, false, false);
+        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null, preferredCharacter, false, false, 0, false);
+    }
+
+    public static SessionConfig hosting(String playerId, String displayName, String backendUrl, CharacterType preferredCharacter, int startingLevel, boolean showCollision) {
+        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null, preferredCharacter, false, false, startingLevel, showCollision);
     }
 
     /** Debug split-screen co-op on a single machine. */
     public static SessionConfig debugLocalCoop(String playerId, String displayName, String backendUrl) {
-        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null, CharacterType.ELRIC, true, false);
+        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null, CharacterType.ELRIC, true, false, 0, false);
+    }
+
+    public static SessionConfig debugLocalCoop(String playerId, String displayName, String backendUrl, int startingLevel, boolean showCollision) {
+        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null, CharacterType.ELRIC, true, false, startingLevel, showCollision);
     }
 
     /** Direct Final Boss fight debug mode with chosen character. */
     public static SessionConfig debugBossFight(String playerId, String displayName, String backendUrl, CharacterType preferredCharacter) {
-        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null, preferredCharacter, false, true);
+        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, null, preferredCharacter, false, true, 0, false);
     }
 
     /** Host a run restored from a save slot (Load Game). */
@@ -79,7 +95,7 @@ public record SessionConfig(boolean host, String hostAddress, String playerId,
                                                 String backendUrl, SaveSlotDto slot) {
         CharacterType charType = (slot != null && "JANE".equalsIgnoreCase(slot.characterType()))
                 ? CharacterType.JANE : CharacterType.ELRIC;
-        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, slot, charType);
+        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, slot, charType, false, false, 0, false);
     }
 
     public static SessionConfig hostingFromSave(String playerId, String displayName,
@@ -87,12 +103,12 @@ public record SessionConfig(boolean host, String hostAddress, String playerId,
         CharacterType charType = overrideCharacter != null ? overrideCharacter
                 : ((slot != null && "JANE".equalsIgnoreCase(slot.characterType()))
                         ? CharacterType.JANE : CharacterType.ELRIC);
-        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, slot, charType);
+        return new SessionConfig(true, "localhost", playerId, displayName, backendUrl, slot, charType, false, false, 0, false);
     }
 
     /** This laptop joins the host at {@code hostAddress}; the backend URL arrives in JoinAccept. */
     public static SessionConfig joining(String hostAddress, String playerId, String displayName) {
-        return new SessionConfig(false, hostAddress, playerId, displayName, null, null, CharacterType.JANE);
+        return new SessionConfig(false, hostAddress, playerId, displayName, null, null, CharacterType.JANE, false, false, 0, false);
     }
 
     /** Dev shortcut used by {@code ./gradlew lwjgl3:run} — host-solo, no launcher. */
@@ -105,9 +121,10 @@ public record SessionConfig(boolean host, String hostAddress, String playerId,
         return loadedSlot != null && loadedSlot.occupied();
     }
 
-    /** Level to boot into: the save's level, 3 for boss fight, or 1 for a new run. */
+    /** Level to boot into: override if specified, the save's level, boss fight level, or 1 for a new run. */
     public int startingLevel() {
-        if (debugBossFight) return 3;
+        if (startingLevelOverride > 0) return startingLevelOverride;
+        if (debugBossFight) return GameConstants.BOSS_LEVEL_NUMBER;
         return isLoadingSave() ? Math.max(1, loadedSlot.levelNumber()) : 1;
     }
 

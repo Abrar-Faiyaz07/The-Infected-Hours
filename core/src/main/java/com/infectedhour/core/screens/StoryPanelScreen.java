@@ -104,6 +104,9 @@ public class StoryPanelScreen implements Screen {
         typewriterElapsed += delta;
         panelElapsed += delta;
 
+        // Friendship / Humanity choice temporarily commented out
+        boolean isEndingChoicePanel = false;
+        /*
         boolean isEndingChoicePanel = (sequence == Sequence.ENDING && currentPanelIndex == 2);
 
         if (isEndingChoicePanel && moralChoice == 0) {
@@ -119,6 +122,7 @@ public class StoryPanelScreen implements Screen {
                 return;
             }
         }
+        */
 
         String text = panels[currentPanelIndex];
         int visibleChars = Math.min(text.length(), (int) (typewriterElapsed * TYPEWRITER_CHARS_PER_SEC));
@@ -333,6 +337,8 @@ public class StoryPanelScreen implements Screen {
         typewriterElapsed = 0f;
         panelElapsed = 0f;
 
+        /*
+        // Moral choice branching and Jane duel transition temporarily commented out
         if (sequence == Sequence.ENDING) {
             if (currentPanelIndex == 2) {
                 // After choice panel
@@ -358,6 +364,7 @@ public class StoryPanelScreen implements Screen {
                 return;
             }
         }
+        */
 
         currentPanelIndex++;
 

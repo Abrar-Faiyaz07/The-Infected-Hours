@@ -37,11 +37,11 @@ public final class CampaignLevelPlan {
 
     private static final List<Feature> LEVEL_2_FEATURES = List.of(
             new Feature("road_patrol", "l2_infected", FeatureType.ZOMBIE_ENCOUNTER,
-                    "Clear the infected road patrol", 24.5f, 34.5f, 6.0f),
+                    "Clear the infected road patrol", 25.75f, 32.42f, 6.0f),
             new Feature("survivor_market", "l2_rescue", FeatureType.SURVIVOR,
-                    "Escort the market survivor", 7.5f, 21.5f, 1.6f),
+                    "Rescue the stranded villager", 16.96f, 32.86f, 2.0f),
             new Feature("survivor_shelter", "l2_rescue", FeatureType.SURVIVOR,
-                    "Release the shelter survivor", 31.5f, 27.5f, 1.6f),
+                    "Rescue the stranded villager", 51.0f, 33.65f, 2.0f),
             new Feature("relay_clinic", "l2_puzzle", FeatureType.POWER_RELAY,
                     "Route power through the clinic relay", 14.5f, 4.5f, 1.6f),
             new Feature("relay_depot", "l2_puzzle", FeatureType.POWER_RELAY,

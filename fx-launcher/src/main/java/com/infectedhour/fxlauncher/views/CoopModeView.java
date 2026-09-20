@@ -9,10 +9,9 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 /**
+ * Standard 2-Player Co-Op Screen:
  * Fork between the two co-op roles (TRD §5): this laptop either runs the
- * authoritative {@code GameServer} (Host) or connects to one (Join).
- * Both paths land in a lobby that uses LAN UDP discovery to find the other
- * machine before KryoNet's TCP/UDP session is opened.
+ * authoritative GameServer (Host) or connects to one (Join).
  */
 public class CoopModeView {
 
@@ -28,7 +27,7 @@ public class CoopModeView {
 
         Label hint = new Label("""
                 One laptop hosts the match and runs the simulation; the other joins it.
-                Both machines must be on the same LAN (or the same phone hotspot).""");
+                Both machines must be on the same LAN (or the same phone hotspot / Radmin VPN).""");
         hint.getStyleClass().add("brand-subtitle");
 
         Button hostBtn = new Button("Host a match  (you are Elric)");
