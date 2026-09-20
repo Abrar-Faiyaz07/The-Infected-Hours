@@ -20,6 +20,8 @@ import com.infectedhour.core.InfectedHourGame;
 import com.infectedhour.core.audio.SoundtrackCatalog;
 import com.infectedhour.core.content.DialogueCatalog;
 import com.infectedhour.core.bridge.GameBridge;
+import com.infectedhour.core.level.LevelLoader;
+import com.infectedhour.core.level.TileMap;
 import com.infectedhour.core.net.GameClient;
 import com.infectedhour.shared.network.CharacterType;
 import java.util.ArrayList;
@@ -48,7 +50,9 @@ public class BossScreen implements Screen {
     private final InfectedHourGame game;
     private final GameClient client;
     private final GameBridge bridge;
-    private final CharacterType playerCharacter;
+    private CharacterType playerCharacter;
+    private TileMap tileMap;
+    private boolean showCollisionOverlay = false;
 
     private SpriteBatch batch;
     private ShapeRenderer shapes;
@@ -61,10 +65,10 @@ public class BossScreen implements Screen {
     private Texture scientistTexture;
     private TextureRegion[][] scientistFrames;
     private int scientistWidth, scientistHeight;
-    private float scientistX = 400f, scientistY = 300f, scientistHp = 500f;
+    private float scientistX = 400f, scientistY = 360f, scientistHp = 500f;
     private boolean isScientistAlive = true;
     private float scientistRoamTimer = 0f;
-    private float scientistTargetX = 400f, scientistTargetY = 300f;
+    private float scientistTargetX = 400f, scientistTargetY = 360f;
     private float scientistHitCooldown = 0f;
     private float scientistAnimTime = 0f;
     private int scientistFacing = 0; // 0=Down, 1=Left, 2=Right, 3=Up
@@ -215,7 +219,7 @@ public class BossScreen implements Screen {
     private Texture inventoryTexture, meleeInventoryTexture, bombTexture, bombEffectTexture;
     private TextureRegion[][] bombFrames, bombEffectFrames;
     private boolean isInventoryOpen = false;
-    private boolean hasMachete = true, isMacheteEquipped = false;
+    private boolean hasMachete = true, isMacheteEquipped = true;
     private boolean hasBomb = true, isBombEquipped = false;
     private float bombCooldown = 0f;
 
@@ -279,6 +283,34 @@ public class BossScreen implements Screen {
             if (mapTexture != null) {
                 mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
                 break;
+            }
+        }
+
+        try {
+            tileMap = new LevelLoader().loadTileMap("maps/level_final.map");
+        } catch (Exception e) {
+            Gdx.app.log("BossScreen", "Failed to load maps/level_final.map: " + e.getMessage());
+        }
+
+        if (!isWalkable(playerX, playerY, 12f)) {
+            float cellW = WIDTH / (tileMap != null ? tileMap.getCollisionWidth() : 60f);
+            float cellH = HEIGHT / (tileMap != null ? tileMap.getCollisionHeight() : 40f);
+            for (int r = 1; r < 10; r++) {
+                boolean found = false;
+                for (int dy = -r; dy <= r; dy++) {
+                    for (int dx = -r; dx <= r; dx++) {
+                        float testX = playerX + dx * cellW;
+                        float testY = playerY + dy * cellH;
+                        if (isWalkable(testX, testY, 12f)) {
+                            playerX = testX;
+                            playerY = testY;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (found) break;
+                }
+                if (found) break;
             }
         }
 
@@ -555,6 +587,10 @@ public class BossScreen implements Screen {
         drawPlayer();
         batch.end();
 
+        if (showCollisionOverlay) {
+            drawCollisionOverlay();
+        }
+
         // Draw HUD & UI overlays
         drawInterface();
         if (isInventoryOpen) drawInventoryOverlay();
@@ -575,6 +611,16 @@ public class BossScreen implements Screen {
         if (paused) {
             if (Gdx.input.isKeyJustPressed(Input.Keys.Q)) returnToLauncher();
             return;
+        }
+
+        // Operative toggle (TAB to swap between Elric and Jane)
+        if (Gdx.input.isKeyJustPressed(Input.Keys.TAB)) {
+            playerCharacter = (playerCharacter == CharacterType.ELRIC) ? CharacterType.JANE : CharacterType.ELRIC;
+        }
+
+        // Collision overlay toggle (F3 or C)
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F3) || Gdx.input.isKeyJustPressed(Input.Keys.C)) {
+            showCollisionOverlay = !showCollisionOverlay;
         }
 
         // Inventory Toggle
@@ -650,8 +696,15 @@ public class BossScreen implements Screen {
             moveX = MathUtils.cos(fleeAngle) * 110f;
             moveY = MathUtils.sin(fleeAngle) * 110f;
 
-            scientistX = MathUtils.clamp(scientistX + moveX * delta, 90f, WIDTH - 90f);
-            scientistY = MathUtils.clamp(scientistY + moveY * delta, 90f, HEIGHT - 120f);
+            float nX = scientistX + moveX * delta;
+            float nY = scientistY + moveY * delta;
+            if (isWalkable(nX, nY, 14f)) {
+                scientistX = nX;
+                scientistY = nY;
+            } else {
+                if (isWalkable(nX, scientistY, 14f)) scientistX = nX;
+                if (isWalkable(scientistX, nY, 14f)) scientistY = nY;
+            }
         } else {
             scientistRoamTimer -= delta;
             if (scientistRoamTimer <= 0f) {
@@ -665,8 +718,15 @@ public class BossScreen implements Screen {
             if (dist > 5f) {
                 moveX = (dx / dist) * 60f;
                 moveY = (dy / dist) * 60f;
-                scientistX += moveX * delta;
-                scientistY += moveY * delta;
+                float nX = scientistX + moveX * delta;
+                float nY = scientistY + moveY * delta;
+                if (isWalkable(nX, nY, 14f)) {
+                    scientistX = nX;
+                    scientistY = nY;
+                } else {
+                    if (isWalkable(nX, scientistY, 14f)) scientistX = nX;
+                    if (isWalkable(scientistX, nY, 14f)) scientistY = nY;
+                }
             }
         }
 
@@ -737,19 +797,47 @@ public class BossScreen implements Screen {
         playerStamina = playerSprinting ? Math.max(0f, playerStamina - delta * 25f) : Math.min(100f, playerStamina + delta * 18f);
 
         playerMoving = (moveX != 0 || moveY != 0);
+        float radius = 12f;
         if (playerMoving) {
             float len = (float) Math.sqrt(moveX * moveX + moveY * moveY);
-            playerX = MathUtils.clamp(playerX + (moveX / len) * speed * delta, 90f, WIDTH - 90f);
-            playerY = MathUtils.clamp(playerY + (moveY / len) * speed * delta, 90f, HEIGHT - 120f);
+            float stepX = (moveX / len) * speed * delta;
+            float stepY = (moveY / len) * speed * delta;
+
+            float targetX = MathUtils.clamp(playerX + stepX, radius, WIDTH - radius);
+            float targetY = MathUtils.clamp(playerY + stepY, radius, HEIGHT - radius);
+
+            if (isWalkable(targetX, targetY, radius)) {
+                playerX = targetX;
+                playerY = targetY;
+            } else {
+                if (isWalkable(targetX, playerY, radius)) {
+                    playerX = targetX;
+                }
+                if (isWalkable(playerX, targetY, radius)) {
+                    playerY = targetY;
+                }
+            }
             playerAnimTime += delta;
             playerFacing = Math.abs(moveX) > Math.abs(moveY) ? (moveX > 0 ? 2 : 1) : (moveY > 0 ? 3 : 0);
         } else {
             playerAnimTime += delta * 0.5f;
         }
 
-        boolean attackTrigger = Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.isButtonJustPressed(Input.Buttons.LEFT);
+        boolean attackTrigger = (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) && !isInventoryOpen;
         if (attackTrigger && !playerAttacking) {
             attackTriggeredThisFrame = true;
+            if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
+                Vector3 mouseWorld = new Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
+                camera.unproject(mouseWorld);
+                float mdx = mouseWorld.x - playerX;
+                float mdy = mouseWorld.y - playerY;
+                if (Math.abs(mdx) > Math.abs(mdy)) {
+                    playerFacing = mdx > 0 ? 2 : 1;
+                } else {
+                    playerFacing = mdy > 0 ? 3 : 0;
+                }
+            }
+
             if (isBombEquipped) {
                 if (bombCooldown <= 0f) {
                     playerAttacking = true;
@@ -768,15 +856,16 @@ public class BossScreen implements Screen {
                     activeBombs.add(b);
                     bombCooldown = 0.8f;
                 }
-            } else if (isMacheteEquipped) {
+            } else {
                 playerAttacking = true;
                 playerAttackTime = 0f;
+                if (!isMacheteEquipped) isMacheteEquipped = true;
             }
         }
 
         if (playerAttacking) {
             playerAttackTime += delta;
-            float frameDur = 0.25f;
+            float frameDur = (playerCharacter == CharacterType.JANE) ? 0.22f : 0.25f;
             int maxFrames = 2;
             if ((int) (playerAttackTime / frameDur) >= maxFrames) playerAttacking = false;
         }
@@ -1540,15 +1629,24 @@ public class BossScreen implements Screen {
                     int col = Math.min((int) (playerAttackTime / 0.25f), 1);
                     frame = elricBombThrowFrames[playerFacing % elricBombThrowFrames.length][col];
                     if (frame != null) {
-                        baseW = frame.getRegionWidth() * (0.6f * 0.75f * 0.81f);
-                        baseH = frame.getRegionHeight() * (0.6f * 0.75f * 0.81f);
+                        baseW = frame.getRegionWidth() * 0.6f;
+                        baseH = frame.getRegionHeight() * 0.6f;
                     }
-                } else if (isMacheteEquipped && elricMeleeHitFrames != null) {
+                    specificScale = 1.1f;
+                } else if (elricMeleeHitFrames != null) {
                     int col = Math.min((int) (playerAttackTime / 0.25f), 1);
                     frame = elricMeleeHitFrames[playerFacing % elricMeleeHitFrames.length][col];
                     if (frame != null) {
-                        baseW = elricMeleeHitFrameWidth * 0.9f;
-                        baseH = elricMeleeHitFrameHeight * 0.9f;
+                        baseW = elricMeleeHitFrameWidth * 0.8f;
+                        baseH = elricMeleeHitFrameHeight * 0.8f;
+                    }
+                    specificScale = 1.1f;
+                } else if (elricMeleeFrames != null) {
+                    int col = ((int) (playerAttackTime / 0.06f)) % elricMeleeFrames[0].length;
+                    frame = elricMeleeFrames[playerFacing % elricMeleeFrames.length][col];
+                    if (frame != null) {
+                        baseW = frame.getRegionWidth();
+                        baseH = frame.getRegionHeight();
                     }
                     specificScale = 1.1f;
                 }
@@ -1563,7 +1661,7 @@ public class BossScreen implements Screen {
                         frame = elricBombFrames[playerFacing % elricBombFrames.length][((int) (playerAnimTime / 0.10f)) % 8];
                     } else if (isMacheteEquipped && elricMeleeFrames != null) {
                         frame = elricMeleeFrames[playerFacing % elricMeleeFrames.length][((int) (playerAnimTime / 0.10f)) % 8];
-                    } else {
+                    } else if (elricWalkFrames != null) {
                         frame = elricWalkFrames[playerFacing % elricWalkFrames.length][((int) (playerAnimTime / 0.10f)) % 8];
                     }
                     specificScale = 1.1f;
@@ -1574,8 +1672,11 @@ public class BossScreen implements Screen {
                     } else if (isMacheteEquipped && elricIdleMeleeFrames != null) {
                         frame = elricIdleMeleeFrames[playerFacing % elricIdleMeleeFrames.length][((int) (playerAnimTime / 0.14f)) % 8];
                         specificScale = 1.0f;
-                    } else {
+                    } else if (elricIdleFrames != null) {
                         frame = elricIdleFrames[playerFacing % elricIdleFrames.length][((int) (playerAnimTime / 0.14f)) % 8];
+                        specificScale = 1.1f;
+                    } else if (elricWalkFrames != null) {
+                        frame = elricWalkFrames[playerFacing % elricWalkFrames.length][0];
                         specificScale = 1.1f;
                     }
                 }
@@ -1585,15 +1686,10 @@ public class BossScreen implements Screen {
                 }
             }
 
-            if (isBombEquipped && playerAttacking) {
-                drawW = baseW;
-                drawH = baseH;
-            } else {
-                drawW = baseW * (ELRIC_SCALE * specificScale);
-                drawH = baseH * (ELRIC_SCALE * specificScale);
-            }
+            drawW = baseW * (ELRIC_SCALE * specificScale);
+            drawH = baseH * (ELRIC_SCALE * specificScale);
         } else {
-            // JANE - strictly using original untouched logic and scaling
+            // JANE
             float specificScale = 1.0f;
 
             if (playerAttacking) {
@@ -1601,23 +1697,26 @@ public class BossScreen implements Screen {
                     int col = Math.min((int) (playerAttackTime / 0.25f), 1);
                     frame = janeBombThrowFrames[playerFacing % janeBombThrowFrames.length][col];
                     if (frame != null) {
+                        baseW = frame.getRegionWidth() * 0.6f;
+                        baseH = frame.getRegionHeight() * 0.6f;
+                    }
+                    specificScale = 1.1f;
+                } else if (janeMeleeHitFrames != null) {
+                    int col = Math.min((int) (playerAttackTime / 0.22f), 1);
+                    frame = janeMeleeHitFrames[playerFacing % janeMeleeHitFrames.length][col];
+                    if (frame != null) {
+                        baseW = janeMeleeHitFrameWidth * 0.8f;
+                        baseH = janeMeleeHitFrameHeight * 0.8f;
+                    }
+                    specificScale = 1.1f;
+                } else if (janeMeleeFrames != null) {
+                    int col = ((int) (playerAttackTime / 0.06f)) % janeMeleeFrames[0].length;
+                    frame = janeMeleeFrames[playerFacing % janeMeleeFrames.length][col];
+                    if (frame != null) {
                         baseW = frame.getRegionWidth();
                         baseH = frame.getRegionHeight();
                     }
-                    specificScale = 0.9f;
-                } else if (isMacheteEquipped && janeMeleeHitFrames != null) {
-                    if (janeUsesTwoFrameMelee) {
-                        int col = Math.min((int) (playerAttackTime / 0.25f), 1);
-                        frame = janeMeleeHitFrames[playerFacing % janeMeleeHitFrames.length][col];
-                    } else {
-                        int col = (int) (playerAttackTime / 0.25f) % janeMeleeHitFrames[0].length;
-                        frame = janeMeleeHitFrames[playerFacing % janeMeleeHitFrames.length][col];
-                    }
-                    if (frame != null) {
-                        baseW = janeMeleeHitFrameWidth;
-                        baseH = janeMeleeHitFrameHeight;
-                    }
-                    specificScale = 0.7f;
+                    specificScale = 1.0f;
                 }
             }
 
@@ -1630,7 +1729,7 @@ public class BossScreen implements Screen {
                         frame = janeBombFrames[playerFacing % janeBombFrames.length][((int) (playerAnimTime / 0.10f)) % 8];
                     } else if (isMacheteEquipped && janeMeleeFrames != null) {
                         frame = janeMeleeFrames[playerFacing % janeMeleeFrames.length][((int) (playerAnimTime / 0.10f)) % 8];
-                    } else {
+                    } else if (janeWalkFrames != null) {
                         frame = janeWalkFrames[playerFacing % janeWalkFrames.length][((int) (playerAnimTime / 0.10f)) % 8];
                     }
                     specificScale = 1.0f;
@@ -1641,8 +1740,11 @@ public class BossScreen implements Screen {
                     } else if (isMacheteEquipped && janeIdleMeleeFrames != null) {
                         frame = janeIdleMeleeFrames[playerFacing % janeIdleMeleeFrames.length][((int) (playerAnimTime / 0.14f)) % 8];
                         specificScale = 1.0f;
-                    } else {
-                        frame = janeIdleFrames[playerFacing % 4][((int) (playerAnimTime / 0.14f)) % 8];
+                    } else if (janeIdleFrames != null) {
+                        frame = janeIdleFrames[playerFacing % janeIdleFrames.length][((int) (playerAnimTime / 0.14f)) % 8];
+                        specificScale = 1.0f;
+                    } else if (janeWalkFrames != null) {
+                        frame = janeWalkFrames[playerFacing % janeWalkFrames.length][0];
                         specificScale = 1.0f;
                     }
                 }
@@ -1657,6 +1759,55 @@ public class BossScreen implements Screen {
         }
 
         if (frame != null) batch.draw(frame, playerX - drawW / 2f, playerY - drawH / 2f, drawW, drawH);
+    }
+
+    private boolean isWalkable(float x, float y, float radius) {
+        if (tileMap == null) {
+            return x >= 90f && x <= WIDTH - 90f && y >= 90f && y <= HEIGHT - 120f;
+        }
+        float cellW = WIDTH / (float) tileMap.getCollisionWidth();
+        float cellH = HEIGHT / (float) tileMap.getCollisionHeight();
+
+        int minCellX = (int) Math.floor((x - radius) / cellW);
+        int maxCellX = (int) Math.floor((x + radius) / cellW);
+        int minCellY = (int) Math.floor((y - radius) / cellH);
+        int maxCellY = (int) Math.floor((y + radius) / cellH);
+
+        for (int cy = minCellY; cy <= maxCellY; cy++) {
+            for (int cx = minCellX; cx <= maxCellX; cx++) {
+                if (!tileMap.isCellWalkable(cx, cy)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private void drawCollisionOverlay() {
+        if (tileMap == null) return;
+        float cellW = WIDTH / (float) tileMap.getCollisionWidth();
+        float cellH = HEIGHT / (float) tileMap.getCollisionHeight();
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shapes.setProjectionMatrix(camera.combined);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+
+        shapes.setColor(1f, 0f, 0f, 0.35f);
+        for (int cellY = 0; cellY < tileMap.getCollisionHeight(); cellY++) {
+            for (int cellX = 0; cellX < tileMap.getCollisionWidth(); cellX++) {
+                if (!tileMap.isCellWalkable(cellX, cellY)) {
+                    shapes.rect(cellX * cellW, cellY * cellH, cellW, cellH);
+                }
+            }
+        }
+
+        // Draw player collider bounds
+        shapes.setColor(0.1f, 1f, 0.3f, 0.5f);
+        shapes.circle(playerX, playerY, 12f, 16);
+
+        shapes.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
     }
 
     private void drawInventoryOverlay() {
@@ -1858,13 +2009,13 @@ public class BossScreen implements Screen {
         }
 
         font.setColor(0.95f, 0.85f, 0.35f, 1f);
-        font.draw(batch, "OPERATIVE: " + playerCharacter.name(), 30f, 82f);
+        font.draw(batch, "OPERATIVE: " + playerCharacter.name() + "  [TAB to swap]", 30f, 82f);
         font.setColor(Color.WHITE);
         font.draw(batch, "HP: " + (int)playerHp, 220f, 60f);
         font.draw(batch, "STM: " + (int)playerStamina + "%", 220f, 40f);
 
         font.setColor(Color.LIGHT_GRAY);
-        font.draw(batch, "[I] Inventory | [1] Machete | [2] Grenade", 320f, 40f);
+        font.draw(batch, "[I] Inventory | [1] Machete | [2] Grenade | [F3] Collision Grid: " + (showCollisionOverlay ? "ON" : "OFF"), 320f, 40f);
         batch.end();
 
         if (isGameOver) {
