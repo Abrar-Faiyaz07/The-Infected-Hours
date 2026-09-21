@@ -5,6 +5,7 @@ import com.infectedhour.core.net.SessionConfig;
 import com.infectedhour.fxlauncher.net.BackendClient;
 import com.infectedhour.fxlauncher.save.LocalSaveSlots;
 import com.infectedhour.fxlauncher.state.SessionState;
+import com.infectedhour.fxlauncher.views.MainMenuController;
 import com.infectedhour.fxlauncher.views.ResultsView;
 import com.infectedhour.lwjgl3.Lwjgl3Launcher;
 import com.infectedhour.shared.constants.GameConstants;
@@ -65,9 +66,9 @@ public class GameLauncherBridge {
         com.infectedhour.shared.network.CharacterType preferred = character != null ? character : com.infectedhour.shared.network.CharacterType.ELRIC;
         SessionConfig config = slot != null && slot.occupied()
                 ? SessionConfig.hostingFromSave(playerId(), name,
-                        SessionState.get().getBackendUrl(), slot, preferred)
+                SessionState.get().getBackendUrl(), slot, preferred)
                 : SessionConfig.hosting(playerId(), name,
-                        SessionState.get().getBackendUrl(), preferred);
+                SessionState.get().getBackendUrl(), preferred);
         // Consumed once — returning to the menu must not silently reload the
         // same save the next time the player presses Play.
         SessionState.get().clearLoadedSlot();
@@ -129,6 +130,11 @@ public class GameLauncherBridge {
             if (launcherRestored.get()) {
                 return;
             }
+
+            // Keep menu music alive through all JavaFX menus and the loading
+            // overlay. Stop it only when the libGDX game is actually ready.
+            MainMenuController.stopMenuMusicForGame();
+
             removeLoadingScreen();
             primaryStage.hide();
         }));
