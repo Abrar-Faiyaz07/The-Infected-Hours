@@ -382,7 +382,8 @@ public class BossScreen implements Screen {
         if (Gdx.files.internal("music/boss_fight.mp3").exists()) {
             bossMusic = Gdx.audio.newMusic(Gdx.files.internal("music/boss_fight.mp3"));
             bossMusic.setLooping(true);
-            bossMusic.setVolume(BOSS_MUSIC_VOLUME);
+            float masterMusic = bridge != null ? bridge.getMusicVolume() : 1.0f;
+            bossMusic.setVolume(BOSS_MUSIC_VOLUME * masterMusic);
             bossMusic.play();
         }
 

@@ -646,7 +646,8 @@ public class GameScreen implements Screen {
 
             levelMusic = Gdx.audio.newMusic(Gdx.files.internal(musicPath));
             levelMusic.setLooping(true);
-            levelMusic.setVolume(LEVEL_MUSIC_VOLUME);
+            float masterMusic = bridge != null ? bridge.getMusicVolume() : 1.0f;
+            levelMusic.setVolume(LEVEL_MUSIC_VOLUME * masterMusic);
             levelMusic.play();
 
             Gdx.app.log(

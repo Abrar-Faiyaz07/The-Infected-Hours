@@ -841,6 +841,34 @@
     -fx-background-color: #FFD66B;
 }
 
+.settings-step-btn {
+    -fx-background-color: rgba(242, 240, 233, 0.08);
+    -fx-background-radius: 3;
+    -fx-border-color: rgba(232, 176, 42, 0.35);
+    -fx-border-radius: 3;
+    -fx-text-fill: #F0C75A;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-min-width: 32px;
+    -fx-pref-width: 32px;
+    -fx-min-height: 26px;
+    -fx-pref-height: 26px;
+    -fx-alignment: center;
+    -fx-cursor: hand;
+    -fx-padding: 0;
+}
+
+.settings-step-btn:hover,
+.settings-step-btn:focused {
+    -fx-background-color: rgba(232, 176, 42, 0.22);
+    -fx-border-color: #E8B02A;
+    -fx-text-fill: #FFFFFF;
+}
+
+.settings-step-btn:pressed {
+    -fx-background-color: rgba(232, 176, 42, 0.45);
+}
+
 .settings-toggle {
     -fx-text-fill: rgba(242, 240, 233, 0.76);
     -fx-font-size: 10px;

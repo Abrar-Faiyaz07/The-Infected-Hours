@@ -22,8 +22,19 @@ public class MainMenuController {
 
     private static final String VERSION = "v0.1-alpha";
 
-    // JavaFX MediaPlayer volume range is 0.0 -> 1.0.
-    private static final double MAIN_MENU_MUSIC_VOLUME = 1.0;
+    private static double getMenuMusicVolume() {
+        return Math.max(0.0, Math.min(1.0, SessionState.get().getMusicVolumePercent() / 100.0));
+    }
+
+    public static void updateMenuMusicVolume(double volumePercent) {
+        if (mainMenuMusic != null) {
+            try {
+                double vol = Math.max(0.0, Math.min(1.0, volumePercent / 100.0));
+                mainMenuMusic.setVolume(vol);
+            } catch (Exception ignored) {
+            }
+        }
+    }
 
     @FXML private Label usernameLabel;
     @FXML private Label statusChip;
@@ -110,16 +121,17 @@ public class MainMenuController {
         // The music is shared across all JavaFX launcher/menu screens.
         // If it is already playing, do not restart it when MainMenuController
         // is recreated or when the user returns to the main menu.
+        double currentVolume = getMenuMusicVolume();
         if (mainMenuMusic != null) {
             try {
                 mainMenuMusic.setCycleCount(MediaPlayer.INDEFINITE);
-                mainMenuMusic.setVolume(MAIN_MENU_MUSIC_VOLUME);
+                mainMenuMusic.setVolume(currentVolume);
 
                 if (!mainMenuMusic.getStatus().equals(MediaPlayer.Status.PLAYING)) {
                     mainMenuMusic.play();
                 }
 
-                System.out.println("[MainMenuMusic] Menu music already initialized.");
+                System.out.println("[MainMenuMusic] Menu music already initialized at volume " + currentVolume);
                 return;
             } catch (Exception e) {
                 System.err.println("[MainMenuMusic] Existing player was invalid; recreating it.");
@@ -164,12 +176,12 @@ public class MainMenuController {
             mainMenuMusic = new MediaPlayer(media);
 
             mainMenuMusic.setCycleCount(MediaPlayer.INDEFINITE);
-            mainMenuMusic.setVolume(MAIN_MENU_MUSIC_VOLUME);
+            mainMenuMusic.setVolume(currentVolume);
 
             mainMenuMusic.setOnReady(() -> {
                 System.out.println(
                         "[MainMenuMusic] READY - starting playback at volume "
-                                + MAIN_MENU_MUSIC_VOLUME
+                                + currentVolume
                 );
                 mainMenuMusic.play();
             });
