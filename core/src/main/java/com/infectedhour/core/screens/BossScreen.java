@@ -143,6 +143,9 @@ public class BossScreen implements Screen {
     private boolean isGameOverActive = false;
     private float gameOverTimer = 0f;
 
+    // Distinguishes a real boss victory from timer/player/wave defeat.
+    private boolean bossVictory = false;
+
     // Phase 4 Continuous Push Wave Variables (Continuous until boss/player dies, 3 hits = die)
     private int waveHitCount = 0;
     private boolean pushWaveActive = false;
@@ -770,7 +773,7 @@ public class BossScreen implements Screen {
 
         if (!paused && !isInventoryOpen && !isGameOverActive) {
             bossFightElapsedTime += delta;
-            if (bossFightElapsedTime >= BOSS_TIME_LIMIT) {
+            if (!bossVictory && bossFightElapsedTime >= BOSS_TIME_LIMIT) {
                 isGameOverActive = true;
                 gameOverTimer = 0f;
             }
@@ -1235,6 +1238,7 @@ public class BossScreen implements Screen {
 
             if (bossHp <= 0f && bossSpecialState != BossSpecialState.DEFEAT) {
                 bossSpecialState = BossSpecialState.DEFEAT;
+                bossVictory = true;
                 bossDefeatAnimTimer = 0f;
                 playDefeatSoundOnce();
                 activePushWaves.clear();
@@ -1911,7 +1915,7 @@ public class BossScreen implements Screen {
             TextureRegion frame =
                     bossFrames[bossFacing % 4][
                             ((int) (bossAnimTime / 0.15f)) % 8
-                    ];
+                            ];
             float w = bossFrameWidth * BOSS_SCALE;
             float h = bossFrameHeight * BOSS_SCALE;
             batch.draw(frame, bossX - w / 2f, currentY - h / 2f, w, h);
@@ -2598,132 +2602,123 @@ public class BossScreen implements Screen {
     private void drawInterface() {
         Matrix4 uiMatrix = new Matrix4().setToOrtho2D(0f, 0f, WIDTH, HEIGHT);
 
-        float collBtnW = 190f;
-        float collBtnH = 26f;
-        float collBtnX = WIDTH - collBtnW - 20f;
-        float collBtnY = HEIGHT - 38f;
-
-        float mouseX = Gdx.input.getX() * (WIDTH / (float) Gdx.graphics.getWidth());
-        float mouseY = (Gdx.graphics.getHeight() - Gdx.input.getY()) * (HEIGHT / (float) Gdx.graphics.getHeight());
-        boolean isCollHovered = mouseX >= collBtnX && mouseX <= collBtnX + collBtnW && mouseY >= collBtnY && mouseY <= collBtnY + collBtnH;
-
-        if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT) && isCollHovered && !isInventoryOpen && !paused) {
-            showCollisionOverlay = !showCollisionOverlay;
-        }
+        float enemyBarWidth = 460f;
+        float enemyBarHeight = 20f;
+        float enemyBarX = WIDTH / 2f - enemyBarWidth / 2f;
+        float enemyBarY = HEIGHT - 58f;
 
         shapes.setProjectionMatrix(uiMatrix);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
-        shapes.setColor(0.2f, 0.2f, 0.2f, 0.8f);
-        shapes.rect(WIDTH / 2f - 200f, HEIGHT - 50f, 400f, 16f);
-        shapes.setColor(0.9f, 0.2f, 0.2f, 1f);
-        shapes.rect(WIDTH / 2f - 200f, HEIGHT - 50f, 400f * MathUtils.clamp(bossHp / 1500f, 0f, 1f), 16f);
 
-        shapes.setColor(0.12f, 0.15f, 0.2f, 0.8f);
+        // Separate SCIENTIST bar.
+        if (isScientistAlive) {
+            float scientistRatio = MathUtils.clamp(scientistHp / 500f, 0f, 1f);
+
+            shapes.setColor(0.01f, 0.015f, 0.02f, 0.72f);
+            shapes.rect(enemyBarX - 6f, enemyBarY - 6f, enemyBarWidth + 12f, enemyBarHeight + 12f);
+            shapes.setColor(0.24f, 0.39f, 0.40f, 0.98f);
+            shapes.rect(enemyBarX - 3f, enemyBarY - 3f, enemyBarWidth + 6f, enemyBarHeight + 6f);
+            shapes.setColor(0.035f, 0.10f, 0.11f, 1f);
+            shapes.rect(enemyBarX, enemyBarY, enemyBarWidth, enemyBarHeight);
+
+            float fillWidth = enemyBarWidth * scientistRatio;
+            if (fillWidth > 0f) {
+                shapes.setColor(0.10f, 0.66f, 0.67f, 1f);
+                shapes.rect(enemyBarX, enemyBarY, fillWidth, enemyBarHeight);
+                shapes.setColor(0.45f, 0.95f, 0.96f, 0.90f);
+                shapes.rect(enemyBarX + 2f, enemyBarY + enemyBarHeight - 5f, Math.max(0f, fillWidth - 4f), 3f);
+            }
+
+            // Separate SCP Unknown bar from the moment deployment begins.
+        } else {
+            float bossRatio = MathUtils.clamp(bossHp / 1500f, 0f, 1f);
+
+            shapes.setColor(0.01f, 0.01f, 0.015f, 0.72f);
+            shapes.rect(enemyBarX - 6f, enemyBarY - 6f, enemyBarWidth + 12f, enemyBarHeight + 12f);
+            shapes.setColor(0.32f, 0.34f, 0.38f, 0.98f);
+            shapes.rect(enemyBarX - 3f, enemyBarY - 3f, enemyBarWidth + 6f, enemyBarHeight + 6f);
+            shapes.setColor(0.22f, 0.035f, 0.045f, 1f);
+            shapes.rect(enemyBarX, enemyBarY, enemyBarWidth, enemyBarHeight);
+
+            float fillWidth = enemyBarWidth * bossRatio;
+            if (fillWidth > 0f) {
+                shapes.setColor(0.72f, 0.055f, 0.075f, 1f);
+                shapes.rect(enemyBarX, enemyBarY, fillWidth, enemyBarHeight);
+                shapes.setColor(1.0f, 0.22f, 0.24f, 0.90f);
+                shapes.rect(enemyBarX + 2f, enemyBarY + enemyBarHeight - 5f, Math.max(0f, fillWidth - 4f), 3f);
+            }
+
+            shapes.setColor(0.80f, 0.82f, 0.86f, 0.58f);
+            shapes.rect(enemyBarX + enemyBarWidth / 3f, enemyBarY - 1f, 2f, enemyBarHeight + 2f);
+            shapes.rect(enemyBarX + enemyBarWidth * 2f / 3f, enemyBarY - 1f, 2f, enemyBarHeight + 2f);
+        }
+
+        // Player stamina.
+        shapes.setColor(0.12f, 0.15f, 0.20f, 0.80f);
         shapes.rect(30f, 30f, 180f, 12f);
-        shapes.setColor(0.2f, 0.75f, 0.95f, 1f);
+        shapes.setColor(0.20f, 0.75f, 0.95f, 1f);
         shapes.rect(30f, 30f, 180f * (playerStamina / 100f), 12f);
 
-        // Player HP bar (10000 HP)
-        shapes.setColor(0.12f, 0.15f, 0.2f, 0.85f);
+        // Player HP.
+        shapes.setColor(0.12f, 0.15f, 0.20f, 0.85f);
         shapes.rect(30f, 74f, 260f, 16f);
         float hpFrac = MathUtils.clamp(playerHp / BOSS_PLAYER_MAX_HP, 0f, 1f);
-        shapes.setColor(hpFrac > 0.3f ? new Color(0.2f, 0.85f, 0.35f, 1f) : new Color(0.9f, 0.25f, 0.2f, 1f));
+        shapes.setColor(hpFrac > 0.30f
+                ? new Color(0.20f, 0.85f, 0.35f, 1f)
+                : new Color(0.90f, 0.25f, 0.20f, 1f));
         shapes.rect(30f, 74f, 260f * hpFrac, 16f);
 
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        if (showCollisionOverlay) {
-            shapes.setColor(isCollHovered ? new Color(0.2f, 0.7f, 0.3f, 0.95f) : new Color(0.12f, 0.45f, 0.18f, 0.85f));
-        } else {
-            shapes.setColor(isCollHovered ? new Color(0.35f, 0.35f, 0.4f, 0.9f) : new Color(0.15f, 0.15f, 0.2f, 0.8f));
-        }
-        shapes.rect(collBtnX, collBtnY, collBtnW, collBtnH);
         shapes.end();
-
-        shapes.begin(ShapeRenderer.ShapeType.Line);
-        shapes.setColor(showCollisionOverlay ? Color.LIME : (isCollHovered ? Color.GOLD : Color.GRAY));
-        shapes.rect(collBtnX, collBtnY, collBtnW, collBtnH);
-        shapes.end();
-        Gdx.gl.glDisable(GL20.GL_BLEND);
 
         batch.setProjectionMatrix(uiMatrix);
         batch.begin();
-        font.setColor(showCollisionOverlay ? Color.WHITE : Color.LIGHT_GRAY);
-        String collText = (showCollisionOverlay ? "[v] COLLISION: ON" : "[ ] COLLISION: OFF") + " [Click/C]";
-        font.draw(batch, collText, collBtnX + 12f, collBtnY + 18f);
+
+        // Enemy label only: no numeric enemy HP.
+        if (isScientistAlive) {
+            font.setColor(0.66f, 0.95f, 0.96f, 1f);
+            font.draw(batch, "SCIENTIST", enemyBarX, HEIGHT - 18f, enemyBarWidth,
+                    com.badlogic.gdx.utils.Align.center, false);
+        } else {
+            font.setColor(0.94f, 0.95f, 0.98f, 1f);
+            font.draw(batch, "SCP Unknown", enemyBarX, HEIGHT - 18f, enemyBarWidth,
+                    com.badlogic.gdx.utils.Align.center, false);
+        }
 
         font.setColor(0.95f, 0.85f, 0.35f, 1f);
         font.draw(batch, "OPERATIVE: " + playerCharacter.name() + "   (STAMINA)", 30f, 58f);
+
         font.setColor(Color.WHITE);
         font.draw(batch, "HP: " + (int) playerHp + " / " + (int) BOSS_PLAYER_MAX_HP, 30f, 106f);
 
-        font.setColor(Color.WHITE);
-        font.draw(batch, "BOSS HP: " + (int)bossHp + " / 1500", WIDTH / 2f - 60f, HEIGHT - 30f);
-
+        // Plain top-right timer: 3.30 style; red only below 2 minutes.
         float timeLeft = Math.max(0f, BOSS_TIME_LIMIT - bossFightElapsedTime);
         int minutes = (int) (timeLeft / 60f);
         int seconds = (int) (timeLeft % 60f);
-        font.setColor(0.9f, 0.3f, 0.3f, 1f);
-        font.draw(batch, String.format("TIME: %02d:%02d", minutes, seconds), WIDTH / 2f - 40f, HEIGHT - 65f);
 
-        // Final-wave hit feedback:
-        // hidden normally; after a wave hit, briefly show the NEW remaining
-        // count in red at the top with a short shake.
-        if (bossSpecialState == BossSpecialState.FINAL_FORM
-                && waveCounterPopupTimer > 0f) {
+        if (timeLeft < 120f) {
+            font.setColor(1.0f, 0.18f, 0.18f, 1f);
+        } else {
+            font.setColor(0.94f, 0.95f, 0.98f, 1f);
+        }
 
-            int waveHitsRemaining = MathUtils.clamp(
-                    WAVE_HITS_TO_DIE - waveHitCount,
-                    0,
-                    WAVE_HITS_TO_DIE
-            );
+        font.draw(batch, String.format("%d.%02d", minutes, seconds), WIDTH - 92f, HEIGHT - 18f);
 
-            float popupStrength =
-                    waveCounterPopupTimer / WAVE_COUNTER_POPUP_DURATION;
+        // Final-wave hit feedback remains event-based.
+        if (bossSpecialState == BossSpecialState.FINAL_FORM && waveCounterPopupTimer > 0f) {
+            int waveHitsRemaining = MathUtils.clamp(WAVE_HITS_TO_DIE - waveHitCount, 0, WAVE_HITS_TO_DIE);
+            float popupStrength = waveCounterPopupTimer / WAVE_COUNTER_POPUP_DURATION;
             float shakeAmount = 8f * popupStrength;
-
             float shakeX = MathUtils.random(-shakeAmount, shakeAmount);
             float shakeY = MathUtils.random(-shakeAmount, shakeAmount);
 
             font.getData().setScale(2.2f);
             font.setColor(1.0f, 0.10f, 0.10f, 1f);
-
-            font.draw(
-                    batch,
-                    String.valueOf(waveHitsRemaining),
-                    WIDTH / 2f - 60f + shakeX,
-                    HEIGHT - 92f + shakeY,
-                    120f,
-                    com.badlogic.gdx.utils.Align.center,
-                    false
-            );
-
+            font.draw(batch, String.valueOf(waveHitsRemaining),
+                    WIDTH / 2f - 60f + shakeX, HEIGHT - 92f + shakeY, 120f,
+                    com.badlogic.gdx.utils.Align.center, false);
             font.getData().setScale(1.0f);
         }
 
-        // Final boss defeated: green contamination-cleared popup.
-        // bossDefeatAnimTimer keeps this visible during the defeat sequence.
-        if (bossSpecialState == BossSpecialState.DEFEAT) {
-            float popupPulse = 1.0f
-                    + 0.08f * MathUtils.sin(bossDefeatAnimTimer * 6.0f);
-
-            font.getData().setScale(2.1f * popupPulse);
-            font.setColor(0.20f, 1.0f, 0.36f, 1f);
-
-            font.draw(
-                    batch,
-                    "CONTAMINATION STOPPED",
-                    0f,
-                    HEIGHT / 2f + 95f,
-                    WIDTH,
-                    com.badlogic.gdx.utils.Align.center,
-                    false
-            );
-
-            font.getData().setScale(1.0f);
-        }
-
-        font.setColor(Color.LIGHT_GRAY);
-        font.draw(batch, "Press [I] to open Inventory | [1] Machete | [2] Grenade | [C] Collision", 230f, 40f);
         batch.end();
     }
 
@@ -2755,7 +2750,12 @@ public class BossScreen implements Screen {
         Gdx.gl.glEnable(GL20.GL_BLEND);
         shapes.setProjectionMatrix(uiMatrix);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
-        shapes.setColor(0.05f, 0f, 0f, 0.85f);
+
+        if (bossVictory) {
+            shapes.setColor(0.0f, 0.08f, 0.035f, 0.88f);
+        } else {
+            shapes.setColor(0.05f, 0f, 0f, 0.85f);
+        }
         shapes.rect(0f, 0f, WIDTH, HEIGHT);
         shapes.end();
         Gdx.gl.glDisable(GL20.GL_BLEND);
@@ -2763,11 +2763,21 @@ public class BossScreen implements Screen {
         batch.setProjectionMatrix(uiMatrix);
         batch.begin();
         font.getData().setScale(2.5f);
-        font.setColor(1f, 0.2f, 0.2f, 1f);
-        font.draw(batch, "GAME OVER", WIDTH / 2f - 110f, HEIGHT / 2f + 40f);
+
+        if (bossVictory) {
+            font.setColor(0.20f, 1.0f, 0.38f, 1f);
+            font.draw(batch, "BIOWEAPON NEUTRALIZED", 0f, HEIGHT / 2f + 40f, WIDTH,
+                    com.badlogic.gdx.utils.Align.center, false);
+        } else {
+            font.setColor(1f, 0.2f, 0.2f, 1f);
+            font.draw(batch, "GAME OVER", 0f, HEIGHT / 2f + 40f, WIDTH,
+                    com.badlogic.gdx.utils.Align.center, false);
+        }
+
         font.getData().setScale(1.0f);
         font.setColor(Color.WHITE);
-        font.draw(batch, "Returning to Main Menu...", WIDTH / 2f - 90f, HEIGHT / 2f - 10f);
+        font.draw(batch, "Returning to Main Menu...", 0f, HEIGHT / 2f - 10f, WIDTH,
+                com.badlogic.gdx.utils.Align.center, false);
         batch.end();
     }
 
