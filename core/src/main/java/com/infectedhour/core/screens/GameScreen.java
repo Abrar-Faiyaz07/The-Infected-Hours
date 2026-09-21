@@ -95,6 +95,11 @@ public class GameScreen implements Screen {
     private Viewport viewport;
     private Texture mapTexture;
     private Texture markerTexture;
+    // Objective sprites (replace the old coloured placeholder squares)
+    private TextureRegion powerRouteRegion;     // level 2 power relays
+    private TextureRegion zombieEncounterRegion; // level 2 zombie patrol marker
+    private TextureRegion puzzlePieceRegion;    // level 4 puzzle parts
+    private final List<Texture> objectiveTextures = new ArrayList<>();
     private List<CampaignLevelPlan.Feature> levelFeatures = List.of();
     private final Set<String> completedFeatureIds = new HashSet<>();
     private boolean zombieObjectiveSent = false;
@@ -241,6 +246,33 @@ public class GameScreen implements Screen {
     private TextureRegion[][] zombieBiteFrames;
     private int zombieBiteFrameWidth, zombieBiteFrameHeight;
 
+    /**
+     * Zombie skins: z1 / z2 from assets/zombies (walk 8x4, idle 8x4, attack 2x4, rows = down, left,
+     * right, up). Each zombie gets one at random, seeded by level + zombie so both co-op screens agree.
+     * Falls back to the legacy zombie.png sheets when the new files are missing.
+     */
+    private static final float ZOMBIE_FIGURE_HEIGHT_PX = 80f; // on-screen body height of a regular zombie
+    private static final float ZOMBIE_IDLE_FRAME_S = 0.14f;   // idle sheets have 8 frames per direction
+    private static final class ZombieSheet {
+        TextureRegion[][] frames;
+        float frameW, frameH;
+        float scale = 1f;              // draw scale so the figure is ZOMBIE_FIGURE_HEIGHT_PX tall
+        float footGapPx = SPRITE_FEET_INSET_PX; // empty rows below the feet in a frame (unscaled)
+    }
+    private static final class ZombieSkin {
+        ZombieSheet walk, idle, attack;
+    }
+    private final List<ZombieSkin> zombieSkins = new ArrayList<>();
+    private final List<Texture> zombieSkinTextures = new ArrayList<>();
+    private ZombieSheet middleZombieSheet;
+
+    // World-space Y of each entity's drawn sprite top (head), recorded during the sprite pass so the
+    // HP bars sit just above the head regardless of animation frame or sprite scale. NaN = not drawn.
+    private static final float HP_BAR_HEAD_GAP_PX = 6f;
+    private float middleZombieBarTopY = Float.NaN;
+    private float janeBarTopY = Float.NaN;
+    private final java.util.HashMap<String, Float> playerBarTopY = new java.util.HashMap<>();
+
     private float middleZombieX = 22f;
     private float middleZombieY = 16f;
     private boolean middleZombieChasing = false;
@@ -354,6 +386,7 @@ public class GameScreen implements Screen {
         boolean isRescued = false;
         boolean isDead = false;
         boolean isStaying = false;
+        float barTopY = Float.NaN; // world Y of the drawn sprite's top, for the HP bar
         String leaderId = null;
         float biteCooldown = 0.8f;
         float stateTime = 0f;
@@ -379,11 +412,14 @@ public class GameScreen implements Screen {
         boolean biting = false;
         float biteCooldown = 0.8f;
         TextureRegion currentFrame = null;
+        ZombieSheet currentSheet = null; // sheet currentFrame came from (sets draw size)
+        int skinIndex = -1;              // assigned lazily from level + list index
         // Co-op mirroring: animation state (0 idle, 1 walk, 2 bite) + facing row, and the host's latest position
         int animState = 0;
         int dirRow = 0;
         boolean hasNetState = false;
         float netX, netY;
+        float barTopY = Float.NaN; // world Y of the drawn sprite's top, for the HP bar
 
         AmbushZombie(float x, float y, boolean isBoss) {
             this.x = x;
@@ -1057,6 +1093,9 @@ public class GameScreen implements Screen {
             mapTexture = createRoadsideVillageTexture();
         }
         markerTexture = createColorTexture(1, 1, Color.WHITE);
+        powerRouteRegion = loadTrimmedRegion("power_route.png");
+        zombieEncounterRegion = loadTrimmedRegion("zombie_encounter.png");
+        puzzlePieceRegion = loadTrimmedRegion("puzzle.png");
         keyTexture = loadTextureSafely("key.png");
 
         if (levelNumber == 1 && mapTexture != null) {
@@ -1411,6 +1450,7 @@ public class GameScreen implements Screen {
             zombieBiteFrameHeight = zombieFrameHeight;
             zombieBiteFrames = zombieFrames;
         }
+        loadZombieSkins();
 
         meleeTexture = loadTextureSafely("melee.png");
         if (meleeTexture == null) {
@@ -2346,8 +2386,11 @@ public class GameScreen implements Screen {
                     if (!player.downed && player.hp > 0) {
                         float barW = 24f;
                         float barH = 3f;
-                        float px = Math.round((player.x * PIXELS_PER_TILE) - (barW / 2f) + 8f);
-                        float py = Math.round((player.y * PIXELS_PER_TILE) + (frameHeight / 2f) + 22f);
+                        float px = Math.round((player.x * PIXELS_PER_TILE) - (barW / 2f));
+                        Float top = playerBarTopY.get(player.playerId);
+                        float py = Math.round(top != null && !Float.isNaN(top)
+                                ? top + HP_BAR_HEAD_GAP_PX
+                                : (player.y * PIXELS_PER_TILE) + (frameHeight / 2f) + 22f);
 
                         shapes.setColor(Color.BLACK);
                         shapes.rect(px - 1f, py - 1f, barW + 2f, barH + 2f);
@@ -2362,7 +2405,9 @@ public class GameScreen implements Screen {
                 float barW = 24f;
                 float barH = 3f;
                 float zx = Math.round((middleZombieX * PIXELS_PER_TILE) - (barW / 2f));
-                float zy = Math.round((middleZombieY * PIXELS_PER_TILE) + (zombieFrameHeight / 2f) + 20f);
+                float zy = Math.round(!Float.isNaN(middleZombieBarTopY)
+                        ? middleZombieBarTopY + HP_BAR_HEAD_GAP_PX
+                        : (middleZombieY * PIXELS_PER_TILE) + ZOMBIE_FIGURE_HEIGHT_PX + 6f);
 
                 shapes.setColor(Color.BLACK);
                 shapes.rect(zx - 1f, zy - 1f, barW + 2f, barH + 2f);
@@ -2377,7 +2422,9 @@ public class GameScreen implements Screen {
                 float barW = 24f;
                 float barH = 3f;
                 float vx = Math.round((v.x * PIXELS_PER_TILE) - (barW / 2f));
-                float vy = Math.round((v.y * PIXELS_PER_TILE) + (frameHeight / 2f) + 18f);
+                float vy = Math.round(!Float.isNaN(v.barTopY)
+                        ? v.barTopY + HP_BAR_HEAD_GAP_PX
+                        : (v.y * PIXELS_PER_TILE) + (frameHeight / 2f) + 18f);
 
                 shapes.setColor(Color.BLACK);
                 shapes.rect(vx - 1f, vy - 1f, barW + 2f, barH + 2f);
@@ -2824,19 +2871,15 @@ public class GameScreen implements Screen {
     private TextureRegion currentMiddleZombieFrame() {
         if (isZombieDead) return null;
 
-        TextureRegion[][] frames;
-        if (middleZombieBiting && zombieBiteFrames != null) {
-            frames = zombieBiteFrames;
-        } else if (middleZombieChasing && zombieFrames != null) {
-            frames = zombieFrames;
+        ZombieSkin skin = middleZombieSkin();
+        if (middleZombieBiting) {
+            middleZombieSheet = skin.attack;
+        } else if (middleZombieChasing) {
+            middleZombieSheet = skin.walk;
         } else {
-            frames = zombieIdleFrames != null ? zombieIdleFrames : zombieFrames;
+            middleZombieSheet = skin.idle;
         }
-        if (frames == null || frames.length == 0 || frames[0].length == 0) return null;
-
-        int safeRow = Math.floorMod(zombieAnim.currentRow, frames.length);
-        int safeCol = Math.floorMod(zombieAnim.currentColumn, frames[safeRow].length);
-        return frames[safeRow][safeCol];
+        return zombieFrameOf(middleZombieSheet, zombieAnim.currentRow, zombieAnim.currentColumn);
     }
 
     private TextureRegion updateMiddleZombie(WorldSnapshot snapshot, WorldSnapshot.PlayerState me, float delta) {
@@ -2851,13 +2894,12 @@ public class GameScreen implements Screen {
             middleZombieChasing = false;
             middleZombieAnimState = 0;
             zombieAnim.stateTime += delta;
-            if (zombieAnim.stateTime > 0.5f) {
-                zombieAnim.currentColumn = (zombieAnim.currentColumn == 0) ? 1 : 0;
+            if (zombieAnim.stateTime > ZOMBIE_IDLE_FRAME_S) {
+                zombieAnim.currentColumn = (zombieAnim.currentColumn + 1) % 8;
                 zombieAnim.stateTime = 0f;
             }
-            int safeRow = zombieAnim.currentRow % zombieIdleFrames.length;
-            int safeCol = zombieAnim.currentColumn % zombieIdleFrames[0].length;
-            return zombieIdleFrames[safeRow][safeCol];
+            middleZombieSheet = middleZombieSkin().idle;
+            return zombieFrameOf(middleZombieSheet, zombieAnim.currentRow, zombieAnim.currentColumn);
         }
 
         float aggroRadiusTiles = 5.0f;
@@ -2921,9 +2963,8 @@ public class GameScreen implements Screen {
             int biteFrame = (int) (biteProgress / 0.4f);
             if (biteFrame >= 2) biteFrame = 1;
 
-            int safeRow = zombieAnim.currentRow % zombieBiteFrames.length;
-            int safeCol = biteFrame % zombieBiteFrames[0].length;
-            return zombieBiteFrames[safeRow][safeCol];
+            middleZombieSheet = middleZombieSkin().attack;
+            return zombieFrameOf(middleZombieSheet, zombieAnim.currentRow, biteFrame);
         } else if (zombieMoving) {
             float zombieRadius = 0.25f;
             if (!isWalkable(middleZombieX, middleZombieY, zombieRadius)) {
@@ -2961,18 +3002,16 @@ public class GameScreen implements Screen {
                 zombieAnim.currentColumn = (zombieAnim.currentColumn + 1) % 8;
                 zombieAnim.stateTime = 0f;
             }
-            int safeRow = zombieAnim.currentRow % zombieFrames.length;
-            int safeCol = zombieAnim.currentColumn % zombieFrames[0].length;
-            return zombieFrames[safeRow][safeCol];
+            middleZombieSheet = middleZombieSkin().walk;
+            return zombieFrameOf(middleZombieSheet, zombieAnim.currentRow, zombieAnim.currentColumn);
         } else {
             zombieAnim.stateTime += delta;
-            if (zombieAnim.stateTime > 0.5f) {
-                zombieAnim.currentColumn = (zombieAnim.currentColumn == 0) ? 1 : 0;
+            if (zombieAnim.stateTime > ZOMBIE_IDLE_FRAME_S) {
+                zombieAnim.currentColumn = (zombieAnim.currentColumn + 1) % 8;
                 zombieAnim.stateTime = 0f;
             }
-            int safeRow = zombieAnim.currentRow % zombieIdleFrames.length;
-            int safeCol = zombieAnim.currentColumn % zombieIdleFrames[0].length;
-            return zombieIdleFrames[safeRow][safeCol];
+            middleZombieSheet = middleZombieSkin().idle;
+            return zombieFrameOf(middleZombieSheet, zombieAnim.currentRow, zombieAnim.currentColumn);
         }
     }
 
@@ -2981,6 +3020,191 @@ public class GameScreen implements Screen {
             hasLabPasskey = true;
             showBanner("BIG RED ZOMBIE DEFEATED! Lab Passkey Card acquired — return to the facility gate.");
         }
+    }
+
+    /**
+     * Loads one zombie sheet and measures its figure (average opaque height and the empty rows under
+     * the feet) so every sheet is drawn at the same on-screen body height, standing on the same line.
+     */
+    private ZombieSheet loadZombieSheet(String path, int cols, int rows) {
+        com.badlogic.gdx.files.FileHandle file = Gdx.files.internal(path);
+        if (!file.exists()) return null;
+        Pixmap pixmap;
+        try {
+            pixmap = new Pixmap(file);
+        } catch (RuntimeException e) {
+            Gdx.app.error("GameScreen", "Could not load zombie sheet " + path, e);
+            return null;
+        }
+        int fw = pixmap.getWidth() / cols, fh = pixmap.getHeight() / rows;
+        double sumFigure = 0, sumGap = 0;
+        int measured = 0;
+        for (int r = 0; r < rows; r++) {
+            for (int c = 0; c < cols; c++) {
+                int top = -1, bottom = -1;
+                for (int y = 0; y < fh; y++) {
+                    for (int x = 0; x < fw; x += 2) {
+                        if ((pixmap.getPixel(c * fw + x, r * fh + y) & 0xff) > 40) { // RGBA8888: alpha is the low byte
+                            if (top < 0) top = y;
+                            bottom = y;
+                            break;
+                        }
+                    }
+                }
+                if (top >= 0) {
+                    sumFigure += bottom - top + 1;
+                    sumGap += fh - 1 - bottom;
+                    measured++;
+                }
+            }
+        }
+        Texture texture = new Texture(pixmap);
+        pixmap.dispose();
+        texture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        zombieSkinTextures.add(texture);
+
+        ZombieSheet sheet = new ZombieSheet();
+        sheet.frames = TextureRegion.split(texture, fw, fh);
+        sheet.frameW = fw;
+        sheet.frameH = fh;
+        if (measured > 0) {
+            sheet.scale = ZOMBIE_FIGURE_HEIGHT_PX / (float) (sumFigure / measured);
+            sheet.footGapPx = (float) (sumGap / measured);
+        }
+        return sheet;
+    }
+
+    private void loadZombieSkins() {
+        for (String name : new String[] {"z1", "z2"}) {
+            ZombieSheet walk = loadZombieSheet("zombies/" + name + ".png", 8, 4);
+            if (walk == null) continue;
+            ZombieSkin skin = new ZombieSkin();
+            skin.walk = walk;
+            ZombieSheet idle = loadZombieSheet("zombies/" + name + "_idle.png", 8, 4);
+            ZombieSheet attack = loadZombieSheet("zombies/" + name + "_attack.png", 2, 4);
+            skin.idle = idle != null ? idle : walk;
+            skin.attack = attack != null ? attack : walk;
+            zombieSkins.add(skin);
+        }
+        if (zombieSkins.isEmpty()) {
+            // Legacy single-zombie sheets, drawn exactly as before
+            ZombieSkin legacy = new ZombieSkin();
+            legacy.walk = legacySheet(zombieFrames, zombieFrameWidth, zombieFrameHeight);
+            legacy.idle = legacySheet(zombieIdleFrames, zombieFrameWidth, zombieFrameHeight);
+            legacy.attack = legacySheet(zombieBiteFrames, zombieBiteFrameWidth, zombieBiteFrameHeight);
+            zombieSkins.add(legacy);
+        }
+    }
+
+    private static ZombieSheet legacySheet(TextureRegion[][] frames, float w, float h) {
+        ZombieSheet sheet = new ZombieSheet();
+        sheet.frames = frames;
+        sheet.frameW = w;
+        sheet.frameH = h;
+        return sheet;
+    }
+
+    /** Random-but-deterministic skin for a zombie: same level + same zombie = same skin on every screen. */
+    private ZombieSkin zombieSkin(int zombieKey) {
+        if (zombieSkins.size() == 1) return zombieSkins.get(0);
+        long seed = levelNumber * 1_000_003L + zombieKey * 7_919L + 0x5EEDL;
+        return zombieSkins.get(new java.util.Random(seed).nextInt(zombieSkins.size()));
+    }
+
+    private ZombieSkin middleZombieSkin() {
+        return zombieSkin(-1);
+    }
+
+    private ZombieSkin ambushZombieSkin(AmbushZombie az) {
+        if (az.skinIndex < 0) {
+            int key = ambushZombies.indexOf(az);
+            az.skinIndex = zombieSkins.indexOf(zombieSkin(Math.max(0, key)));
+        }
+        return zombieSkins.get(Math.min(az.skinIndex, zombieSkins.size() - 1));
+    }
+
+    /**
+     * Draws a zombie frame centred on (tileX, tileY) with its feet on that point, at the sheet's scale.
+     * @return the world-space Y of the sprite's top (head), for placing the HP bar, or NaN if not drawn.
+     */
+    private float drawZombieFrame(TextureRegion frame, ZombieSheet sheet, float tileX, float tileY, float extraScale) {
+        if (frame == null) return Float.NaN;
+        float frameW = sheet != null ? sheet.frameW : frame.getRegionWidth();
+        float frameH = sheet != null ? sheet.frameH : frame.getRegionHeight();
+        float scale = (sheet != null ? sheet.scale : 1f) * extraScale;
+        float footGap = sheet != null ? sheet.footGapPx : SPRITE_FEET_INSET_PX;
+        float w = frameW * scale, h = frameH * scale;
+        float drawX = Math.round(tileX * PIXELS_PER_TILE - w / 2f);
+        float drawY = Math.round(tileY * PIXELS_PER_TILE - footGap * scale);
+        batch.draw(frame, drawX, drawY, w, h);
+        // The measured foot gap is empty space; approximate the visible top by the figure height above the feet
+        return tileY * PIXELS_PER_TILE + ZOMBIE_FIGURE_HEIGHT_PX * extraScale;
+    }
+
+    /**
+     * Loads a single-image sprite cropped to its visible content: the opaque area for images with
+     * transparency, or everything that differs from the corner colour for images on a solid background
+     * (e.g. power_route.png). Returns null if the file is missing, so callers keep their fallback.
+     */
+    private TextureRegion loadTrimmedRegion(String path) {
+        com.badlogic.gdx.files.FileHandle file = Gdx.files.internal(path);
+        if (!file.exists()) return null;
+        Pixmap pixmap;
+        try {
+            pixmap = new Pixmap(file);
+        } catch (RuntimeException e) {
+            Gdx.app.error("GameScreen", "Could not load " + path, e);
+            return null;
+        }
+        int w = pixmap.getWidth(), h = pixmap.getHeight();
+        int corner = pixmap.getPixel(0, 0);
+        boolean solidBackground = (corner & 0xff) > 200; // opaque corner => crop by colour, not alpha
+        int minX = w, minY = h, maxX = -1, maxY = -1;
+        for (int y = 0; y < h; y += 2) {
+            for (int x = 0; x < w; x += 2) {
+                int px = pixmap.getPixel(x, y);
+                boolean content;
+                if (solidBackground) {
+                    int dr = Math.abs(((px >>> 24) & 0xff) - ((corner >>> 24) & 0xff));
+                    int dg = Math.abs(((px >>> 16) & 0xff) - ((corner >>> 16) & 0xff));
+                    int db = Math.abs(((px >>> 8) & 0xff) - ((corner >>> 8) & 0xff));
+                    content = dr + dg + db > 60;
+                } else {
+                    content = (px & 0xff) > 40;
+                }
+                if (content) {
+                    if (x < minX) minX = x;
+                    if (y < minY) minY = y;
+                    if (x > maxX) maxX = x;
+                    if (y > maxY) maxY = y;
+                }
+            }
+        }
+        Texture texture = new Texture(pixmap);
+        pixmap.dispose();
+        texture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        objectiveTextures.add(texture);
+        if (maxX < 0) return new TextureRegion(texture);
+        minX = Math.max(0, minX - 1);
+        minY = Math.max(0, minY - 1);
+        maxX = Math.min(w - 1, maxX + 1);
+        maxY = Math.min(h - 1, maxY + 1);
+        return new TextureRegion(texture, minX, minY, maxX - minX + 1, maxY - minY + 1);
+    }
+
+    /** Draws a sprite centred on a tile position, fitted inside a box of the given size (keeps aspect ratio). */
+    private void drawObjectiveSprite(TextureRegion region, float tileX, float tileY, float boxSize, float bob) {
+        float rw = region.getRegionWidth(), rh = region.getRegionHeight();
+        float s = boxSize / Math.max(rw, rh);
+        float w = rw * s, h = rh * s;
+        batch.draw(region, Math.round(tileX * PIXELS_PER_TILE - w / 2f), Math.round(tileY * PIXELS_PER_TILE - h / 2f + bob), w, h);
+    }
+
+    /** Picks frame [row][col] of a sheet, wrapping safely. */
+    private static TextureRegion zombieFrameOf(ZombieSheet sheet, int row, int col) {
+        if (sheet == null || sheet.frames == null || sheet.frames.length == 0 || sheet.frames[0].length == 0) return null;
+        int safeRow = Math.floorMod(row, sheet.frames.length);
+        return sheet.frames[safeRow][Math.floorMod(col, sheet.frames[safeRow].length)];
     }
 
     /** Level 1: the staff room key was picked up (here or by the partner) — take the key and spawn the horde once. */
@@ -3093,8 +3317,13 @@ public class GameScreen implements Screen {
                     zombieAnim.currentColumn = (zombieAnim.currentColumn + 1) % 8;
                     zombieAnim.stateTime = 0f;
                 }
-            } else if (zombieAnim.stateTime > (middleZombieAnimState == 2 ? 0.4f : 0.5f)) {
-                zombieAnim.currentColumn = (zombieAnim.currentColumn == 0) ? 1 : 0;
+            } else if (middleZombieAnimState == 2) {
+                if (zombieAnim.stateTime > 0.4f) {
+                    zombieAnim.currentColumn = (zombieAnim.currentColumn + 1) % 2;
+                    zombieAnim.stateTime = 0f;
+                }
+            } else if (zombieAnim.stateTime > ZOMBIE_IDLE_FRAME_S) {
+                zombieAnim.currentColumn = (zombieAnim.currentColumn + 1) % 8;
                 zombieAnim.stateTime = 0f;
             }
             if (middleZombieBiting && me != null && Math.hypot(me.x - middleZombieX, me.y - middleZombieY) <= 0.9f) {
@@ -3121,24 +3350,19 @@ public class GameScreen implements Screen {
                     isBeingBitten = true;
                 }
 
-                TextureRegion[][] frames;
+                ZombieSkin skin = ambushZombieSkin(az);
                 int col;
-                if (az.animState == 2 && zombieBiteFrames != null) {
-                    frames = zombieBiteFrames;
+                if (az.animState == 2) {
+                    az.currentSheet = skin.attack;
                     col = ((int) (az.stateTime / 0.4f)) % 2;
-                } else if (az.animState == 1 && zombieFrames != null) {
-                    frames = zombieFrames;
+                } else if (az.animState == 1) {
+                    az.currentSheet = skin.walk;
                     col = ((int) (az.stateTime / 0.15f)) % 8;
                 } else {
-                    frames = zombieIdleFrames != null ? zombieIdleFrames : zombieFrames;
-                    col = ((int) (az.stateTime / 0.5f)) % 2;
+                    az.currentSheet = skin.idle;
+                    col = ((int) (az.stateTime / ZOMBIE_IDLE_FRAME_S)) % 8;
                 }
-                if (frames == null || frames.length == 0 || frames[0].length == 0) {
-                    az.currentFrame = null;
-                    continue;
-                }
-                int safeRow = Math.floorMod(az.dirRow, frames.length);
-                az.currentFrame = frames[safeRow][Math.floorMod(col, frames[safeRow].length)];
+                az.currentFrame = zombieFrameOf(az.currentSheet, az.dirRow, col);
             }
         }
         return middleFrame;
@@ -3239,7 +3463,8 @@ public class GameScreen implements Screen {
                 az.biting = false;
                 az.animState = 0;
                 az.dirRow = 0;
-                az.currentFrame = (zombieIdleFrames != null) ? zombieIdleFrames[0][0] : null;
+                az.currentSheet = ambushZombieSkin(az).idle;
+                az.currentFrame = zombieFrameOf(az.currentSheet, 0, ((int) (az.stateTime / ZOMBIE_IDLE_FRAME_S)) % 8);
                 continue;
             }
 
@@ -3289,14 +3514,14 @@ public class GameScreen implements Screen {
             az.dirRow = dirRow;
             az.animState = az.biting ? 2 : ((distP > 0.5f && distP <= 14.0f) ? 1 : 0);
 
-            if (az.biting && zombieBiteFrames != null) {
+            ZombieSkin skin = ambushZombieSkin(az);
+            if (az.biting) {
                 float biteProgress = (az.isBoss ? 1.0f : 0.8f) - az.biteCooldown;
                 if (biteProgress < 0f) biteProgress = 0f;
                 int biteCol = (int) (biteProgress / 0.4f);
                 if (biteCol >= 2) biteCol = 1;
-                int safeRow = dirRow % zombieBiteFrames.length;
-                int safeCol = biteCol % zombieBiteFrames[0].length;
-                az.currentFrame = zombieBiteFrames[safeRow][safeCol];
+                az.currentSheet = skin.attack;
+                az.currentFrame = zombieFrameOf(az.currentSheet, dirRow, biteCol);
                 continue;
             }
 
@@ -3328,22 +3553,12 @@ public class GameScreen implements Screen {
                     else if (isWalkable(az.x, nextY, 0.15f)) az.y = nextY;
                 }
 
-                if (zombieFrames != null) {
-                    int walkCol = ((int) (az.stateTime / 0.15f)) % 8;
-                    int safeRow = dirRow % zombieFrames.length;
-                    int safeCol = walkCol % zombieFrames[0].length;
-                    az.currentFrame = zombieFrames[safeRow][safeCol];
-                    continue;
-                }
-            } else if (zombieIdleFrames != null) {
-                int idleCol = ((int) (az.stateTime / 0.5f)) % 2;
-                int safeRow = dirRow % zombieIdleFrames.length;
-                int safeCol = idleCol % zombieIdleFrames[0].length;
-                az.currentFrame = zombieIdleFrames[safeRow][safeCol];
-                continue;
+                az.currentSheet = skin.walk;
+                az.currentFrame = zombieFrameOf(az.currentSheet, dirRow, ((int) (az.stateTime / 0.15f)) % 8);
+            } else {
+                az.currentSheet = skin.idle;
+                az.currentFrame = zombieFrameOf(az.currentSheet, dirRow, ((int) (az.stateTime / ZOMBIE_IDLE_FRAME_S)) % 8);
             }
-
-            az.currentFrame = zombieFrames != null ? zombieFrames[0][0] : null;
         }
     }
 
@@ -3449,16 +3664,21 @@ public class GameScreen implements Screen {
             batch.draw(keyTexture, kDrawX, kDrawY, kSize, kSize);
         }
 
-        if (levelNumber == 4 && markerTexture != null) {
+        if (levelNumber == 4 && (puzzlePieceRegion != null || markerTexture != null)) {
             float bob = (float) Math.sin(groundItemStateTime * 4.0f) * 3.0f;
             Color[] colors = {Color.GOLD, Color.CYAN, Color.LIME};
             for (int i = 0; i < level4PuzzleParts.size(); i++) {
                 Vector2 part = level4PuzzleParts.get(i);
-                float size = 18f;
-                float px = Math.round(part.x * PIXELS_PER_TILE - size / 2f);
-                float py = Math.round(part.y * PIXELS_PER_TILE - size / 2f + bob);
-                batch.setColor(colors[i % colors.length]);
-                batch.draw(markerTexture, px, py, size, size);
+                if (puzzlePieceRegion != null) {
+                    batch.setColor(Color.WHITE);
+                    drawObjectiveSprite(puzzlePieceRegion, part.x, part.y, 30f, bob);
+                } else {
+                    float size = 18f;
+                    float px = Math.round(part.x * PIXELS_PER_TILE - size / 2f);
+                    float py = Math.round(part.y * PIXELS_PER_TILE - size / 2f + bob);
+                    batch.setColor(colors[i % colors.length]);
+                    batch.draw(markerTexture, px, py, size, size);
+                }
             }
             batch.setColor(Color.WHITE);
         }
@@ -3678,11 +3898,7 @@ public class GameScreen implements Screen {
 
         // 5. Middle Zombie
         if (!isZombieDead && zombieFrame != null) {
-            float currentZDrawWidth = middleZombieBiting ? zombieBiteFrameWidth : zombieFrameWidth;
-            float currentZDrawHeight = middleZombieBiting ? zombieBiteFrameHeight : zombieFrameHeight;
-            float midDrawX = Math.round((middleZombieX * PIXELS_PER_TILE) - (currentZDrawWidth / 2f));
-            float midDrawY = Math.round((middleZombieY * PIXELS_PER_TILE) - SPRITE_FEET_INSET_PX);
-            batch.draw(zombieFrame, midDrawX, midDrawY, currentZDrawWidth, currentZDrawHeight);
+            middleZombieBarTopY = drawZombieFrame(zombieFrame, middleZombieSheet, middleZombieX, middleZombieY, 1f);
         }
 
         // 5b. Ambush Zombies & Boss
@@ -3691,18 +3907,10 @@ public class GameScreen implements Screen {
                 if (az.dead) continue;
                 TextureRegion azFrame = az.currentFrame;
                 if (azFrame != null) {
-                    float baseW = az.biting ? zombieBiteFrameWidth : zombieFrameWidth;
-                    float baseH = az.biting ? zombieBiteFrameHeight : zombieFrameHeight;
-                    float scale = az.isBoss ? 1.45f : 1.0f;
-                    float azDrawWidth = baseW * scale;
-                    float azDrawHeight = baseH * scale;
-                    float azDrawX = Math.round((az.x * PIXELS_PER_TILE) - (azDrawWidth / 2f));
-                    float azDrawY = Math.round((az.y * PIXELS_PER_TILE) - SPRITE_FEET_INSET_PX);
-
                     if (az.isBoss) {
                         batch.setColor(1.0f, 0.45f, 0.45f, 1.0f);
                     }
-                    batch.draw(azFrame, azDrawX, azDrawY, azDrawWidth, azDrawHeight);
+                    az.barTopY = drawZombieFrame(azFrame, az.currentSheet, az.x, az.y, az.isBoss ? 1.45f : 1.0f);
                     if (az.isBoss) {
                         batch.setColor(Color.WHITE);
                     }
@@ -3802,6 +4010,7 @@ public class GameScreen implements Screen {
             }
             batch.draw(villagerFrame, vx, vy, drawWidth, drawHeight);
             batch.setColor(Color.WHITE);
+            v.barTopY = vy + drawHeight;
 
             if (!v.isRescued) {
                 font.setColor(Color.YELLOW);
@@ -3859,6 +4068,7 @@ public class GameScreen implements Screen {
                 float jx = Math.round((janeX * PIXELS_PER_TILE) - (jWidth / 2f));
                 float jy = Math.round((janeY * PIXELS_PER_TILE) - SPRITE_FEET_INSET_PX);
                 batch.draw(jFrame, jx, jy, jWidth, jHeight);
+                janeBarTopY = jy + jHeight;
             }
         }
 
@@ -3896,6 +4106,7 @@ public class GameScreen implements Screen {
                 } else {
                     batch.draw(currentFrame, drawX, drawY, anim.currentDrawWidth, anim.currentDrawHeight);
                 }
+                playerBarTopY.put(player.playerId, drawY + anim.currentDrawHeight);
 
                 // Healing Aura & Floating Text
                 if (isLocalPlayer && healEffectTimer > 0f && healEffectTexture != null) {
@@ -4231,20 +4442,35 @@ public class GameScreen implements Screen {
     }
 
     private void drawCampaignFeatures() {
-        if (levelNumber != 2 || markerTexture == null) return;
+        if (levelNumber != 2) return;
+        batch.setColor(Color.WHITE);
         for (CampaignLevelPlan.Feature feature : levelFeatures) {
             if (completedFeatureIds.contains(feature.actionId())) continue;
-            // Survivors and the zombie patrol are shown by their own sprites; only relays need a marker
-            if (feature.type() != CampaignLevelPlan.FeatureType.POWER_RELAY) continue;
-
-            Color tint = new Color(0.94f, 0.70f, 0.15f, 0.82f);
-            float size = 30f;
-            float x = feature.tileX() * PIXELS_PER_TILE - size / 2f;
-            float y = feature.tileY() * PIXELS_PER_TILE - size / 2f;
-            batch.setColor(tint);
-            batch.draw(markerTexture, x, y, size, size);
-            batch.setColor(Color.WHITE);
+            switch (feature.type()) {
+                case POWER_RELAY -> {
+                    if (powerRouteRegion != null) {
+                        drawObjectiveSprite(powerRouteRegion, feature.tileX(), feature.tileY(), 40f, 0f);
+                    } else if (markerTexture != null) {
+                        drawMarkerSquare(feature.tileX(), feature.tileY(), 30f, new Color(0.94f, 0.70f, 0.15f, 0.82f));
+                    }
+                }
+                // Skull poster on the ground where the zombie patrol starts, until the patrol is cleared
+                case ZOMBIE_ENCOUNTER -> {
+                    if (zombieEncounterRegion != null) {
+                        drawObjectiveSprite(zombieEncounterRegion, feature.tileX(), feature.tileY(), 42f, 0f);
+                    }
+                }
+                // Survivors are shown by their own villager sprites
+                case SURVIVOR -> { }
+            }
         }
+        batch.setColor(Color.WHITE);
+    }
+
+    private void drawMarkerSquare(float tileX, float tileY, float size, Color tint) {
+        batch.setColor(tint);
+        batch.draw(markerTexture, tileX * PIXELS_PER_TILE - size / 2f, tileY * PIXELS_PER_TILE - size / 2f, size, size);
+        batch.setColor(Color.WHITE);
     }
 
     private void drawInventoryOverlay() {
@@ -6085,6 +6311,10 @@ public class GameScreen implements Screen {
         if (zombieTexture != null) zombieTexture.dispose();
         if (zombieIdleTexture != null && zombieIdleTexture != zombieTexture) zombieIdleTexture.dispose();
         if (zombieBiteTexture != null && zombieBiteTexture != zombieTexture) zombieBiteTexture.dispose();
+        for (Texture t : zombieSkinTextures) t.dispose();
+        zombieSkinTextures.clear();
+        for (Texture t : objectiveTextures) t.dispose();
+        objectiveTextures.clear();
         if (bloodTexture != null) bloodTexture.dispose();
         if (inventoryTexture != null) inventoryTexture.dispose();
         if (bombTexture != null) bombTexture.dispose();
