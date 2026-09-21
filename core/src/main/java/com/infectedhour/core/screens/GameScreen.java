@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.audio.Music;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
@@ -75,6 +76,14 @@ public class GameScreen implements Screen {
     // Level Music
     private Music levelMusic;
     private static final float LEVEL_MUSIC_VOLUME = 0.55f;
+
+    // One-shot combat sound effects
+    private Sound macheteSound; // successful melee hit
+    private Sound swingSound;   // melee miss / no damage
+    private Sound bombSound;    // bomb impact / explosion
+    private static final float MACHETE_SOUND_VOLUME = 1.0f;
+    private static final float SWING_SOUND_VOLUME = 1.0f;
+    private static final float BOMB_SOUND_VOLUME = 1.0f;
 
     private OrthographicCamera camera;
     private Viewport viewport;
@@ -603,6 +612,102 @@ public class GameScreen implements Screen {
         return texture;
     }
 
+    private void loadMacheteSound() {
+        if (macheteSound != null) return;
+
+        String[] candidates = {
+                "music/machete.mp3",
+                "machete.mp3"
+        };
+
+        for (String path : candidates) {
+            try {
+                if (Gdx.files.internal(path).exists()) {
+                    macheteSound = Gdx.audio.newSound(Gdx.files.internal(path));
+                    Gdx.app.log("GameScreen", "Loaded melee SFX: " + path);
+                    return;
+                }
+            } catch (Exception e) {
+                Gdx.app.error("GameScreen", "Failed loading melee SFX: " + path, e);
+            }
+        }
+
+        Gdx.app.error(
+                "GameScreen",
+                "machete.mp3 not found. Expected assets/music/machete.mp3"
+        );
+    }
+
+    private void playMacheteSound() {
+        if (macheteSound != null) {
+            macheteSound.play(MACHETE_SOUND_VOLUME);
+        }
+    }
+
+    private void loadSwingSound() {
+        if (swingSound != null) return;
+
+        String[] candidates = {
+                "music/swing.mp3",
+                "swing.mp3"
+        };
+
+        for (String path : candidates) {
+            try {
+                if (Gdx.files.internal(path).exists()) {
+                    swingSound = Gdx.audio.newSound(Gdx.files.internal(path));
+                    Gdx.app.log("GameScreen", "Loaded swing SFX: " + path);
+                    return;
+                }
+            } catch (Exception e) {
+                Gdx.app.error("GameScreen", "Failed loading swing SFX: " + path, e);
+            }
+        }
+
+        Gdx.app.error(
+                "GameScreen",
+                "swing.mp3 not found. Expected assets/music/swing.mp3"
+        );
+    }
+
+    private void playSwingSound() {
+        if (swingSound != null) {
+            swingSound.play(SWING_SOUND_VOLUME);
+        }
+    }
+
+    private void loadBombSound() {
+        if (bombSound != null) return;
+
+        String[] candidates = {
+                "music/bomb.mp3",
+                "bomb.mp3"
+        };
+
+        for (String path : candidates) {
+            try {
+                if (Gdx.files.internal(path).exists()) {
+                    bombSound = Gdx.audio.newSound(Gdx.files.internal(path));
+                    Gdx.app.log("GameScreen", "Loaded bomb SFX: " + path);
+                    return;
+                }
+            } catch (Exception e) {
+                Gdx.app.error("GameScreen", "Failed loading bomb SFX: " + path, e);
+            }
+        }
+
+        Gdx.app.error(
+                "GameScreen",
+                "bomb.mp3 not found. Expected assets/music/bomb.mp3"
+        );
+    }
+
+    private void playBombSound() {
+        if (bombSound != null) {
+            bombSound.play(BOMB_SOUND_VOLUME);
+        }
+    }
+
     private void startLevelMusic() {
         stopLevelMusic();
 
@@ -654,6 +759,9 @@ public class GameScreen implements Screen {
     @Override
     public void show() {
         startLevelMusic();
+        loadMacheteSound();
+        loadSwingSound();
+        loadBombSound();
 
         batch = new SpriteBatch();
         shapes = new ShapeRenderer();
@@ -2093,7 +2201,11 @@ public class GameScreen implements Screen {
                         }
                         aiJaneAnim.isAttacking = true;
                         aiJaneAnim.attackTime = 0f;
+
+                        // attackAction only exists when Jane has a valid living target
+                        // inside her melee range, so the hit sound plays after damage.
                         attackAction.run();
+                        playMacheteSound();
                     }
                 }
 
@@ -2627,6 +2739,11 @@ public class GameScreen implements Screen {
                 float expX = hitWall ? currX : b.targetX;
                 float expY = hitWall ? currY : b.targetY;
 
+                // Play once at the exact impact/explosion moment:
+                // - hitWall == true: bomb collided before landing
+                // - t >= 1.0f: bomb completed its arc and hit the ground
+                playBombSound();
+
                 ActiveExplosion exp = new ActiveExplosion();
                 exp.x = expX;
                 exp.y = expY;
@@ -2986,8 +3103,9 @@ public class GameScreen implements Screen {
         }
     }
 
-    private void applyMeleeAttackDamage(WorldSnapshot.PlayerState player, PlayerAnimState anim, boolean isJaneMelee) {
+    private boolean applyMeleeAttackDamage(WorldSnapshot.PlayerState player, PlayerAnimState anim, boolean isJaneMelee) {
         float playerDamage = isJaneMelee ? 30f : 50f;
+        boolean didDamage = false;
 
         if (!isZombieDead) {
             float distX = middleZombieX - player.x;
@@ -3003,6 +3121,7 @@ public class GameScreen implements Screen {
 
                 if (validHit) {
                     middleZombieHp -= playerDamage;
+                    didDamage = true;
                     if (isJaneMelee) {
                         float kbX = Math.signum(distX) * 0.6f;
                         float kbY = Math.signum(distY) * 0.6f;
@@ -3037,6 +3156,7 @@ public class GameScreen implements Screen {
 
                     if (azHit) {
                         az.hp -= playerDamage;
+                        didDamage = true;
                         if (isJaneMelee && !az.isBoss) {
                             float kbX = Math.signum(azDistX) * 0.6f;
                             float kbY = Math.signum(azDistY) * 0.6f;
@@ -3053,6 +3173,8 @@ public class GameScreen implements Screen {
             }
             checkAmbushCompletion();
         }
+
+        return didDamage;
     }
 
     private void updatePlayerAnimations(WorldSnapshot snapshot, float delta, WorldSnapshot.PlayerState me) {
@@ -3198,7 +3320,11 @@ public class GameScreen implements Screen {
 
                     if (attackFrame >= 1 && !anim.damageApplied && (isLocalPlayer || isDualViewDebugMode)) {
                         anim.damageApplied = true;
-                        applyMeleeAttackDamage(player, anim, true);
+                        if (applyMeleeAttackDamage(player, anim, true)) {
+                            playMacheteSound();
+                        } else {
+                            playSwingSound();
+                        }
                     }
 
                     if (attackFrame >= 2) {
@@ -3217,7 +3343,11 @@ public class GameScreen implements Screen {
 
                     if (attackCol >= 2 && !anim.damageApplied && (isLocalPlayer || isDualViewDebugMode)) {
                         anim.damageApplied = true;
-                        applyMeleeAttackDamage(player, anim, true);
+                        if (applyMeleeAttackDamage(player, anim, true)) {
+                            playMacheteSound();
+                        } else {
+                            playSwingSound();
+                        }
                     }
 
                     if (attackCol >= 8) {
@@ -3236,7 +3366,11 @@ public class GameScreen implements Screen {
 
                     if (attackFrame >= 1 && !anim.damageApplied && (isLocalPlayer || isDualViewDebugMode)) {
                         anim.damageApplied = true;
-                        applyMeleeAttackDamage(player, anim, false);
+                        if (applyMeleeAttackDamage(player, anim, false)) {
+                            playMacheteSound();
+                        } else {
+                            playSwingSound();
+                        }
                     }
 
                     if (attackFrame >= 2) {
@@ -4458,5 +4592,8 @@ public class GameScreen implements Screen {
         if (healEffectTexture != null) healEffectTexture.dispose();
         if (herbTexture != null) herbTexture.dispose();
         if (medicTexture != null) medicTexture.dispose();
+        if (macheteSound != null) macheteSound.dispose();
+        if (swingSound != null) swingSound.dispose();
+        if (bombSound != null) bombSound.dispose();
     }
 }
