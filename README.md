@@ -64,17 +64,37 @@ Prerequisites: **JDK 21** and Gradle (wrapper included).
 
 ## 3. Controls Reference
 
+### Operative Controls
 | Action | Key / Input |
 | :--- | :--- |
-| **Movement** | `W`, `A`, `S`, `D` |
-| **Attack** | `SPACE` or `Left Click` |
-| **Interact / Rescue / Revive** | `E` |
-| **First Aid (Self / Villager)** | `H` |
-| **Objective Checklist** | `O` |
-| **Dodge / Dash** | `SHIFT` or `X` |
-| **Parry (Boss)** | `F` or `Q` |
-| **Pause / Menu** | `ESC` |
-| **Fullscreen Toggle** | `F11` |
+| Move | `W`, `A`, `S`, `D` |
+| Sprint / Evade | `SHIFT` |
+| Melee Attack | `SPACE` or `Left Click` |
+| Interact / Loot | `E` |
+| Heal | `H` |
+| Order Survivor to Stay / Follow | `X` |
+| Show / Hide Minimap | `M` |
+| Show / Hide Objectives | `O` |
+| Open / Close Inventory | `I` |
+| Pause / Back | `ESC` |
+| Open Controls from Pause Menu | `K` |
+| Open Checkpoint Save Slots | `CTRL + S` |
+| Adjust Audio Volume | `+` / `-` |
+
+### System & Debug Controls
+| Action | Key / Input |
+| :--- | :--- |
+| Toggle Fullscreen | `F11` |
+| Take Screenshot | `F12` |
+| Show Coordinate Diagnostics | `J` |
+| Show Collision Overlay | `C` or `F1` |
+| Toggle Split-Screen Debug View | `F3` |
+| Exit to Main Menu (while paused) | `Q` |
+| Player 2 Movement (Debug Co-op) | `Arrow Keys` / `Numpad` |
+| Player 2 Attack (Debug Co-op) | `NUMPAD 0` |
+| Player 2 Interact (Debug Co-op) | `NUMPAD 3` |
+| Player 2 Stay / Follow (Debug Co-op) | `NUMPAD 7` |
+| Player 2 Heal (Debug Co-op) | `NUMPAD 9` |
 
 ---
 
@@ -124,7 +144,7 @@ infected-hour/
 
 ---
 
-## 5. Team Contributions (From Git Commit History)
+## 5. Team Contributions
 
 ### Abrar Faiyaz
 - **Campaign & Gameplay Flow:** Built the 6-level campaign progression, level transitions, narrative story screens with voice-overs, and cinematic sequences.
