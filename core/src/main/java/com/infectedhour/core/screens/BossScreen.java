@@ -845,7 +845,8 @@ public class BossScreen implements Screen {
             playerAnimTime += delta * 0.5f;
         }
 
-        boolean attackTrigger = Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.isButtonJustPressed(Input.Buttons.LEFT);
+        boolean attackTrigger = (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)
+                || Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) && !isInventoryOpen;
         if (attackTrigger && !playerAttacking) {
             attackTriggeredThisFrame = true;
             if (isBombEquipped) {
@@ -866,15 +867,16 @@ public class BossScreen implements Screen {
                     activeBombs.add(b);
                     bombCooldown = 0.8f;
                 }
-            } else if (isMacheteEquipped) {
+            } else {
                 playerAttacking = true;
                 playerAttackTime = 0f;
+                if (!isMacheteEquipped) isMacheteEquipped = true;
             }
         }
 
         if (playerAttacking) {
             playerAttackTime += delta;
-            float frameDur = 0.25f;
+            float frameDur = (playerCharacter == CharacterType.JANE) ? 0.22f : 0.25f;
             int maxFrames = 2;
             if ((int) (playerAttackTime / frameDur) >= maxFrames) playerAttacking = false;
         }
@@ -1908,12 +1910,20 @@ public class BossScreen implements Screen {
                         baseW = frame.getRegionWidth() * (0.6f * 0.75f * 0.81f);
                         baseH = frame.getRegionHeight() * (0.6f * 0.75f * 0.81f);
                     }
-                } else if (isMacheteEquipped && elricMeleeHitFrames != null) {
+                } else if (elricMeleeHitFrames != null) {
                     int col = Math.min((int) (playerAttackTime / 0.25f), 1);
                     frame = elricMeleeHitFrames[playerFacing % elricMeleeHitFrames.length][col];
                     if (frame != null) {
-                        baseW = elricMeleeHitFrameWidth * 0.9f;
-                        baseH = elricMeleeHitFrameHeight * 0.9f;
+                        baseW = elricMeleeHitFrameWidth * 0.8f;
+                        baseH = elricMeleeHitFrameHeight * 0.8f;
+                    }
+                    specificScale = 1.1f;
+                } else if (elricMeleeFrames != null) {
+                    int col = ((int) (playerAttackTime / 0.06f)) % elricMeleeFrames[0].length;
+                    frame = elricMeleeFrames[playerFacing % elricMeleeFrames.length][col];
+                    if (frame != null) {
+                        baseW = frame.getRegionWidth();
+                        baseH = frame.getRegionHeight();
                     }
                     specificScale = 1.1f;
                 }
@@ -1969,19 +1979,22 @@ public class BossScreen implements Screen {
                         baseH = frame.getRegionHeight();
                     }
                     specificScale = 0.9f;
-                } else if (isMacheteEquipped && janeMeleeHitFrames != null) {
-                    if (janeUsesTwoFrameMelee) {
-                        int col = Math.min((int) (playerAttackTime / 0.25f), 1);
-                        frame = janeMeleeHitFrames[playerFacing % janeMeleeHitFrames.length][col];
-                    } else {
-                        int col = (int) (playerAttackTime / 0.25f) % janeMeleeHitFrames[0].length;
-                        frame = janeMeleeHitFrames[playerFacing % janeMeleeHitFrames.length][col];
-                    }
+                } else if (janeMeleeHitFrames != null) {
+                    int col = Math.min((int) (playerAttackTime / 0.22f), 1);
+                    frame = janeMeleeHitFrames[playerFacing % janeMeleeHitFrames.length][col];
                     if (frame != null) {
-                        baseW = janeMeleeHitFrameWidth;
-                        baseH = janeMeleeHitFrameHeight;
+                        baseW = janeMeleeHitFrameWidth * 0.8f;
+                        baseH = janeMeleeHitFrameHeight * 0.8f;
                     }
-                    specificScale = 0.7f;
+                    specificScale = 1.1f;
+                } else if (janeMeleeFrames != null) {
+                    int col = ((int) (playerAttackTime / 0.06f)) % janeMeleeFrames[0].length;
+                    frame = janeMeleeFrames[playerFacing % janeMeleeFrames.length][col];
+                    if (frame != null) {
+                        baseW = frame.getRegionWidth();
+                        baseH = frame.getRegionHeight();
+                    }
+                    specificScale = 1.0f;
                 }
             }
 
