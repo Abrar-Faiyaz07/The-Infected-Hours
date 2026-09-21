@@ -3,6 +3,7 @@ package com.infectedhour.core.audio;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SoundtrackCatalogTest {
@@ -24,5 +25,17 @@ class SoundtrackCatalogTest {
             assertTrue(effect.assetPath().startsWith("audio/sfx/"));
             assertTrue(effect.assetPath().endsWith(".ogg"));
         }
+    }
+
+    @Test
+    void combatEffectFallbacksArePackagedWithTheGame() {
+        assertEquals("music/machete.mp3", SoundtrackCatalog.Effect.MELEE_HIT.fallbackAssetPath());
+        assertEquals("music/swing.mp3", SoundtrackCatalog.Effect.MELEE_SWING.fallbackAssetPath());
+        assertEquals("music/bomb.mp3", SoundtrackCatalog.Effect.BOMB_EXPLOSION.fallbackAssetPath());
+
+        ClassLoader assets = SoundtrackCatalogTest.class.getClassLoader();
+        assertNotNull(assets.getResource("music/machete.mp3"));
+        assertNotNull(assets.getResource("music/swing.mp3"));
+        assertNotNull(assets.getResource("music/bomb.mp3"));
     }
 }

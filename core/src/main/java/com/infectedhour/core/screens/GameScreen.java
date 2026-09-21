@@ -23,6 +23,7 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.infectedhour.core.InfectedHourGame;
+import com.infectedhour.core.audio.SoundtrackCatalog;
 import com.infectedhour.core.bridge.GameBridge;
 import com.infectedhour.core.level.CampaignLevelPlan;
 import com.infectedhour.core.level.LevelDefinition;
@@ -713,6 +714,9 @@ public class GameScreen implements Screen {
     @Override
     public void show() {
         startLevelMusic();
+        game.getAudioDirector().preloadEffect(SoundtrackCatalog.Effect.MELEE_HIT);
+        game.getAudioDirector().preloadEffect(SoundtrackCatalog.Effect.MELEE_SWING);
+        game.getAudioDirector().preloadEffect(SoundtrackCatalog.Effect.BOMB_EXPLOSION);
 
         batch = new SpriteBatch();
         shapes = new ShapeRenderer();
@@ -2584,6 +2588,7 @@ public class GameScreen implements Screen {
                         aiJaneAnim.isAttacking = true;
                         aiJaneAnim.attackTime = 0f;
                         attackAction.run();
+                        game.getAudioDirector().playEffect(SoundtrackCatalog.Effect.MELEE_HIT);
                     }
                 }
 
@@ -3444,6 +3449,8 @@ public class GameScreen implements Screen {
                 float expX = hitWall ? currX : b.targetX;
                 float expY = hitWall ? currY : b.targetY;
 
+                game.getAudioDirector().playEffect(SoundtrackCatalog.Effect.BOMB_EXPLOSION);
+
                 ActiveExplosion exp = new ActiveExplosion();
                 exp.x = expX;
                 exp.y = expY;
@@ -3811,8 +3818,9 @@ public class GameScreen implements Screen {
         }
     }
 
-    private void applyMeleeAttackDamage(WorldSnapshot.PlayerState player, PlayerAnimState anim, boolean isJaneMelee) {
+    private boolean applyMeleeAttackDamage(WorldSnapshot.PlayerState player, PlayerAnimState anim, boolean isJaneMelee) {
         float playerDamage = isJaneMelee ? 30f : 50f;
+        boolean didDamage = false;
 
         if (!isZombieDead) {
             float distX = middleZombieX - player.x;
@@ -3828,6 +3836,7 @@ public class GameScreen implements Screen {
 
                 if (validHit) {
                     middleZombieHp -= playerDamage;
+                    didDamage = true;
                     if (isJaneMelee) {
                         float kbX = Math.signum(distX) * 0.5f;
                         float kbY = Math.signum(distY) * 0.5f;
@@ -3865,6 +3874,7 @@ public class GameScreen implements Screen {
 
                     if (azHit) {
                         az.hp -= playerDamage;
+                        didDamage = true;
                         if (isJaneMelee && !az.isBoss) {
                             float kbX = Math.signum(azDistX) * 0.5f;
                             float kbY = Math.signum(azDistY) * 0.5f;
@@ -3884,6 +3894,13 @@ public class GameScreen implements Screen {
             }
             checkAmbushCompletion();
         }
+        return didDamage;
+    }
+
+    private void playMeleeEffect(boolean hitTarget) {
+        game.getAudioDirector().playEffect(hitTarget
+                ? SoundtrackCatalog.Effect.MELEE_HIT
+                : SoundtrackCatalog.Effect.MELEE_SWING);
     }
 
     private void updatePlayerAnimations(WorldSnapshot snapshot, float delta, WorldSnapshot.PlayerState me) {
@@ -4029,7 +4046,7 @@ public class GameScreen implements Screen {
 
                     if (attackFrame >= 1 && !anim.damageApplied && (isLocalPlayer || isDualViewDebugMode)) {
                         anim.damageApplied = true;
-                        applyMeleeAttackDamage(player, anim, true);
+                        playMeleeEffect(applyMeleeAttackDamage(player, anim, true));
                     }
 
                     if (attackFrame >= 2) {
@@ -4048,7 +4065,7 @@ public class GameScreen implements Screen {
 
                     if (attackCol >= 2 && !anim.damageApplied && (isLocalPlayer || isDualViewDebugMode)) {
                         anim.damageApplied = true;
-                        applyMeleeAttackDamage(player, anim, true);
+                        playMeleeEffect(applyMeleeAttackDamage(player, anim, true));
                     }
 
                     if (attackCol >= 8) {
@@ -4067,7 +4084,7 @@ public class GameScreen implements Screen {
 
                     if (attackFrame >= 1 && !anim.damageApplied && (isLocalPlayer || isDualViewDebugMode)) {
                         anim.damageApplied = true;
-                        applyMeleeAttackDamage(player, anim, false);
+                        playMeleeEffect(applyMeleeAttackDamage(player, anim, false));
                     }
 
                     if (attackFrame >= 2) {

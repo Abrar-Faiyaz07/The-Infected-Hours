@@ -69,9 +69,12 @@ public final class AudioDirector implements AutoCloseable {
     }
 
     public void playEffect(SoundtrackCatalog.Effect effect) {
-        if (effect == null) return;
-        Sound sound = sound(effect.assetPath());
+        Sound sound = effectSound(effect);
         if (sound != null) sound.play(sfxVolume);
+    }
+
+    public void preloadEffect(SoundtrackCatalog.Effect effect) {
+        effectSound(effect);
     }
 
     public void stopMusic() {
@@ -141,6 +144,32 @@ public final class AudioDirector implements AutoCloseable {
             reportMissing(path, error);
             return null;
         }
+    }
+
+    private Sound soundIfPresent(String path) {
+        Sound cached = soundCache.get(path);
+        if (cached != null) return cached;
+        if (Gdx.files == null || Gdx.audio == null) return null;
+        try {
+            FileHandle file = Gdx.files.internal(path);
+            if (!file.exists()) return null;
+            Sound loaded = Gdx.audio.newSound(file);
+            soundCache.put(path, loaded);
+            return loaded;
+        } catch (RuntimeException error) {
+            reportMissing(path, error);
+            return null;
+        }
+    }
+
+    private Sound effectSound(SoundtrackCatalog.Effect effect) {
+        if (effect == null) return null;
+        Sound sound = soundIfPresent(effect.assetPath());
+        if (sound == null && effect.fallbackAssetPath() != null) {
+            sound = soundIfPresent(effect.fallbackAssetPath());
+        }
+        if (sound == null) reportMissing(effect.assetPath(), null);
+        return sound;
     }
 
     private FileHandle asset(String path) {

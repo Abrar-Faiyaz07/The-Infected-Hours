@@ -41,16 +41,29 @@ public final class SoundtrackCatalog {
         BOSS_TELEGRAPH("audio/sfx/boss_telegraph.ogg"),
         BOSS_DEFEATED("audio/sfx/boss_defeated.ogg"),
         OBJECTIVE_COMPLETE("audio/sfx/objective_complete.ogg"),
-        PLAYER_HIT("audio/sfx/player_hit.ogg");
+        PLAYER_HIT("audio/sfx/player_hit.ogg"),
+        MELEE_HIT("audio/sfx/melee_hit.ogg", "music/machete.mp3"),
+        MELEE_SWING("audio/sfx/melee_swing.ogg", "music/swing.mp3"),
+        BOMB_EXPLOSION("audio/sfx/bomb_explosion.ogg", "music/bomb.mp3");
 
         private final String assetPath;
+        private final String fallbackAssetPath;
 
         Effect(String assetPath) {
+            this(assetPath, null);
+        }
+
+        Effect(String assetPath, String fallbackAssetPath) {
             this.assetPath = assetPath;
+            this.fallbackAssetPath = fallbackAssetPath;
         }
 
         public String assetPath() {
             return assetPath;
+        }
+
+        public String fallbackAssetPath() {
+            return fallbackAssetPath;
         }
     }
 
