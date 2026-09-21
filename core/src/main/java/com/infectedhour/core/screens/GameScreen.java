@@ -414,6 +414,11 @@ public class GameScreen implements Screen {
         TextureRegion currentFrame = null;
         ZombieSheet currentSheet = null; // sheet currentFrame came from (sets draw size)
         int skinIndex = -1;              // assigned lazily from level + list index
+        // Co-op mirroring: animation state (0 idle, 1 walk, 2 bite) + facing row, and the host's latest position
+        int animState = 0;
+        int dirRow = 0;
+        boolean hasNetState = false;
+        float netX, netY;
         float barTopY = Float.NaN; // world Y of the drawn sprite's top, for the HP bar
 
         AmbushZombie(float x, float y, boolean isBoss) {
@@ -3263,6 +3268,224 @@ public class GameScreen implements Screen {
         if (sheet == null || sheet.frames == null || sheet.frames.length == 0 || sheet.frames[0].length == 0) return null;
         int safeRow = Math.floorMod(row, sheet.frames.length);
         return sheet.frames[safeRow][Math.floorMod(col, sheet.frames[safeRow].length)];
+    }
+
+    /** Level 1: the staff room key was picked up (here or by the partner) — take the key and spawn the horde once. */
+    private void onStairsKeyTaken() {
+        if (levelNumber != 1 || hasStairsKey) return;
+        hasStairsKey = true;
+        isAmbushActive = true;
+        ambushZombies.clear();
+        // Boss zombie guarding the door corridor (clear walkway at 42.0, 28.0):
+        ambushZombies.add(new AmbushZombie(42.0f, 28.0f, true));
+        // 3 regular zombies swarming (verified walkable positions):
+        ambushZombies.add(new AmbushZombie(36.0f, 26.5f, false));
+        ambushZombies.add(new AmbushZombie(42.0f, 25.0f, false));
+        ambushZombies.add(new AmbushZombie(36.5f, 28.5f, false));
+        applyPendingAmbushKills(); // partner may already have killed some of these
+        showBanner("DOOR BREACHED! MUTATED BOSS & ZOMBIE HORDE EMERGE!");
+    }
+
+    /** Only the host runs zombie AI; the other co-op player mirrors the host's zombies. */
+    private boolean isZombieAuthority() {
+        return game.isHost();
+    }
+
+    private static float round2(float v) {
+        return Math.round(v * 100f) / 100f;
+    }
+
+    /** Host: sends every living zombie's position + animation state to the partner (~15 times/s). */
+    private void sendZombieStateIfDue(WorldSnapshot snapshot, float delta) {
+        if (client == null || snapshot == null || snapshot.players == null || snapshot.players.size() < 2) return;
+        zombieSyncTimer += delta;
+        if (zombieSyncTimer < ZOMBIE_SYNC_INTERVAL) return;
+        zombieSyncTimer = 0f;
+
+        StringBuilder sb = new StringBuilder("L").append(levelNumber);
+        if (!isZombieDead) {
+            sb.append("|m,").append(round2(middleZombieX)).append(',').append(round2(middleZombieY))
+              .append(',').append(zombieAnim.currentRow).append(',').append(middleZombieAnimState);
+        }
+        if (isAmbushActive) {
+            for (int i = 0; i < ambushZombies.size(); i++) {
+                AmbushZombie az = ambushZombies.get(i);
+                if (az.dead) continue;
+                sb.append('|').append(i).append(',').append(round2(az.x)).append(',').append(round2(az.y))
+                  .append(',').append(az.dirRow).append(',').append(az.animState);
+            }
+        }
+        client.sendEvent(EVENT_ZOMBIE_STATE, sb.toString());
+    }
+
+    /** Partner: stores the host's latest zombie positions/animation (applied smoothly in updateMirroredZombies). */
+    private void applyZombieState(String payload) {
+        if (payload == null) return;
+        String[] parts = payload.split("\\|");
+        if (parts.length == 0 || !parts[0].equals("L" + levelNumber)) return; // stale packet from another level
+        for (int p = 1; p < parts.length; p++) {
+            String[] f = parts[p].split(",");
+            if (f.length < 5) continue;
+            try {
+                float x = Float.parseFloat(f[1]);
+                float y = Float.parseFloat(f[2]);
+                int row = Integer.parseInt(f[3]);
+                int state = Integer.parseInt(f[4]);
+                if (f[0].equals("m")) {
+                    if (isZombieDead) continue;
+                    if (!hasMiddleZombieNetState) {
+                        middleZombieX = x;
+                        middleZombieY = y;
+                    }
+                    middleZombieNetX = x;
+                    middleZombieNetY = y;
+                    hasMiddleZombieNetState = true;
+                    zombieAnim.currentRow = row;
+                    middleZombieAnimState = state;
+                } else {
+                    int index = Integer.parseInt(f[0]);
+                    if (index < 0 || index >= ambushZombies.size()) continue;
+                    AmbushZombie az = ambushZombies.get(index);
+                    if (az.dead) continue;
+                    if (!az.hasNetState) {
+                        az.x = x;
+                        az.y = y;
+                    }
+                    az.netX = x;
+                    az.netY = y;
+                    az.hasNetState = true;
+                    az.dirRow = row;
+                    az.animState = state;
+                }
+            } catch (NumberFormatException ignored) {
+            }
+        }
+    }
+
+    /** Partner: glides zombies toward the host's positions and animates them; no AI or bite damage here. */
+    private TextureRegion updateMirroredZombies(WorldSnapshot.PlayerState me, float delta) {
+        float follow = Math.min(1f, delta * 12f);
+        TextureRegion middleFrame = null;
+
+        if (!isZombieDead) {
+            if (hasMiddleZombieNetState) {
+                middleZombieX += (middleZombieNetX - middleZombieX) * follow;
+                middleZombieY += (middleZombieNetY - middleZombieY) * follow;
+            }
+            middleZombieBiting = middleZombieAnimState == 2;
+            middleZombieChasing = middleZombieAnimState >= 1;
+            zombieAnim.stateTime += delta;
+            if (middleZombieAnimState == 1) {
+                if (zombieAnim.stateTime > 0.15f) {
+                    zombieAnim.currentColumn = (zombieAnim.currentColumn + 1) % 8;
+                    zombieAnim.stateTime = 0f;
+                }
+            } else if (middleZombieAnimState == 2) {
+                if (zombieAnim.stateTime > 0.4f) {
+                    zombieAnim.currentColumn = (zombieAnim.currentColumn + 1) % 2;
+                    zombieAnim.stateTime = 0f;
+                }
+            } else if (zombieAnim.stateTime > ZOMBIE_IDLE_FRAME_S) {
+                zombieAnim.currentColumn = (zombieAnim.currentColumn + 1) % 8;
+                zombieAnim.stateTime = 0f;
+            }
+            if (middleZombieBiting && me != null && Math.hypot(me.x - middleZombieX, me.y - middleZombieY) <= 0.9f) {
+                isBeingBitten = true;
+            }
+            middleFrame = currentMiddleZombieFrame();
+        } else {
+            middleZombieBiting = false;
+        }
+
+        if (isAmbushActive) {
+            for (AmbushZombie az : ambushZombies) {
+                if (az.dead) {
+                    az.currentFrame = null;
+                    continue;
+                }
+                az.stateTime += delta;
+                if (az.hasNetState) {
+                    az.x += (az.netX - az.x) * follow;
+                    az.y += (az.netY - az.y) * follow;
+                }
+                az.biting = az.animState == 2;
+                if (az.biting && me != null && Math.hypot(me.x - az.x, me.y - az.y) <= (az.isBoss ? 1.1f : 0.9f)) {
+                    isBeingBitten = true;
+                }
+
+                ZombieSkin skin = ambushZombieSkin(az);
+                int col;
+                if (az.animState == 2) {
+                    az.currentSheet = skin.attack;
+                    col = ((int) (az.stateTime / 0.4f)) % 2;
+                } else if (az.animState == 1) {
+                    az.currentSheet = skin.walk;
+                    col = ((int) (az.stateTime / 0.15f)) % 8;
+                } else {
+                    az.currentSheet = skin.idle;
+                    col = ((int) (az.stateTime / ZOMBIE_IDLE_FRAME_S)) % 8;
+                }
+                az.currentFrame = zombieFrameOf(az.currentSheet, az.dirRow, col);
+            }
+        }
+        return middleFrame;
+    }
+
+    /** Tells the partner's screen that this zombie died here. */
+    private void broadcastZombieKill(String zombieId) {
+        killedZombieIds.add(zombieId);
+        if (client != null) client.sendEvent(EVENT_ZOMBIE_KILLED, zombieId);
+    }
+
+    private void broadcastAmbushZombieKill(AmbushZombie zombie) {
+        int index = ambushZombies.indexOf(zombie);
+        if (index >= 0) broadcastZombieKill("ambush:" + index);
+    }
+
+    /** Partner killed a zombie on their screen: kill the same zombie here (no-op if already dead). */
+    private void applyRemoteZombieKill(String zombieId) {
+        if (zombieId == null || !killedZombieIds.add(zombieId)) return;
+        applyZombieKillIfPresent(zombieId);
+    }
+
+    /** Kills the zombie with this ID if it currently exists on this screen. */
+    private void applyZombieKillIfPresent(String zombieId) {
+        if (MIDDLE_ZOMBIE_ID.equals(zombieId)) {
+            if (!isZombieDead) {
+                middleZombieHp = 0f;
+                isZombieDead = true;
+                isBeingBitten = false;
+                coins += 1;
+                bloodPools.add(new Vector2(middleZombieX, middleZombieY));
+                checkZombiePatrolObjective();
+            }
+            return;
+        }
+        if (zombieId.startsWith("ambush:")) {
+            int index;
+            try {
+                index = Integer.parseInt(zombieId.substring("ambush:".length()));
+            } catch (NumberFormatException e) {
+                return;
+            }
+            if (index < 0 || index >= ambushZombies.size()) return; // Not spawned here yet; applied on spawn
+            AmbushZombie az = ambushZombies.get(index);
+            if (!az.dead) {
+                az.hp = 0f;
+                az.dead = true;
+                grantLabPasskeyIfBoss(az);
+                coins += 1;
+                bloodPools.add(new Vector2(az.x, az.y));
+                checkAmbushCompletion();
+            }
+        }
+    }
+
+    /** Applies kills the partner made before this screen spawned the horde. */
+    private void applyPendingAmbushKills() {
+        for (String id : killedZombieIds) {
+            if (id.startsWith("ambush:")) applyZombieKillIfPresent(id);
+        }
     }
 
     private void checkAmbushCompletion() {

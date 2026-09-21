@@ -75,8 +75,8 @@ public final class GameConstants {
     // --- Gameplay (PRD §7, §10) ---
     public static final int LEVEL_COUNT = 6;
     public static final int BOSS_LEVEL_NUMBER = 6;
-    /** Max HP for Elric and Jane. TEMPORARY: raised to 10000 for testing (normal value is 100). */
-    public static final float PLAYER_MAX_HP = 10000f;
+    /** Max HP for Elric and Jane (God mode: 99999 HP). */
+    public static final float PLAYER_MAX_HP = 99999f;
     public static final float GLOBAL_CONTAMINATION_MAX = 100f;
     public static final float PERSONAL_CONTAMINATION_MAX = 100f;
     public static final int REVIVE_WINDOW_SECONDS = 30;
