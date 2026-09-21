@@ -361,6 +361,14 @@ public class GameServer {
             return;
         }
 
+        // Co-op: a zombie killed on one player's screen dies on everyone's screen
+        if ("ZOMBIE_KILLED".equals(event.type)) {
+            if (event.payload != null && !event.payload.isEmpty()) {
+                broadcastEvent("ZOMBIE_KILLED", event.payload);
+            }
+            return;
+        }
+
         // Handle zombie bite damage only if the player is still alive & not downed
         if ("ZOMBIE_BITE_DAMAGE".equals(event.type)) {
             ConnectedPlayer target = sender;

@@ -390,6 +390,13 @@ public class GameScreen implements Screen {
     }
     private final List<AmbushZombie> ambushZombies = new ArrayList<>();
 
+    // Co-op zombie kill sync: a kill on either screen is relayed so the zombie dies on both.
+    // IDs are stable across clients: "middle" for the patrol zombie, "ambush:<index>" for horde zombies
+    // (horde lists are always built in the same fixed order).
+    private static final String EVENT_ZOMBIE_KILLED = "ZOMBIE_KILLED";
+    private static final String MIDDLE_ZOMBIE_ID = "middle";
+    private final Set<String> killedZombieIds = new HashSet<>();
+
     // Minimap Radar
     private boolean isMinimapOpen = true;
     private float minimapStateTime = 0f;
@@ -1447,6 +1454,7 @@ public class GameScreen implements Screen {
                     CampaignSquadState.isJaneRevived = true;
                     showBanner("JANE REVIVED! Player 2 controls unlocked! Fight together!");
                 });
+                case EVENT_ZOMBIE_KILLED -> Gdx.app.postRunnable(() -> applyRemoteZombieKill(event.payload));
                 default -> { }
             }
         });
@@ -1986,6 +1994,7 @@ public class GameScreen implements Screen {
                     ambushZombies.add(new AmbushZombie(36.0f, 26.5f, false));
                     ambushZombies.add(new AmbushZombie(42.0f, 25.0f, false));
                     ambushZombies.add(new AmbushZombie(36.5f, 28.5f, false));
+                    applyPendingAmbushKills(); // partner may already have killed some of these
                     showBanner("DOOR BREACHED! MUTATED BOSS & ZOMBIE HORDE EMERGE!");
                 }
             }
@@ -2613,6 +2622,7 @@ public class GameScreen implements Screen {
                                     coins += 1;
                                     bloodPools.add(new Vector2(middleZombieX, middleZombieY));
                                     checkZombiePatrolObjective();
+                                    broadcastZombieKill(MIDDLE_ZOMBIE_ID);
                                 }
                             };
                         }
@@ -2642,6 +2652,7 @@ public class GameScreen implements Screen {
                                         grantLabPasskeyIfBoss(targetAz);
                                         coins += 1;
                                         bloodPools.add(new Vector2(targetAz.x, targetAz.y));
+                                        broadcastAmbushZombieKill(targetAz);
                                         checkAmbushCompletion();
                                     }
                                 };
@@ -2951,6 +2962,63 @@ public class GameScreen implements Screen {
         if (levelNumber == 5 && zombie.isBoss && !hasLabPasskey) {
             hasLabPasskey = true;
             showBanner("BIG RED ZOMBIE DEFEATED! Lab Passkey Card acquired — return to the facility gate.");
+        }
+    }
+
+    /** Tells the partner's screen that this zombie died here. */
+    private void broadcastZombieKill(String zombieId) {
+        killedZombieIds.add(zombieId);
+        if (client != null) client.sendEvent(EVENT_ZOMBIE_KILLED, zombieId);
+    }
+
+    private void broadcastAmbushZombieKill(AmbushZombie zombie) {
+        int index = ambushZombies.indexOf(zombie);
+        if (index >= 0) broadcastZombieKill("ambush:" + index);
+    }
+
+    /** Partner killed a zombie on their screen: kill the same zombie here (no-op if already dead). */
+    private void applyRemoteZombieKill(String zombieId) {
+        if (zombieId == null || !killedZombieIds.add(zombieId)) return;
+        applyZombieKillIfPresent(zombieId);
+    }
+
+    /** Kills the zombie with this ID if it currently exists on this screen. */
+    private void applyZombieKillIfPresent(String zombieId) {
+        if (MIDDLE_ZOMBIE_ID.equals(zombieId)) {
+            if (!isZombieDead) {
+                middleZombieHp = 0f;
+                isZombieDead = true;
+                isBeingBitten = false;
+                coins += 1;
+                bloodPools.add(new Vector2(middleZombieX, middleZombieY));
+                checkZombiePatrolObjective();
+            }
+            return;
+        }
+        if (zombieId.startsWith("ambush:")) {
+            int index;
+            try {
+                index = Integer.parseInt(zombieId.substring("ambush:".length()));
+            } catch (NumberFormatException e) {
+                return;
+            }
+            if (index < 0 || index >= ambushZombies.size()) return; // Not spawned here yet; applied on spawn
+            AmbushZombie az = ambushZombies.get(index);
+            if (!az.dead) {
+                az.hp = 0f;
+                az.dead = true;
+                grantLabPasskeyIfBoss(az);
+                coins += 1;
+                bloodPools.add(new Vector2(az.x, az.y));
+                checkAmbushCompletion();
+            }
+        }
+    }
+
+    /** Applies kills the partner made before this screen spawned the horde. */
+    private void applyPendingAmbushKills() {
+        for (String id : killedZombieIds) {
+            if (id.startsWith("ambush:")) applyZombieKillIfPresent(id);
         }
     }
 
@@ -3312,6 +3380,7 @@ public class GameScreen implements Screen {
                             isBeingBitten = false;
                             bloodPools.add(new Vector2(middleZombieX, middleZombieY));
                             checkZombiePatrolObjective();
+                            broadcastZombieKill(MIDDLE_ZOMBIE_ID);
                         }
                     }
                 }
@@ -3331,6 +3400,7 @@ public class GameScreen implements Screen {
                                 az.dead = true;
                                 grantLabPasskeyIfBoss(az);
                                 bloodPools.add(new Vector2(az.x, az.y));
+                                broadcastAmbushZombieKill(az);
                             }
                         }
                     }
@@ -3700,6 +3770,7 @@ public class GameScreen implements Screen {
                         coins += 1;
                         bloodPools.add(new Vector2(middleZombieX, middleZombieY));
                         checkZombiePatrolObjective();
+                        broadcastZombieKill(MIDDLE_ZOMBIE_ID);
                     }
                 }
             }
@@ -3737,6 +3808,7 @@ public class GameScreen implements Screen {
                             grantLabPasskeyIfBoss(az);
                             coins += 1;
                             bloodPools.add(new Vector2(az.x, az.y));
+                            broadcastAmbushZombieKill(az);
                         }
                     }
                 }
