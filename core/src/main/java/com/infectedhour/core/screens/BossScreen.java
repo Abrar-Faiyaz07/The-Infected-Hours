@@ -44,6 +44,7 @@ public class BossScreen implements Screen {
     private static final float SHIELD_SCALE = 0.35f;
     private static final float VOID_SCALE = 0.4f;
     private static final float VOID2_SCALE = 0.225f;
+    private static final float VOID_COOK_TIME = 0.5f;
     private static final float LASER_SCALE = 0.5f;
     private static final float HEAL_SCALE = 0.25f;
 
@@ -158,6 +159,14 @@ public class BossScreen implements Screen {
     private static final float CAMERA_SHAKE_DURATION = 0.2f;
     private static final float CAMERA_SHAKE_STRENGTH = 3f;
     private float cameraShakeTimer = 0f;
+
+    // Final-wave remaining-hit number only appears briefly after an actual wave hit.
+    private static final float WAVE_COUNTER_POPUP_DURATION = 0.75f;
+    private float waveCounterPopupTimer = 0f;
+
+    // Boss bright/white feedback flash whenever boss HP is actually reduced.
+    private static final float BOSS_DAMAGE_FLASH_DURATION = 0.18f;
+    private float bossDamageFlashTimer = 0f;
 
     // Phase 3 heal orbs: 10 total, all spawned within the first 15s, then 5s extra before the phase ends
     private static final int HEAL_ORB_TOTAL = 10;
@@ -925,8 +934,11 @@ public class BossScreen implements Screen {
             moveX = MathUtils.cos(fleeAngle) * 110f;
             moveY = MathUtils.sin(fleeAngle) * 110f;
 
-            scientistX = MathUtils.clamp(scientistX + moveX * delta, 90f, WIDTH - 90f);
-            scientistY = MathUtils.clamp(scientistY + moveY * delta, 90f, HEIGHT - 120f);
+            float nextX = MathUtils.clamp(scientistX + moveX * delta, 90f, WIDTH - 90f);
+            float nextY = MathUtils.clamp(scientistY + moveY * delta, 90f, HEIGHT - 120f);
+            resolveArenaMove(scientistX, scientistY, nextX, nextY, 22f);
+            scientistX = arenaMoveResult[0];
+            scientistY = arenaMoveResult[1];
         } else {
             scientistRoamTimer -= delta;
             if (scientistRoamTimer <= 0f) {
@@ -940,8 +952,9 @@ public class BossScreen implements Screen {
             if (dist > 5f) {
                 moveX = (dx / dist) * 60f;
                 moveY = (dy / dist) * 60f;
-                scientistX += moveX * delta;
-                scientistY += moveY * delta;
+                resolveArenaMove(scientistX, scientistY, scientistX + moveX * delta, scientistY + moveY * delta, 22f);
+                scientistX = arenaMoveResult[0];
+                scientistY = arenaMoveResult[1];
             }
         }
 
@@ -985,6 +998,18 @@ public class BossScreen implements Screen {
                 voidSpawnTimer = 0f;
                 targetZoom = 1.0f;
             }
+        }
+    }
+
+    /** Applies real boss HP damage and triggers a short bright damage flash. */
+    private void damageBoss(float amount) {
+        if (amount <= 0f || bossHp <= 0f) return;
+
+        float oldHp = bossHp;
+        bossHp = Math.max(0f, bossHp - amount);
+
+        if (bossHp < oldHp) {
+            bossDamageFlashTimer = BOSS_DAMAGE_FLASH_DURATION;
         }
     }
 
@@ -1076,6 +1101,14 @@ public class BossScreen implements Screen {
         bossPulseTimer += delta;
         if (bossHitCooldown > 0f) bossHitCooldown -= delta;
 
+        if (bossDamageFlashTimer > 0f) {
+            bossDamageFlashTimer = Math.max(0f, bossDamageFlashTimer - delta);
+        }
+
+        if (waveCounterPopupTimer > 0f) {
+            waveCounterPopupTimer = Math.max(0f, waveCounterPopupTimer - delta);
+        }
+
         boolean isDefeated = (bossSpecialState == BossSpecialState.DEFEAT);
         boolean directAttackPressed = Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.isButtonJustPressed(Input.Buttons.LEFT);
 
@@ -1096,7 +1129,7 @@ public class BossScreen implements Screen {
             if (directAttackPressed && isMacheteEquipped && bossHitCooldown <= 0f) {
                 float distToBoss = (float) Math.hypot(playerX - bossX, playerY - bossY);
                 if (distToBoss <= 45f) {
-                    bossHp = Math.max(0f, bossHp - 50f);
+                    damageBoss(50f);
                     bossHitCooldown = 0.2f;
                 }
             }
@@ -1166,6 +1199,10 @@ public class BossScreen implements Screen {
                     waveHitCount++;
                     cameraShakeTimer = CAMERA_SHAKE_DURATION;
 
+                    // Show the NEW remaining hit count only after being struck.
+                    // Example: first hit turns 5 remaining into 4, so "4" pops at the top.
+                    waveCounterPopupTimer = WAVE_COUNTER_POPUP_DURATION;
+
                     if (waveHitCount >= WAVE_HITS_TO_DIE) {
                         isGameOverActive = true;
                         gameOverTimer = 0f;
@@ -1191,7 +1228,7 @@ public class BossScreen implements Screen {
                         pushWavePauseTimer = 2.0f;
                         activePushWaves.clear();
 
-                        bossHp = Math.max(0f, bossHp - 150f);
+                        damageBoss(150f);
                     }
                 }
             }
@@ -1252,8 +1289,11 @@ public class BossScreen implements Screen {
         if (isBossRetreatingWalking) {
             bossRetreatTimer += delta;
             float retreatAngle = MathUtils.atan2(bossY - playerY, bossX - playerX);
-            bossX = MathUtils.clamp(bossX + MathUtils.cos(retreatAngle) * bossSpeed * delta, 90f, WIDTH - 90f);
-            bossY = MathUtils.clamp(bossY + MathUtils.sin(retreatAngle) * bossSpeed * delta, 90f, HEIGHT - 120f);
+            float nextX = MathUtils.clamp(bossX + MathUtils.cos(retreatAngle) * bossSpeed * delta, 90f, WIDTH - 90f);
+            float nextY = MathUtils.clamp(bossY + MathUtils.sin(retreatAngle) * bossSpeed * delta, 90f, HEIGHT - 120f);
+            resolveArenaMove(bossX, bossY, nextX, nextY, 20f);
+            bossX = arenaMoveResult[0];
+            bossY = arenaMoveResult[1];
             bossAnimTime += delta;
 
             if (bossRetreatTimer >= 0.75f) {
@@ -1562,8 +1602,9 @@ public class BossScreen implements Screen {
                     isBossAttackingClose = true;
                     bossAttackAnimTimer = 0f;
                 } else if (dist > 2f) {
-                    bossX += (dx / dist) * bossSpeed * delta;
-                    bossY += (dy / dist) * bossSpeed * delta;
+                    resolveArenaMove(bossX, bossY, bossX + (dx / dist) * bossSpeed * delta, bossY + (dy / dist) * bossSpeed * delta, 20f);
+                    bossX = arenaMoveResult[0];
+                    bossY = arenaMoveResult[1];
                     bossFacing = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 2 : 1) : (dy > 0 ? 3 : 0);
                     bossAnimTime += delta;
                 } else {
@@ -1779,7 +1820,113 @@ public class BossScreen implements Screen {
             }
         }
 
+        // Re-draw the active boss frame with additive blending for a short
+        // bright/white hit flash whenever real boss HP damage was applied.
+        if (bossDamageFlashTimer > 0f) {
+            drawBossDamageFlashOverlay(currentY);
+        }
+
         batch.end();
+    }
+
+    /**
+     * Draws the currently visible boss frame again with additive blending.
+     * This produces a brief bright/white damage-taken flash without changing
+     * the boss state, animation, HP logic, or normal sprite art.
+     *
+     * SpriteBatch must already be inside begin()/end().
+     */
+    private void drawBossDamageFlashOverlay(float currentY) {
+        float flashAlpha = MathUtils.clamp(
+                bossDamageFlashTimer / BOSS_DAMAGE_FLASH_DURATION,
+                0f,
+                1f
+        ) * 0.72f;
+
+        batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
+        batch.setColor(1f, 1f, 1f, flashAlpha);
+
+        if (isBossStunned && bossStunRegion != null) {
+            float w = bossStunTexture.getWidth() * (BOSS_SCALE * 0.3f);
+            float h = bossStunTexture.getHeight() * (BOSS_SCALE * 0.3f);
+            batch.draw(bossStunRegion, bossX - w / 2f, currentY - h / 2f, w, h);
+
+        } else if (bossSpecialState == BossSpecialState.FINAL_FORM
+                && bossFinalFormFrames != null) {
+            int frameIdx = (int) (finalFormAnimTimer / 0.2f) % 2;
+            TextureRegion frame = bossFinalFormFrames[0][frameIdx];
+            float w = bossFinalFormWidth * (BOSS_SCALE * 0.4f);
+            float h = bossFinalFormHeight * (BOSS_SCALE * 0.4f);
+            batch.draw(frame, bossX - w / 2f, currentY - h / 2f, w, h);
+
+        } else if (bossSpecialState == BossSpecialState.DEFEAT
+                && bossDefeatFrames != null) {
+            int frameIdx = (int) (bossDefeatAnimTimer / 0.2f) % 2;
+            TextureRegion frame = bossDefeatFrames[0][frameIdx];
+            float w = bossDefeatWidth * (BOSS_SCALE * 0.4f);
+            float h = bossDefeatHeight * (BOSS_SCALE * 0.4f);
+            batch.draw(frame, bossX - w / 2f, currentY - h / 2f, w, h);
+
+        } else if (isBossAttackingClose && bossAttackFrames != null) {
+            int row = bossFacing % 4;
+            int col = Math.min(1, (int) (bossAttackAnimTimer / 0.25f));
+            TextureRegion frame = bossAttackFrames[row][col];
+            float w = bossAttackWidth * (BOSS_SCALE * 0.65f * 1.1f);
+            float h = bossAttackHeight * (BOSS_SCALE * 0.65f * 1.1f);
+            batch.draw(frame, bossX - w / 2f, currentY - h / 2f, w, h);
+
+        } else if (bossSpecialState == BossSpecialState.POST_PHASE_THREE_LOOP
+                && bossIdleAnimation != null) {
+            TextureRegion frame =
+                    bossIdleAnimation.getKeyFrame(postPhaseThreeLoopTimer, true);
+            float w = bossIdleWidth * (BOSS_SCALE * 0.5f);
+            float h = bossIdleHeight * (BOSS_SCALE * 0.5f);
+            batch.draw(frame, bossX - w / 2f, currentY - h / 2f, w, h);
+
+        } else if (phaseThreeTriggeredOnce
+                && bossSpecialState == BossSpecialState.NORMAL
+                && bossP3Texture != null) {
+            float w = bossP3Texture.getWidth() * BOSS_FINAL_SCALE;
+            float h = bossP3Texture.getHeight() * BOSS_FINAL_SCALE;
+            batch.draw(bossP3Texture, bossX - w / 2f, currentY - h / 2f, w, h);
+
+        } else if (isFiringLaser
+                && bossPoseFrames != null
+                && bossSpecialState == BossSpecialState.NORMAL) {
+            int row = bossFacing % 4;
+            float elapsed = 0.8f - laserDurationTimer;
+            int col = Math.min(1, (int) (elapsed / 0.4f));
+            TextureRegion frame = bossPoseFrames[row][col];
+            float w = bossPoseWidth * BOSS_POSE_SCALE;
+            float h = bossPoseHeight * BOSS_POSE_SCALE;
+            batch.draw(frame, bossX - w / 2f, currentY - h / 2f, w, h);
+
+        } else if (bossBehaviorState == BossBehaviorState.AURA_CHARGING
+                && bossAuraTexture != null) {
+            float w = bossAuraTexture.getWidth() * AURA_SCALE;
+            float h = bossAuraTexture.getHeight() * AURA_SCALE;
+            batch.draw(bossAuraTexture, bossX - w / 2f, currentY - h / 2f, w, h);
+
+        } else if (bossFrames != null) {
+            TextureRegion frame =
+                    bossFrames[bossFacing % 4][
+                            ((int) (bossAnimTime / 0.15f)) % 8
+                    ];
+            float w = bossFrameWidth * BOSS_SCALE;
+            float h = bossFrameHeight * BOSS_SCALE;
+            batch.draw(frame, bossX - w / 2f, currentY - h / 2f, w, h);
+
+        } else if (bossTexture != null) {
+            float w = bossTexture.getWidth() * BOSS_SCALE;
+            float h = bossTexture.getHeight() * BOSS_SCALE;
+            batch.draw(bossTexture, bossX - w / 2f, currentY - h / 2f, w, h);
+        }
+
+        batch.setColor(Color.WHITE);
+        batch.setBlendFunction(
+                GL20.GL_SRC_ALPHA,
+                GL20.GL_ONE_MINUS_SRC_ALPHA
+        );
     }
 
     /** Stuns the boss in the projectile phase and ends the current sub-phase. */
@@ -1790,6 +1937,20 @@ public class BossScreen implements Screen {
         postPhaseMeleeHits = 0;
         postPhaseBombHits = 0;
         postPhaseThreeLoopTimer = 10.0f;
+    }
+
+    private final float[] arenaMoveResult = new float[2];
+    /**
+     * Per-axis arena wall collision for an entity moving from (curX,curY) toward (nextX,nextY).
+     * Writes the resolved position to {@link #arenaMoveResult}. Feet are checked at py - footOffset;
+     * if already inside a blocked cell the move is allowed so the entity can escape.
+     */
+    private void resolveArenaMove(float curX, float curY, float nextX, float nextY, float footOffset) {
+        boolean stuck = !isArenaWalkable(curX, curY - footOffset);
+        float rx = (stuck || isArenaWalkable(nextX, curY - footOffset)) ? nextX : curX;
+        float ry = (stuck || isArenaWalkable(rx, nextY - footOffset)) ? nextY : curY;
+        arenaMoveResult[0] = rx;
+        arenaMoveResult[1] = ry;
     }
 
     /** True if the boss arena lets the player's feet stand at (px, py). No collision map => open arena. */
@@ -1974,23 +2135,42 @@ public class BossScreen implements Screen {
     private void drawVoids(float delta) {
         for (int i = activeVoids.size() - 1; i >= 0; i--) {
             ActiveVoid v = activeVoids.get(i);
-            if (!paused && !isInventoryOpen) v.timeElapsed += delta;
 
-            if (v.timeElapsed >= 0.5f) {
-                activeVoids.remove(i);
-                continue;
+            if (!paused && !isInventoryOpen) {
+                v.timeElapsed += delta;
             }
 
+            float vW = voidWidth * VOID_SCALE;
+            float vH = voidHeight * VOID_SCALE;
+
+            // During the 0.5 second cook/telegraph, void.png is visual only.
             if (voidAnimation != null) {
-                TextureRegion frame = voidAnimation.getKeyFrame(v.timeElapsed, false);
-                float vW = voidWidth * VOID_SCALE;
-                float vH = voidHeight * VOID_SCALE;
-                batch.draw(frame, v.x - vW / 2f, v.y - vH / 2f, vW, vH);
-                // void.png hit
-                if (!paused && !isInventoryOpen && !isGameOverActive
-                        && Math.hypot(playerX - v.x, playerY - v.y) <= Math.max(vW, vH) * 0.4f) {
+                float animTime = Math.min(v.timeElapsed, VOID_COOK_TIME);
+                TextureRegion frame = voidAnimation.getKeyFrame(animTime, false);
+                batch.draw(
+                        frame,
+                        v.x - vW / 2f,
+                        v.y - vH / 2f,
+                        vW,
+                        vH
+                );
+            }
+
+            // Damage happens only when the 0.5 second cook finishes.
+            // If the player moved out before this moment, no damage is dealt.
+            if (v.timeElapsed >= VOID_COOK_TIME) {
+                boolean playerStillInside =
+                        Math.hypot(playerX - v.x, playerY - v.y)
+                                <= Math.max(vW, vH) * 0.4f;
+
+                if (!paused
+                        && !isInventoryOpen
+                        && !isGameOverActive
+                        && playerStillInside) {
                     damagePlayer(100f);
                 }
+
+                activeVoids.remove(i);
             }
         }
     }
@@ -2081,7 +2261,7 @@ public class BossScreen implements Screen {
                 if (hitBossDirectly || hitProjectileDirectly) {
                     bombHit = true;
                     if (bossSpecialState == BossSpecialState.NORMAL || bossSpecialState == BossSpecialState.FINAL_FORM) {
-                        bossHp = Math.max(0f, bossHp - 50f);
+                        damageBoss(50f);
                     } else if (bossSpecialState == BossSpecialState.POST_PHASE_THREE_LOOP && hitBossDirectly) {
                         postPhaseBombHits++;
                         if (postPhaseBombHits >= POST_PHASE_BOMB_HITS_TO_STUN) {
@@ -2301,15 +2481,6 @@ public class BossScreen implements Screen {
             }
         }
 
-        // Wave phase: red countdown above the player's head — hits remaining before the waves kill you (5..1)
-        if (bossSpecialState == BossSpecialState.FINAL_FORM && waveHitCount < WAVE_HITS_TO_DIE) {
-            int remaining = WAVE_HITS_TO_DIE - waveHitCount;
-            font.getData().setScale(1.6f);
-            font.setColor(1f, 0.15f, 0.15f, 1f);
-            font.draw(batch, String.valueOf(remaining), playerX - 6f, playerY + drawH / 2f + 34f);
-            font.setColor(Color.WHITE);
-            font.getData().setScale(1f);
-        }
     }
 
     private void drawInventoryOverlay() {
@@ -2493,6 +2664,63 @@ public class BossScreen implements Screen {
         int seconds = (int) (timeLeft % 60f);
         font.setColor(0.9f, 0.3f, 0.3f, 1f);
         font.draw(batch, String.format("TIME: %02d:%02d", minutes, seconds), WIDTH / 2f - 40f, HEIGHT - 65f);
+
+        // Final-wave hit feedback:
+        // hidden normally; after a wave hit, briefly show the NEW remaining
+        // count in red at the top with a short shake.
+        if (bossSpecialState == BossSpecialState.FINAL_FORM
+                && waveCounterPopupTimer > 0f) {
+
+            int waveHitsRemaining = MathUtils.clamp(
+                    WAVE_HITS_TO_DIE - waveHitCount,
+                    0,
+                    WAVE_HITS_TO_DIE
+            );
+
+            float popupStrength =
+                    waveCounterPopupTimer / WAVE_COUNTER_POPUP_DURATION;
+            float shakeAmount = 8f * popupStrength;
+
+            float shakeX = MathUtils.random(-shakeAmount, shakeAmount);
+            float shakeY = MathUtils.random(-shakeAmount, shakeAmount);
+
+            font.getData().setScale(2.2f);
+            font.setColor(1.0f, 0.10f, 0.10f, 1f);
+
+            font.draw(
+                    batch,
+                    String.valueOf(waveHitsRemaining),
+                    WIDTH / 2f - 60f + shakeX,
+                    HEIGHT - 92f + shakeY,
+                    120f,
+                    com.badlogic.gdx.utils.Align.center,
+                    false
+            );
+
+            font.getData().setScale(1.0f);
+        }
+
+        // Final boss defeated: green contamination-cleared popup.
+        // bossDefeatAnimTimer keeps this visible during the defeat sequence.
+        if (bossSpecialState == BossSpecialState.DEFEAT) {
+            float popupPulse = 1.0f
+                    + 0.08f * MathUtils.sin(bossDefeatAnimTimer * 6.0f);
+
+            font.getData().setScale(2.1f * popupPulse);
+            font.setColor(0.20f, 1.0f, 0.36f, 1f);
+
+            font.draw(
+                    batch,
+                    "CONTAMINATION STOPPED",
+                    0f,
+                    HEIGHT / 2f + 95f,
+                    WIDTH,
+                    com.badlogic.gdx.utils.Align.center,
+                    false
+            );
+
+            font.getData().setScale(1.0f);
+        }
 
         font.setColor(Color.LIGHT_GRAY);
         font.draw(batch, "Press [I] to open Inventory | [1] Machete | [2] Grenade | [C] Collision", 230f, 40f);
