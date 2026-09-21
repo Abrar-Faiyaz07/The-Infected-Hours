@@ -335,7 +335,7 @@ public class GameScreen implements Screen {
     private static final float JANE_KNOCKED_SCALE = 0.25f;
     private boolean isJaneRevived = false;
     private float janeX = JANE_PHARMACY_X, janeY = JANE_PHARMACY_Y;
-    private float janeHp = 100f, janeMaxHp = 100f;
+    private float janeHp = GameConstants.PLAYER_MAX_HP, janeMaxHp = GameConstants.PLAYER_MAX_HP;
     private float janeAttackCooldown = 0f;
     private float janeMedkitTimer = 60.0f;
     private int janeMedkitsProduced = 0;
@@ -893,7 +893,7 @@ public class GameScreen implements Screen {
             isJaneRevived = false;
             janeX = JANE_PHARMACY_X;
             janeY = JANE_PHARMACY_Y;
-            janeHp = 100f;
+            janeHp = GameConstants.PLAYER_MAX_HP;
             janeMedkitTimer = 60.0f;
             coins = CampaignSquadState.coins;
             hasBomb = CampaignSquadState.hasBomb;
