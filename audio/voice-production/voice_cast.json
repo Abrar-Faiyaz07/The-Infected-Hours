@@ -1,0 +1,34 @@
+{
+  "model": "gpt-4o-mini-tts",
+  "format": "wav",
+  "cast": {
+    "Narrator": {
+      "voice": "cedar",
+      "instructions": "Cinematic thriller narration. Mature, controlled, grave, and clear. Use measured pacing, natural dramatic pauses, and restrained emotion. Do not sound like a trailer announcer."
+    },
+    "Elric": {
+      "voice": "onyx",
+      "instructions": "A disciplined elite field agent in his late twenties. Low, calm, focused, and protective. Speak naturally and decisively, with restrained urgency."
+    },
+    "Jane": {
+      "voice": "marin",
+      "instructions": "A capable field agent in her late twenties. Intelligent, resilient, and direct. Keep the delivery grounded and serious, with controlled emotion."
+    },
+    "Jane - damaged recording": {
+      "voice": "marin",
+      "instructions": "A damaged emergency field recording from an exhausted but determined female agent. Speak quietly with urgency, short breath pauses, and slight transmission-like restraint. Do not add sound effects."
+    },
+    "Laboratory Assistant": {
+      "voice": "verse",
+      "instructions": "A frightened laboratory assistant trying to stay useful during an emergency. Anxious and breathless but intelligible; avoid exaggerated panic."
+    },
+    "Scientist": {
+      "voice": "echo",
+      "instructions": "A brilliant, obsessive male scientist convinced that his work is human evolution. Controlled, unsettling, arrogant, and increasingly unstable."
+    },
+    "Computer": {
+      "voice": "alloy",
+      "instructions": "A clinical facility computer announcement. Precise, neutral, evenly paced, and emotionless. Preserve the sentence breaks."
+    }
+  }
+}

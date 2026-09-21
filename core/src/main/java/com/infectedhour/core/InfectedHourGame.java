@@ -6,8 +6,10 @@ import com.infectedhour.core.audio.AudioDirector;
 import com.infectedhour.core.net.GameClient;
 import com.infectedhour.core.net.GameServer;
 import com.infectedhour.core.net.SessionConfig;
+import com.infectedhour.core.screens.CampaignScreenRouter;
 import com.infectedhour.core.screens.GameScreen;
-import com.infectedhour.core.screens.LevelBriefingScreen;
+import com.infectedhour.core.screens.StoryPanelScreen;
+import com.infectedhour.core.state.CampaignSquadState;
 import com.infectedhour.shared.constants.GameConstants;
 
 import java.io.IOException;
@@ -43,6 +45,15 @@ public class InfectedHourGame extends Game {
 
     @Override
     public void create() {
+        CampaignSquadState.reset();
+        if (session.isLoadingSave()) {
+            CampaignSquadState.resumeTimer(session.loadedSlot().playtimeSec());
+        }
+
+        audioDirector.setMusicVolume(bridge.getMusicVolume());
+        audioDirector.setSfxVolume(bridge.getSfxVolume());
+        audioDirector.setVoiceVolume(bridge.getSubtitleVoiceVolume());
+
         if (session.host()) {
             server = new GameServer();
             server.setHostCharacter(session.preferredCharacter());
@@ -90,9 +101,23 @@ public class InfectedHourGame extends Game {
         if (session.debugBossFight()) {
             setScreen(new com.infectedhour.core.screens.BossScreen(this, client, bridge, session.preferredCharacter()));
         } else if (session.debugSplitScreen()) {
-            setScreen(new GameScreen(this, client, bridge, session.startingLevel()));
+            int startingLevel = session.startingLevel();
+            if (startingLevel == 1) {
+                setScreen(new StoryPanelScreen(this, client, bridge,
+                        StoryPanelScreen.Sequence.INTRO, 1));
+            } else {
+                StoryPanelScreen.Sequence cinematic = StoryPanelScreen.Sequence.beforeLevel(startingLevel);
+                setScreen(new StoryPanelScreen(this, client, bridge, cinematic, startingLevel - 1));
+            }
         } else if (bridge.hasLauncher() || session.isLoadingSave()) {
-            setScreen(new LevelBriefingScreen(this, client, bridge, session.startingLevel()));
+            if (session.isLoadingSave()) {
+                CampaignScreenRouter.openLevel(this, client, bridge, session.startingLevel());
+            } else if (session.startingLevel() == 1) {
+                setScreen(new StoryPanelScreen(this, client, bridge,
+                        StoryPanelScreen.Sequence.INTRO, 1));
+            } else {
+                CampaignScreenRouter.openLevel(this, client, bridge, session.startingLevel());
+            }
         } else {
             setScreen(new com.infectedhour.core.screens.MainMenuScreen(this, client, bridge));
         }

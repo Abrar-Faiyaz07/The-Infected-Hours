@@ -14,6 +14,7 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector2;
@@ -74,6 +75,7 @@ public class GameScreen implements Screen {
     private SpriteBatch batch;
     private ShapeRenderer shapes;
     private BitmapFont font;
+    private BitmapFont pauseFont;
 
     private OrthographicCamera camera;
     private Viewport viewport;
@@ -252,7 +254,7 @@ public class GameScreen implements Screen {
 
     // Economy & Objective Overlay Toggle
     private int coins = 0;
-    private boolean showObjectivesOverlay = true;
+    private boolean showObjectivesOverlay = false;
 
     // Level 1 Herb Parts & Mixed Herb Revive Kit
     private static final float HERB_1_X = 3.5f, HERB_1_Y = 6.5f;
@@ -327,6 +329,8 @@ public class GameScreen implements Screen {
     private List<SaveSlotDto> overlaySlots = null;
 
     private boolean paused = false;
+    private boolean pauseObjectivesOpen = false;
+    private boolean pauseControlsOpen = false;
     private boolean returningToLauncher = false;
     private volatile boolean levelTransitionInProgress = false;
     private boolean isDualViewDebugMode = false;
@@ -508,6 +512,10 @@ public class GameScreen implements Screen {
         batch = new SpriteBatch();
         shapes = new ShapeRenderer();
         font = new BitmapFont();
+        pauseFont = new BitmapFont();
+        pauseFont.getData().setScale(1.25f);
+        pauseFont.getRegion().getTexture().setFilter(
+                Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
 
         camera = new OrthographicCamera();
         viewport = new FitViewport(VIRTUAL_WIDTH, VIRTUAL_HEIGHT, camera);
@@ -560,7 +568,7 @@ public class GameScreen implements Screen {
             CampaignSquadState.isMacheteEquipped = true;
             isJaneRevived = false;
             CampaignSquadState.isJaneRevived = false;
-            showObjectivesOverlay = true;
+            showObjectivesOverlay = false;
             currentImmunityTime = 999999f;
             maxImmunityTime = 999999f;
             client.sendEvent("PLAYER_HEAL", "100");
@@ -621,25 +629,23 @@ public class GameScreen implements Screen {
             isJaneRevived = true;
             CampaignSquadState.isJaneRevived = true;
             Checkpoint levelStart = CheckpointRegistry.firstOf(levelNumber);
-            boolean squadStartsAtCheckpoint = levelNumber == 3 || levelNumber == 5;
+            boolean squadStartsAtCheckpoint = levelNumber >= 3 && levelNumber <= 6;
             janeX = squadStartsAtCheckpoint ? levelStart.spawnTileX() + 1.0f : 28.0f;
             janeY = squadStartsAtCheckpoint ? levelStart.spawnTileY() : 10.0f;
             janeHp = CampaignSquadState.janeHp > 0f ? CampaignSquadState.janeHp : 100f;
 
             levelVillagers.clear();
-            if (levelNumber == 3 || levelNumber == 5) {
-                // Restore exactly the villagers who survived the previous map,
-                // including their remaining HP, in formation around the two players.
-                float[][] offsets = levelNumber == 5
-                        ? new float[][]{{-1.0f, 0.0f}, {-2.0f, 0.0f}, {-1.0f, -1.0f}, {1.0f, -1.0f}}
-                        : new float[][]{{-1.0f, 0.0f}, {2.0f, 0.0f}, {-1.0f, -1.0f}, {1.0f, -1.0f}};
+            if (levelNumber == 3) {
+                // Villagers accompany the squad through Level 3 only. Their
+                // final outcome is recorded when this map is completed.
+                float[][] offsets = {{-1.0f, 0.0f}, {2.0f, 0.0f}, {-1.0f, -1.0f}, {1.0f, -1.0f}};
                 List<CampaignSquadState.RescuedVillagerInfo> arrivingVillagers = CampaignSquadState.rescuedVillagers;
                 boolean directLevelDebug = game.getSession() != null
                         && game.getSession().startingLevelOverride() == levelNumber;
                 if (arrivingVillagers.isEmpty() && directLevelDebug) {
                     // A direct level-select run has no earlier maps from which to
                     // build a roster, so populate all four rescueable villagers
-                    // to make the Level 3 squad start testable in isolation.
+                    // to make the selected level's squad start testable in isolation.
                     arrivingVillagers = List.of(
                             new CampaignSquadState.RescuedVillagerInfo("v1", "Dr. Ramirez", 100f),
                             new CampaignSquadState.RescuedVillagerInfo("v2", "Nurse Claire", 100f),
@@ -656,31 +662,6 @@ public class GameScreen implements Screen {
                     villager.isRescued = true;
                     levelVillagers.add(villager);
                     slot++;
-                }
-            } else {
-                boolean hasV1 = CampaignSquadState.rescuedVillagers.isEmpty() || CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v1".equals(info.id()));
-                boolean hasV2 = CampaignSquadState.rescuedVillagers.isEmpty() || CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v2".equals(info.id()));
-                if (hasV1) {
-                    LevelVillager v1 = new LevelVillager("v1", "Dr. Ramirez", 30.5f, 9.5f);
-                    v1.isRescued = true;
-                    levelVillagers.add(v1);
-                }
-                if (hasV2) {
-                    LevelVillager v2 = new LevelVillager("v2", "Nurse Claire", 29.5f, 9.5f);
-                    v2.isRescued = true;
-                    levelVillagers.add(v2);
-                }
-                boolean hasV3 = CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v3".equals(info.id()));
-                if (hasV3) {
-                    LevelVillager v3 = new LevelVillager("v3", "Survivor Arthur", 32.0f, 9.5f);
-                    v3.isRescued = true;
-                    levelVillagers.add(v3);
-                }
-                boolean hasV4 = CampaignSquadState.rescuedVillagers.stream().anyMatch(info -> "v4".equals(info.id()));
-                if (hasV4) {
-                    LevelVillager v4 = new LevelVillager("v4", "Survivor Maya", 33.5f, 9.5f);
-                    v4.isRescued = true;
-                    levelVillagers.add(v4);
                 }
             }
 
@@ -1025,6 +1006,12 @@ public class GameScreen implements Screen {
                     CampaignLevelPlan.findFeature(levelNumber, event.payload)
                             .ifPresent(feature -> showBanner("Objective updated: " + feature.label()));
                 });
+                case GameConstants.EVENT_PAUSE -> Gdx.app.postRunnable(() -> paused = true);
+                case GameConstants.EVENT_RESUME -> Gdx.app.postRunnable(() -> {
+                    paused = false;
+                    pauseObjectivesOpen = false;
+                    pauseControlsOpen = false;
+                });
                 case "REVIVE_JANE" -> Gdx.app.postRunnable(() -> {
                     isJaneRevived = true;
                     CampaignSquadState.isJaneRevived = true;
@@ -1046,20 +1033,25 @@ public class GameScreen implements Screen {
             CampaignSquadState.isBombEquipped = isBombEquipped;
             CampaignSquadState.isJaneRevived = isJaneRevived;
             CampaignSquadState.janeHp = janeHp;
-            CampaignSquadState.rescuedVillagers.clear();
-            for (LevelVillager v : levelVillagers) {
-                if (v.isRescued && !v.isDead) {
-                    CampaignSquadState.rescuedVillagers.add(new CampaignSquadState.RescuedVillagerInfo(v.id, v.name, v.hp));
+            if (levelNumber == 3) {
+                int livingRescued = (int) levelVillagers.stream()
+                        .filter(v -> v.isRescued && !v.isDead)
+                        .count();
+                CampaignSquadState.finalizeSurvivorReport(livingRescued);
+            } else if (levelNumber < 3) {
+                CampaignSquadState.rescuedVillagers.clear();
+                for (LevelVillager v : levelVillagers) {
+                    if (v.isRescued && !v.isDead) {
+                        CampaignSquadState.rescuedVillagers.add(
+                                new CampaignSquadState.RescuedVillagerInfo(v.id, v.name, v.hp));
+                    }
                 }
+            } else {
+                CampaignSquadState.rescuedVillagers.clear();
             }
             Gdx.app.postRunnable(() -> {
-                if (levelNumber == 1) {
-                    game.setScreen(new StoryPanelScreen(game, client, bridge, StoryPanelScreen.Sequence.AFTER_LEVEL_1, levelNumber));
-                } else if (levelNumber == 2) {
-                    game.setScreen(new StoryPanelScreen(game, client, bridge, StoryPanelScreen.Sequence.AFTER_LEVEL_2, levelNumber));
-                } else {
-                    game.setScreen(new LevelBriefingScreen(game, client, bridge, transition.nextLevelNumber));
-                }
+                StoryPanelScreen.Sequence cinematic = StoryPanelScreen.Sequence.afterCompletedLevel(levelNumber);
+                game.setScreen(new StoryPanelScreen(game, client, bridge, cinematic, levelNumber));
             });
         });
     }
@@ -1198,18 +1190,20 @@ public class GameScreen implements Screen {
         WorldSnapshot snapshot = client.getInterpolatedSnapshot(System.currentTimeMillis());
         WorldSnapshot.PlayerState me = null;
 
-        if (bombCooldown > 0f) {
-            bombCooldown -= delta;
-        }
+        if (!paused) {
+            if (bombCooldown > 0f) {
+                bombCooldown -= delta;
+            }
 
-        if (healCooldown > 0f) {
-            healCooldown = Math.max(0f, healCooldown - delta);
-        }
-        if (healEffectTimer > 0f) {
-            healEffectTimer = Math.max(0f, healEffectTimer - delta);
-        }
-        if (healFloatingTextTimer > 0f) {
-            healFloatingTextTimer = Math.max(0f, healFloatingTextTimer - delta);
+            if (healCooldown > 0f) {
+                healCooldown = Math.max(0f, healCooldown - delta);
+            }
+            if (healEffectTimer > 0f) {
+                healEffectTimer = Math.max(0f, healEffectTimer - delta);
+            }
+            if (healFloatingTextTimer > 0f) {
+                healFloatingTextTimer = Math.max(0f, healFloatingTextTimer - delta);
+            }
         }
 
         // Infinite Time: immunity does not deplete
@@ -1345,8 +1339,15 @@ public class GameScreen implements Screen {
                 isSaveOverlayOpen = false;
             } else if (isInventoryOpen) {
                 isInventoryOpen = false;
+            } else if (paused && (pauseObjectivesOpen || pauseControlsOpen)) {
+                pauseObjectivesOpen = false;
+                pauseControlsOpen = false;
             } else {
                 paused = !paused;
+                if (!paused) {
+                    pauseObjectivesOpen = false;
+                    pauseControlsOpen = false;
+                }
                 client.sendEvent(paused ? GameConstants.EVENT_PAUSE : GameConstants.EVENT_RESUME, "");
             }
         }
@@ -1644,9 +1645,10 @@ public class GameScreen implements Screen {
             }
         }
 
-        checkZombiePatrolObjective();
-
-        game.stepSimulation(delta);
+        if (!paused) {
+            checkZombiePatrolObjective();
+            game.stepSimulation(delta);
+        }
 
         Gdx.gl.glClearColor(0.055f, 0.078f, 0.125f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);        if (!paused) client.sendInputIfDue(readLocalInput(me, delta), delta);
@@ -1743,14 +1745,16 @@ public class GameScreen implements Screen {
             }
         }
 
-        boolean movementKeysPressed = Gdx.input.isKeyPressed(Input.Keys.W) || Gdx.input.isKeyPressed(Input.Keys.A) ||
-                Gdx.input.isKeyPressed(Input.Keys.S) || Gdx.input.isKeyPressed(Input.Keys.D);
-        boolean wantsToSprint = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT) && movementKeysPressed;
+        if (!paused) {
+            boolean movementKeysPressed = Gdx.input.isKeyPressed(Input.Keys.W) || Gdx.input.isKeyPressed(Input.Keys.A) ||
+                    Gdx.input.isKeyPressed(Input.Keys.S) || Gdx.input.isKeyPressed(Input.Keys.D);
+            boolean wantsToSprint = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT) && movementKeysPressed;
 
-        if (wantsToSprint && stamina > 0f) {
-            stamina = Math.max(0f, stamina - (45f * delta));
-        } else if (!wantsToSprint && stamina < maxStamina) {
-            stamina = Math.min(maxStamina, stamina + (30f * delta));
+            if (wantsToSprint && stamina > 0f) {
+                stamina = Math.max(0f, stamina - (45f * delta));
+            } else if (!wantsToSprint && stamina < maxStamina) {
+                stamina = Math.min(maxStamina, stamina + (30f * delta));
+            }
         }
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
@@ -1795,11 +1799,16 @@ public class GameScreen implements Screen {
         }
 
         if (snapshot != null) {
-            isBeingBitten = false;
-            TextureRegion zombieFrame = updateMiddleZombie(snapshot, me, delta);
-            updateAmbushZombies(snapshot, me, delta);
-            updateAlliesAndVillagers(delta, me, snapshot);
-            updatePlayerAnimations(snapshot, delta, me);
+            TextureRegion zombieFrame;
+            if (!paused) {
+                isBeingBitten = false;
+                zombieFrame = updateMiddleZombie(snapshot, me, delta);
+                updateAmbushZombies(snapshot, me, delta);
+                updateAlliesAndVillagers(delta, me, snapshot);
+                updatePlayerAnimations(snapshot, delta, me);
+            } else {
+                zombieFrame = currentMiddleZombieFrame();
+            }
 
             if (isDualViewDebugMode && snapshot.players != null && !snapshot.players.isEmpty()) {
                 WorldSnapshot.PlayerState p1 = snapshot.players.get(0);
@@ -1816,7 +1825,7 @@ public class GameScreen implements Screen {
                 batch.setProjectionMatrix(camera.combined);
                 batch.begin();
                 drawLevelMap();
-                drawWorld(snapshot, delta, zombieFrame, me);
+                drawWorld(snapshot, paused ? 0f : delta, zombieFrame, me);
                 batch.end();
                 if (showCollisionOverlay) drawCollisionOverlay();
 
@@ -1827,7 +1836,7 @@ public class GameScreen implements Screen {
                 batch.setProjectionMatrix(camera.combined);
                 batch.begin();
                 drawLevelMap();
-                drawWorld(snapshot, delta, zombieFrame, me);
+                drawWorld(snapshot, paused ? 0f : delta, zombieFrame, me);
                 batch.end();
                 if (showCollisionOverlay) drawCollisionOverlay();
 
@@ -1862,7 +1871,7 @@ public class GameScreen implements Screen {
                 batch.setProjectionMatrix(camera.combined);
                 batch.begin();
                 drawLevelMap();
-                drawWorld(snapshot, delta, zombieFrame, me);
+                drawWorld(snapshot, paused ? 0f : delta, zombieFrame, me);
                 batch.end();
                 if (showCollisionOverlay) drawCollisionOverlay();
             }
@@ -1968,7 +1977,7 @@ public class GameScreen implements Screen {
         }
 
         drawHud(snapshot, delta);
-        if (paused) drawPauseOverlay();
+        if (paused) drawPauseOverlay(snapshot);
     }
 
     private void handleVillagerCommandToggle(WorldSnapshot.PlayerState commander) {
@@ -2324,6 +2333,24 @@ public class GameScreen implements Screen {
         return bestTarget;
     }
 
+    private TextureRegion currentMiddleZombieFrame() {
+        if (isZombieDead) return null;
+
+        TextureRegion[][] frames;
+        if (middleZombieBiting && zombieBiteFrames != null) {
+            frames = zombieBiteFrames;
+        } else if (middleZombieChasing && zombieFrames != null) {
+            frames = zombieFrames;
+        } else {
+            frames = zombieIdleFrames != null ? zombieIdleFrames : zombieFrames;
+        }
+        if (frames == null || frames.length == 0 || frames[0].length == 0) return null;
+
+        int safeRow = Math.floorMod(zombieAnim.currentRow, frames.length);
+        int safeCol = Math.floorMod(zombieAnim.currentColumn, frames[safeRow].length);
+        return frames[safeRow][safeCol];
+    }
+
     private TextureRegion updateMiddleZombie(WorldSnapshot snapshot, WorldSnapshot.PlayerState me, float delta) {
         if (isZombieDead) {
             middleZombieBiting = false;
@@ -2472,7 +2499,7 @@ public class GameScreen implements Screen {
         if (remaining == 0) {
             isAmbushDefeated = true;
             if (levelNumber == 6) {
-                showBanner("VIRUS HEART DESTROYED! ASHGROVE IS SAVED!");
+                showBanner("FINAL MUTATION DESTROYED! THE ANTIDOTE IS SECURE!");
                 Gdx.app.postRunnable(() -> {
                     game.setScreen(new StoryPanelScreen(game, client, bridge, StoryPanelScreen.Sequence.ENDING, 6));
                 });
@@ -3709,10 +3736,9 @@ public class GameScreen implements Screen {
         }
 
         float objectiveX = 1005f;
-        float objectiveY = isMinimapOpen ? 556f : top;
+        float objectiveY = isMinimapOpen ? 520f : top;
 
-        if (levelNumber == 1) {
-            if (showObjectivesOverlay) {
+        if (levelNumber == 1 && showObjectivesOverlay) {
                 font.setColor(0.910f, 0.690f, 0.165f, 1f);
                 font.draw(batch, "HOSPITAL OBJECTIVES  [O: Hide]", objectiveX, objectiveY);
                 objectiveY -= 20f;
@@ -3765,13 +3791,9 @@ public class GameScreen implements Screen {
                 boolean canEscape = hasStairsKey && isAmbushDefeated;
                 font.setColor(canEscape ? Color.GREEN : Color.GRAY);
                 font.draw(batch, (canEscape ? "[READY] " : "[LOCKED] ") + "Escape Upstairs (Floor 2)", objectiveX, objectiveY);
-            } else {
-                font.setColor(0.910f, 0.690f, 0.165f, 1f);
-                font.draw(batch, "[O] Objectives | Coins: " + coins, objectiveX, objectiveY);
-            }
         } else if (levelNumber == 6) {
             font.setColor(0.910f, 0.690f, 0.165f, 1f);
-            font.draw(batch, "VIRUS HEART CONTAINMENT (FINAL)", objectiveX, objectiveY);
+            font.draw(batch, "FINAL MUTATION CONTAINMENT", objectiveX, objectiveY);
             objectiveY -= 22f;
 
             if (isAmbushActive) {
@@ -3785,10 +3807,10 @@ public class GameScreen implements Screen {
 
                 if (boss != null) {
                     font.setColor(Color.CORAL);
-                    font.draw(batch, "[!] Virus Heart: " + (int) boss.hp + "/" + (int) boss.maxHp + " HP", objectiveX, objectiveY);
+                    font.draw(batch, "[!] Final Mutation: " + (int) boss.hp + "/" + (int) boss.maxHp + " HP", objectiveX, objectiveY);
                 } else {
                     font.setColor(Color.GREEN);
-                    font.draw(batch, "[DONE] Virus Heart Destroyed", objectiveX, objectiveY);
+                    font.draw(batch, "[DONE] Final Mutation Destroyed", objectiveX, objectiveY);
                 }
                 objectiveY -= 20f;
 
@@ -3804,7 +3826,7 @@ public class GameScreen implements Screen {
 
             font.setColor(isAmbushDefeated ? Color.GREEN : Color.GRAY);
             font.draw(batch, (isAmbushDefeated ? "[VICTORY] " : "[OBJECTIVE] ") + "Eliminate Extinction Source", objectiveX, objectiveY);
-        } else if (levelNumber == 3) {
+        } else if (levelNumber == 3 && showObjectivesOverlay) {
             font.setColor(0.910f, 0.690f, 0.165f, 1f);
             font.draw(batch, "ROAD APPROACH (LEVEL 3)", objectiveX, objectiveY);
             objectiveY -= 22f;
@@ -3848,7 +3870,7 @@ public class GameScreen implements Screen {
             boolean extractionReady = isAmbushDefeated && hasAmbulanceKey;
             font.setColor(extractionReady ? Color.LIME : Color.GRAY);
             font.draw(batch, (extractionReady ? "[READY] " : "[LOCKED] ") + "Return to Jane at the ambulance", objectiveX, objectiveY);
-        } else if (levelNumber == 4) {
+        } else if (levelNumber == 4 && showObjectivesOverlay) {
             font.setColor(0.910f, 0.690f, 0.165f, 1f);
             font.draw(batch, "SUBTERRANEAN PUZZLE (LEVEL 4)", objectiveX, objectiveY);
             objectiveY -= 22f;
@@ -3862,7 +3884,7 @@ public class GameScreen implements Screen {
             font.setColor(puzzleSolved ? Color.LIME : Color.GRAY);
             font.draw(batch, (puzzleSolved ? "[READY] " : "[LOCKED] ")
                     + "Return to the endpoint", objectiveX, objectiveY);
-        } else if (levelNumber == 5) {
+        } else if (levelNumber == 5 && showObjectivesOverlay) {
             font.setColor(0.910f, 0.690f, 0.165f, 1f);
             font.draw(batch, "RESEARCH FACILITY (LEVEL 5)", objectiveX, objectiveY);
             objectiveY -= 22f;
@@ -3881,7 +3903,8 @@ public class GameScreen implements Screen {
 
             font.setColor(hasLabPasskey ? Color.LIME : Color.GRAY);
             font.draw(batch, (hasLabPasskey ? "[READY] " : "[LOCKED] ") + "Return to the facility gate", objectiveX, objectiveY);
-        } else if (snapshot != null && snapshot.objectives != null && !snapshot.objectives.isEmpty()) {
+        } else if (showObjectivesOverlay && snapshot != null
+                && snapshot.objectives != null && !snapshot.objectives.isEmpty()) {
             font.setColor(0.910f, 0.690f, 0.165f, 1f);
             font.draw(batch, "ROADSIDE OBJECTIVES", objectiveX, objectiveY);
             objectiveY -= 22f;
@@ -4132,7 +4155,7 @@ public class GameScreen implements Screen {
         }
 
         font.setColor(Color.GRAY);
-        font.draw(batch, "WASD move   E interact   SPACE attack   SHIFT sprint   X stay/follow   M map   J coords   C collision   H heal   ESC pause   I inventory   F11 fullscreen   F12 screenshot", 20f, 30f);
+        font.draw(batch, "[M] MAP", 20f, 30f);
 
         // Interactive On-Screen Collision Blocks Button
         float collBtnW = 210f;
@@ -4184,28 +4207,41 @@ public class GameScreen implements Screen {
         if (!isMinimapOpen || tileMap == null) return;
         minimapStateTime += delta;
 
-        float mmW = 150f;
-        float mmH = 110f;
-        float mmX = VIRTUAL_WIDTH - mmW - 20f;
-        float mmY = VIRTUAL_HEIGHT - mmH - 36f;
+        float radarRadius = 66f;
+        float radarCx = VIRTUAL_WIDTH - radarRadius - 20f;
+        float radarCy = VIRTUAL_HEIGHT - radarRadius - 20f;
+        float mmW = radarRadius * 2f;
+        float mmH = radarRadius * 2f;
+        float mmX = radarCx - radarRadius;
+        float mmY = radarCy - radarRadius;
 
         float mapTilesW = tileMap.getWidth();
         float mapTilesH = tileMap.getHeight();
         if (mapTilesW <= 0 || mapTilesH <= 0) return;
 
-        // 1. Semi-transparent background & Header Bar
+        // 1. Circular radar background
         Gdx.gl.glEnable(GL20.GL_BLEND);
         shapes.setProjectionMatrix(hudMatrix);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
-
-        // Header tab
-        shapes.setColor(0.08f, 0.12f, 0.18f, 0.92f);
-        shapes.rect(mmX, mmY + mmH, mmW, 18f);
-
-        // Main map frame background
-        shapes.setColor(0.05f, 0.08f, 0.12f, 0.88f);
-        shapes.rect(mmX, mmY, mmW, mmH);
+        shapes.setColor(0.025f, 0.05f, 0.08f, 0.94f);
+        shapes.circle(radarCx, radarCy, radarRadius + 5f, 96);
         shapes.end();
+
+        // Stencil the tactical map and every marker into a true circle.
+        Gdx.gl.glClearStencil(0);
+        Gdx.gl.glClear(GL20.GL_STENCIL_BUFFER_BIT);
+        Gdx.gl.glEnable(GL20.GL_STENCIL_TEST);
+        Gdx.gl.glStencilMask(0xFF);
+        Gdx.gl.glStencilFunc(GL20.GL_ALWAYS, 1, 0xFF);
+        Gdx.gl.glStencilOp(GL20.GL_REPLACE, GL20.GL_REPLACE, GL20.GL_REPLACE);
+        Gdx.gl.glColorMask(false, false, false, false);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        shapes.circle(radarCx, radarCy, radarRadius, 96);
+        shapes.end();
+        Gdx.gl.glColorMask(true, true, true, true);
+        Gdx.gl.glStencilMask(0x00);
+        Gdx.gl.glStencilFunc(GL20.GL_EQUAL, 1, 0xFF);
+        Gdx.gl.glStencilOp(GL20.GL_KEEP, GL20.GL_KEEP, GL20.GL_KEEP);
 
         // 2. Render tactical map view
         batch.setProjectionMatrix(hudMatrix);
@@ -4220,31 +4256,16 @@ public class GameScreen implements Screen {
             batch.setColor(Color.WHITE);
         }
 
-        // Header text
-        font.setColor(0.910f, 0.690f, 0.165f, 1f);
-        String header = levelNumber == 1 ? "MAP: WARD" : (levelNumber == 2 ? "MAP: FLOOR 2" : "MAP: ANTECHAMBER");
-        font.draw(batch, header, mmX + 6f, mmY + mmH + 14f);
-
-        font.setColor(Color.LIGHT_GRAY);
-        font.draw(batch, "[M]", mmX + mmW - 22f, mmY + mmH + 14f);
         batch.end();
 
-        // 3. Grid lines & border
+        // 3. Radar grid
         shapes.setProjectionMatrix(hudMatrix);
         shapes.begin(ShapeRenderer.ShapeType.Line);
-
-        // Header border
-        shapes.setColor(0.20f, 0.50f, 0.80f, 0.90f);
-        shapes.rect(mmX, mmY + mmH, mmW, 18f);
-
-        // Outer border
-        shapes.setColor(0.20f, 0.50f, 0.80f, 0.90f);
-        shapes.rect(mmX, mmY, mmW, mmH);
-
-        // Subtle crosshairs
         shapes.setColor(0.20f, 0.50f, 0.80f, 0.25f);
-        shapes.line(mmX, mmY + mmH / 2f, mmX + mmW, mmY + mmH / 2f);
-        shapes.line(mmX + mmW / 2f, mmY, mmX + mmW / 2f, mmY + mmH);
+        shapes.circle(radarCx, radarCy, radarRadius * 0.66f, 72);
+        shapes.circle(radarCx, radarCy, radarRadius * 0.33f, 64);
+        shapes.line(mmX, radarCy, mmX + mmW, radarCy);
+        shapes.line(radarCx, mmY, radarCx, mmY + mmH);
         shapes.end();
 
         // 4. Entity blips
@@ -4370,6 +4391,31 @@ public class GameScreen implements Screen {
         }
 
         shapes.end();
+
+        Gdx.gl.glStencilMask(0xFF);
+        Gdx.gl.glDisable(GL20.GL_STENCIL_TEST);
+
+        // 5. Fixed frame, sweep marker, and compact M-key label.
+        shapes.begin(ShapeRenderer.ShapeType.Line);
+        shapes.setColor(0.12f, 0.72f, 0.92f, 0.95f);
+        shapes.circle(radarCx, radarCy, radarRadius + 1f, 96);
+        shapes.setColor(0.91f, 0.69f, 0.16f, 0.78f);
+        shapes.circle(radarCx, radarCy, radarRadius + 5f, 96);
+        float sweepAngle = minimapStateTime * 0.65f;
+        shapes.setColor(0.20f, 0.90f, 0.82f, 0.55f);
+        shapes.line(radarCx, radarCy,
+                radarCx + (float) Math.cos(sweepAngle) * (radarRadius - 5f),
+                radarCy + (float) Math.sin(sweepAngle) * (radarRadius - 5f));
+        shapes.end();
+
+        batch.setProjectionMatrix(hudMatrix);
+        batch.begin();
+        font.setColor(0.910f, 0.690f, 0.165f, 1f);
+        String header = levelNumber == 1 ? "WARD" : (levelNumber == 2 ? "FLOOR 2" : "TACTICAL MAP");
+        font.draw(batch, header, radarCx - radarRadius, mmY - 7f, mmW, Align.center, false);
+        font.setColor(Color.LIGHT_GRAY);
+        font.draw(batch, "[M]", radarCx - 11f, mmY - 25f);
+        batch.end();
         Gdx.gl.glDisable(GL20.GL_BLEND);
     }
 
@@ -4505,52 +4551,142 @@ public class GameScreen implements Screen {
         return true;
     }
 
-    private void drawPauseOverlay() {
+    private String currentObjectiveSummary(WorldSnapshot snapshot) {
+        if (levelNumber == 1) {
+            if (herbPartsCollected < 2) {
+                return "Find Herb Parts (" + herbPartsCollected + "/2)";
+            }
+            if (!isJaneRevived) {
+                return "Use the mixed herb kit to revive Jane in the Pharmacy";
+            }
+            long rescued = levelVillagers.stream().filter(v -> !v.isDead && v.isRescued).count();
+            if (rescued < 2) {
+                return "Escort and protect the ward survivors (" + rescued + "/2)";
+            }
+            if (!hasStairsKey) {
+                return "Retrieve the Staff Room Key";
+            }
+            if (!isAmbushDefeated) {
+                return "Neutralize the corridor swarm and mutated boss";
+            }
+            return "Escape upstairs to Hospital Floor 2";
+        }
+
+        if (levelNumber == 3) {
+            if (!isAmbushDefeated) {
+                long remaining = ambushZombies.stream().filter(z -> !z.dead).count();
+                return "Clear all roadside hostiles (" + remaining + " remaining)";
+            }
+            if (!hasAmbulanceKey) {
+                return "Find the ambulance key";
+            }
+            return "Return to Jane at the ambulance";
+        }
+
+        if (levelNumber == 4) {
+            if (level4PuzzlePartsCollected < LEVEL_4_PUZZLE_PART_COUNT) {
+                return "Collect restoration puzzle parts (" + level4PuzzlePartsCollected + "/3)";
+            }
+            return "Return to the subterranean endpoint";
+        }
+
+        if (levelNumber == 5) {
+            if (!hasLabPasskey) {
+                AmbushZombie redBrute = ambushZombies.stream().filter(z -> z.isBoss).findFirst().orElse(null);
+                if (redBrute != null && !redBrute.dead) {
+                    return "Defeat the big red zombie (" + (int) redBrute.hp + "/" + (int) redBrute.maxHp + " HP)";
+                }
+                return "Collect the Lab Passkey Card";
+            }
+            return "Return to the research facility gate";
+        }
+
+        if (snapshot != null && snapshot.objectives != null) {
+            for (WorldSnapshot.ObjectiveState objective : snapshot.objectives) {
+                if (!objective.complete) {
+                    return objectiveLabel(objective.objectiveId) + " ("
+                            + objective.progress + "/" + objective.target + ")";
+                }
+            }
+            if (!snapshot.objectives.isEmpty()) {
+                return "All objectives complete - proceed to the level exit";
+            }
+        }
+
+        return "Complete the current mission objective";
+    }
+
+    private void drawPauseOverlay(WorldSnapshot snapshot) {
         Matrix4 hudMatrix = new Matrix4().setToOrtho2D(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
         Gdx.gl.glEnable(GL20.GL_BLEND);
 
         shapes.setProjectionMatrix(hudMatrix);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
-        shapes.setColor(0.04f, 0.06f, 0.1f, 0.85f);
+        shapes.setColor(0.015f, 0.025f, 0.045f, 0.78f);
         shapes.rect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
 
-        float panelW = 460f, panelH = 290f;
+        float panelW = 680f, panelH = 480f;
         float panelX = (VIRTUAL_WIDTH - panelW) / 2f, panelY = (VIRTUAL_HEIGHT - panelH) / 2f;
 
-        shapes.setColor(0.08f, 0.12f, 0.2f, 0.95f);
+        shapes.setColor(0.025f, 0.045f, 0.075f, 0.98f);
         shapes.rect(panelX, panelY, panelW, panelH);
+        shapes.setColor(0.91f, 0.69f, 0.16f, 1f);
+        shapes.rect(panelX, panelY + panelH - 4f, panelW, 4f);
         shapes.end();
 
         shapes.begin(ShapeRenderer.ShapeType.Line);
-        shapes.setColor(0.91f, 0.69f, 0.16f, 1f);
+        shapes.setColor(0.20f, 0.55f, 0.78f, 0.95f);
         shapes.rect(panelX, panelY, panelW, panelH);
         shapes.end();
 
-        Vector3 mouseCoords = new Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
-        viewport.unproject(mouseCoords);
+        Vector2 mouseCoords = screenToHudCoordinates(Gdx.input.getX(), Gdx.input.getY());
         boolean mouseJustPressed = Gdx.input.isButtonJustPressed(Input.Buttons.LEFT);
 
-        float btnW = 380f, btnH = 44f, btnX = (VIRTUAL_WIDTH - btnW) / 2f;
+        if (pauseObjectivesOpen) {
+            drawPauseObjectivesContent(snapshot, hudMatrix, panelX, panelY, panelW, panelH,
+                    mouseCoords, mouseJustPressed);
+            return;
+        }
+        if (pauseControlsOpen) {
+            drawPauseControlsContent(hudMatrix, panelX, panelY, panelW, panelH,
+                    mouseCoords, mouseJustPressed);
+            return;
+        }
 
-        float btn1Y = panelY + 165f;
+        float btnW = 560f, btnH = 48f, btnX = (VIRTUAL_WIDTH - btnW) / 2f;
+
+        float btn1Y = panelY + 205f;
         boolean btn1Hovered = mouseCoords.x >= btnX && mouseCoords.x <= btnX + btnW && mouseCoords.y >= btn1Y && mouseCoords.y <= btn1Y + btnH;
         if (btn1Hovered && mouseJustPressed) {
             paused = false;
+            pauseObjectivesOpen = false;
+            pauseControlsOpen = false;
             client.sendEvent(GameConstants.EVENT_RESUME, "");
         }
 
-        float btnDisplayY = panelY + 105f;
-        boolean btnDisplayHovered = mouseCoords.x >= btnX && mouseCoords.x <= btnX + btnW && mouseCoords.y >= btnDisplayY && mouseCoords.y <= btnDisplayY + btnH;
-        if ((btnDisplayHovered && mouseJustPressed) || Gdx.input.isKeyJustPressed(Input.Keys.F)) {
-            com.infectedhour.core.display.DisplayManager.toggleDisplayMode();
+        float btnObjectivesY = panelY + 145f;
+        boolean btnObjectivesHovered = mouseCoords.x >= btnX && mouseCoords.x <= btnX + btnW
+                && mouseCoords.y >= btnObjectivesY && mouseCoords.y <= btnObjectivesY + btnH;
+        if ((btnObjectivesHovered && mouseJustPressed) || Gdx.input.isKeyJustPressed(Input.Keys.O)) {
+            pauseObjectivesOpen = true;
+            Gdx.gl.glDisable(GL20.GL_BLEND);
+            return;
         }
 
-        float btn2Y = panelY + 45f;
+        float btnControlsY = panelY + 85f;
+        boolean btnControlsHovered = mouseCoords.x >= btnX && mouseCoords.x <= btnX + btnW
+                && mouseCoords.y >= btnControlsY && mouseCoords.y <= btnControlsY + btnH;
+        if ((btnControlsHovered && mouseJustPressed) || Gdx.input.isKeyJustPressed(Input.Keys.K)) {
+            pauseControlsOpen = true;
+            Gdx.gl.glDisable(GL20.GL_BLEND);
+            return;
+        }
+
+        float btn2Y = panelY + 25f;
         boolean btn2Hovered = mouseCoords.x >= btnX && mouseCoords.x <= btnX + btnW && mouseCoords.y >= btn2Y && mouseCoords.y <= btn2Y + btnH;
         if (!returningToLauncher
                 && ((btn2Hovered && mouseJustPressed)
-                || Gdx.input.isKeyJustPressed(Input.Keys.Q)
-                || Gdx.input.isKeyJustPressed(Input.Keys.M))) {
+                || Gdx.input.isKeyJustPressed(Input.Keys.Q))) {
             returningToLauncher = true;
             if (bridge.hasLauncher()) {
                 bridge.requestReturnToLauncher(() -> Gdx.app.postRunnable(Gdx.app::exit));
@@ -4561,22 +4697,34 @@ public class GameScreen implements Screen {
         }
 
         shapes.begin(ShapeRenderer.ShapeType.Filled);
-        shapes.setColor(btn1Hovered ? new Color(0.25f, 0.35f, 0.5f, 1f) : new Color(0.15f, 0.2f, 0.3f, 1f));
+        shapes.setColor(btn1Hovered ? new Color(0.20f, 0.34f, 0.52f, 1f) : new Color(0.075f, 0.12f, 0.19f, 1f));
         shapes.rect(btnX, btn1Y, btnW, btnH);
 
-        shapes.setColor(btnDisplayHovered ? new Color(0.20f, 0.38f, 0.32f, 1f) : new Color(0.12f, 0.24f, 0.20f, 1f));
-        shapes.rect(btnX, btnDisplayY, btnW, btnH);
+        shapes.setColor(btnObjectivesHovered ? new Color(0.18f, 0.36f, 0.31f, 1f) : new Color(0.065f, 0.15f, 0.13f, 1f));
+        shapes.rect(btnX, btnObjectivesY, btnW, btnH);
 
-        shapes.setColor(btn2Hovered ? new Color(0.5f, 0.18f, 0.18f, 1f) : new Color(0.28f, 0.12f, 0.12f, 1f));
+        shapes.setColor(btnControlsHovered ? new Color(0.30f, 0.25f, 0.10f, 1f) : new Color(0.14f, 0.12f, 0.055f, 1f));
+        shapes.rect(btnX, btnControlsY, btnW, btnH);
+
+        shapes.setColor(btn2Hovered ? new Color(0.46f, 0.12f, 0.14f, 1f) : new Color(0.24f, 0.065f, 0.075f, 1f));
         shapes.rect(btnX, btn2Y, btnW, btnH);
+
+        shapes.setColor(0.91f, 0.69f, 0.16f, 1f);
+        if (btn1Hovered) shapes.rect(btnX, btn1Y, 5f, btnH);
+        if (btnObjectivesHovered) shapes.rect(btnX, btnObjectivesY, 5f, btnH);
+        if (btnControlsHovered) shapes.rect(btnX, btnControlsY, 5f, btnH);
+        if (btn2Hovered) shapes.rect(btnX, btn2Y, 5f, btnH);
         shapes.end();
 
         shapes.begin(ShapeRenderer.ShapeType.Line);
         shapes.setColor(btn1Hovered ? new Color(0.91f, 0.69f, 0.16f, 1f) : new Color(0.4f, 0.5f, 0.65f, 1f));
         shapes.rect(btnX, btn1Y, btnW, btnH);
 
-        shapes.setColor(btnDisplayHovered ? new Color(0.20f, 0.83f, 0.60f, 1f) : new Color(0.3f, 0.6f, 0.45f, 1f));
-        shapes.rect(btnX, btnDisplayY, btnW, btnH);
+        shapes.setColor(btnObjectivesHovered ? new Color(0.20f, 0.83f, 0.60f, 1f) : new Color(0.3f, 0.6f, 0.45f, 1f));
+        shapes.rect(btnX, btnObjectivesY, btnW, btnH);
+
+        shapes.setColor(btnControlsHovered ? new Color(0.91f, 0.69f, 0.16f, 1f) : new Color(0.52f, 0.43f, 0.18f, 1f));
+        shapes.rect(btnX, btnControlsY, btnW, btnH);
 
         shapes.setColor(btn2Hovered ? new Color(1f, 0.4f, 0.4f, 1f) : new Color(0.65f, 0.25f, 0.25f, 1f));
         shapes.rect(btnX, btn2Y, btnW, btnH);
@@ -4586,21 +4734,265 @@ public class GameScreen implements Screen {
 
         batch.setProjectionMatrix(hudMatrix);
         batch.begin();
-        font.setColor(new Color(0.91f, 0.69f, 0.16f, 1f));
-        font.draw(batch, returningToLauncher ? "RETURNING TO MAIN MENU…" : "GAME PAUSED",
-                returningToLauncher ? VIRTUAL_WIDTH / 2f - 112f : VIRTUAL_WIDTH / 2f - 60f,
-                panelY + panelH - 22f);
+        pauseFont.setColor(new Color(0.91f, 0.69f, 0.16f, 1f));
+        pauseFont.draw(batch, returningToLauncher ? "RETURNING TO MAIN MENU..." : "GAME PAUSED",
+                panelX + 40f, panelY + panelH - 30f, panelW - 80f, Align.center, false);
 
-        font.setColor(btn1Hovered ? Color.WHITE : Color.LIGHT_GRAY);
-        font.draw(batch, "Resume Game (ESC)", btnX + 115f, btn1Y + 28f);
+        pauseFont.setColor(new Color(0.22f, 0.78f, 1f, 1f));
+        pauseFont.draw(batch, "CURRENT OBJECTIVE", panelX + 40f, panelY + panelH - 72f,
+                panelW - 80f, Align.center, false);
 
-        font.setColor(btnDisplayHovered ? Color.WHITE : new Color(0.85f, 0.95f, 0.88f, 1f));
-        String modeText = "Display Mode: [ " + com.infectedhour.core.display.DisplayManager.getModeLabel() + " ] (Click/F11)";
-        font.draw(batch, modeText, btnX + 50f, btnDisplayY + 28f);
+        pauseFont.setColor(Color.WHITE);
+        pauseFont.draw(batch, currentObjectiveSummary(snapshot), panelX + 40f, panelY + panelH - 106f,
+                panelW - 80f, Align.center, true);
 
-        font.setColor(btn2Hovered ? Color.WHITE : new Color(0.95f, 0.6f, 0.6f, 1f));
-        font.draw(batch, "Exit to Main Menu (Q)", btnX + 105f, btn2Y + 28f);
+        pauseFont.setColor(new Color(0.68f, 0.72f, 0.78f, 1f));
+        pauseFont.draw(batch, "Select an option or use its displayed shortcut",
+                panelX + 40f, panelY + panelH - 158f, panelW - 80f, Align.center, false);
+
+        pauseFont.setColor(btn1Hovered ? Color.WHITE : Color.LIGHT_GRAY);
+        pauseFont.draw(batch, "RESUME GAME   [ESC]", btnX, btn1Y + 32f, btnW, Align.center, false);
+
+        pauseFont.setColor(btnObjectivesHovered ? Color.WHITE : new Color(0.82f, 0.94f, 0.87f, 1f));
+        pauseFont.draw(batch, "OBJECTIVES   [O]", btnX, btnObjectivesY + 32f, btnW, Align.center, false);
+
+        pauseFont.setColor(btnControlsHovered ? Color.WHITE : new Color(0.95f, 0.84f, 0.52f, 1f));
+        pauseFont.draw(batch, "CONTROLS   [K]", btnX, btnControlsY + 32f, btnW, Align.center, false);
+
+        pauseFont.setColor(btn2Hovered ? Color.WHITE : new Color(0.96f, 0.58f, 0.60f, 1f));
+        pauseFont.draw(batch, "EXIT TO MAIN MENU   [Q]", btnX, btn2Y + 32f, btnW, Align.center, false);
         batch.end();
+    }
+
+    private Vector2 screenToHudCoordinates(float screenX, float screenY) {
+        float viewportWidth = Math.max(1f, viewport.getScreenWidth());
+        float viewportHeight = Math.max(1f, viewport.getScreenHeight());
+        float hudX = (screenX - viewport.getScreenX()) * VIRTUAL_WIDTH / viewportWidth;
+        float screenYFromBottom = Gdx.graphics.getHeight() - screenY;
+        float hudY = (screenYFromBottom - viewport.getScreenY()) * VIRTUAL_HEIGHT / viewportHeight;
+        return new Vector2(hudX, hudY);
+    }
+
+    private void drawPauseObjectivesContent(WorldSnapshot snapshot, Matrix4 hudMatrix,
+                                            float panelX, float panelY, float panelW, float panelH,
+                                            Vector2 mouseCoords, boolean mouseJustPressed) {
+        float backW = 560f;
+        float backH = 48f;
+        float backX = (VIRTUAL_WIDTH - backW) / 2f;
+        float backY = panelY + 24f;
+        boolean backHovered = mouseCoords.x >= backX && mouseCoords.x <= backX + backW
+                && mouseCoords.y >= backY && mouseCoords.y <= backY + backH;
+
+        if ((backHovered && mouseJustPressed) || Gdx.input.isKeyJustPressed(Input.Keys.O)) {
+            pauseObjectivesOpen = false;
+            Gdx.gl.glDisable(GL20.GL_BLEND);
+            return;
+        }
+
+        shapes.setProjectionMatrix(hudMatrix);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(backHovered ? new Color(0.24f, 0.34f, 0.50f, 1f) : new Color(0.10f, 0.15f, 0.24f, 1f));
+        shapes.rect(backX, backY, backW, backH);
+        if (backHovered) {
+            shapes.setColor(new Color(0.96f, 0.67f, 0.10f, 1f));
+            shapes.rect(backX, backY, 5f, backH);
+        }
+        shapes.end();
+
+        shapes.begin(ShapeRenderer.ShapeType.Line);
+        shapes.setColor(backHovered ? new Color(0.91f, 0.69f, 0.16f, 1f) : new Color(0.4f, 0.5f, 0.65f, 1f));
+        shapes.rect(backX, backY, backW, backH);
+        shapes.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+
+        List<String> objectives = pauseObjectiveLines(snapshot);
+        batch.setProjectionMatrix(hudMatrix);
+        batch.begin();
+        pauseFont.setColor(new Color(0.96f, 0.67f, 0.10f, 1f));
+        pauseFont.draw(batch, missionObjectivesTitle(), panelX + 40f, panelY + panelH - 28f,
+                panelW - 80f, Align.center, false);
+
+        float lineY = panelY + panelH - 78f;
+        for (String objective : objectives) {
+            pauseFont.setColor(pauseObjectiveColor(objective));
+            pauseFont.draw(batch, objective, panelX + 58f, lineY, panelW - 116f, Align.left, true);
+            lineY -= 36f;
+        }
+
+        pauseFont.setColor(backHovered ? Color.WHITE : Color.LIGHT_GRAY);
+        pauseFont.draw(batch, "BACK TO PAUSE MENU   [ESC]", backX, backY + 32f, backW, Align.center, false);
+        batch.end();
+    }
+
+    private void drawPauseControlsContent(Matrix4 hudMatrix,
+                                          float panelX, float panelY, float panelW, float panelH,
+                                          Vector2 mouseCoords, boolean mouseJustPressed) {
+        float backW = 560f;
+        float backH = 48f;
+        float backX = (VIRTUAL_WIDTH - backW) / 2f;
+        float backY = panelY + 24f;
+        boolean backHovered = mouseCoords.x >= backX && mouseCoords.x <= backX + backW
+                && mouseCoords.y >= backY && mouseCoords.y <= backY + backH;
+
+        if ((backHovered && mouseJustPressed) || Gdx.input.isKeyJustPressed(Input.Keys.K)) {
+            pauseControlsOpen = false;
+            Gdx.gl.glDisable(GL20.GL_BLEND);
+            return;
+        }
+
+        String[][] leftControls = {
+                {"WASD", "MOVE"},
+                {"SHIFT", "SPRINT / EVADE"},
+                {"SPACE / CLICK", "MELEE ATTACK"},
+                {"E", "INTERACT / LOOT"},
+                {"H", "HEAL"},
+                {"X", "SURVIVOR STAY / FOLLOW"},
+                {"M", "MINIMAP"},
+                {"O", "OBJECTIVES"}
+        };
+        String[][] rightControls = {
+                {"I", "INVENTORY"},
+                {"ESC", "PAUSE / BACK"},
+                {"CTRL + S", "SAVE SLOTS"},
+                {"F11", "FULLSCREEN"},
+                {"F12", "SCREENSHOT"},
+                {"J", "COORDINATES"},
+                {"C / F1", "COLLISION OVERLAY"},
+                {"F3", "DEBUG SPLIT-SCREEN"}
+        };
+
+        float leftX = panelX + 34f;
+        float rightX = panelX + panelW / 2f + 6f;
+        float columnW = panelW / 2f - 40f;
+        float rowTop = panelY + panelH - 94f;
+        float rowH = 34f;
+
+        shapes.setProjectionMatrix(hudMatrix);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        for (int i = 0; i < leftControls.length; i++) {
+            float rowY = rowTop - i * rowH - 24f;
+            shapes.setColor(i % 2 == 0
+                    ? new Color(0.08f, 0.14f, 0.23f, 0.92f)
+                    : new Color(0.11f, 0.18f, 0.28f, 0.92f));
+            shapes.rect(leftX, rowY, columnW, 28f);
+            shapes.rect(rightX, rowY, columnW, 28f);
+        }
+        shapes.setColor(backHovered ? new Color(0.24f, 0.34f, 0.50f, 1f) : new Color(0.10f, 0.15f, 0.24f, 1f));
+        shapes.rect(backX, backY, backW, backH);
+        if (backHovered) {
+            shapes.setColor(new Color(0.96f, 0.67f, 0.10f, 1f));
+            shapes.rect(backX, backY, 5f, backH);
+        }
+        shapes.end();
+
+        shapes.begin(ShapeRenderer.ShapeType.Line);
+        shapes.setColor(new Color(0.18f, 0.55f, 0.76f, 0.85f));
+        for (int i = 0; i < leftControls.length; i++) {
+            float rowY = rowTop - i * rowH - 24f;
+            shapes.rect(leftX, rowY, columnW, 28f);
+            shapes.rect(rightX, rowY, columnW, 28f);
+        }
+        shapes.setColor(backHovered ? new Color(0.96f, 0.67f, 0.10f, 1f) : new Color(0.40f, 0.55f, 0.72f, 1f));
+        shapes.rect(backX, backY, backW, backH);
+        shapes.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+
+        batch.setProjectionMatrix(hudMatrix);
+        batch.begin();
+        pauseFont.setColor(new Color(0.96f, 0.67f, 0.10f, 1f));
+        pauseFont.draw(batch, "CONTROL REFERENCE", panelX + 40f, panelY + panelH - 28f,
+                panelW - 80f, Align.center, false);
+        font.setColor(new Color(0.62f, 0.72f, 0.82f, 1f));
+        font.draw(batch, "READ ONLY  -  KEY REBINDING COMING LATER", panelX + 40f,
+                panelY + panelH - 55f, panelW - 80f, Align.center, false);
+
+        for (int i = 0; i < leftControls.length; i++) {
+            float textY = rowTop - i * rowH - 4f;
+            drawPauseControlRow(leftControls[i], leftX, textY, columnW);
+            drawPauseControlRow(rightControls[i], rightX, textY, columnW);
+        }
+
+        pauseFont.setColor(backHovered ? Color.WHITE : Color.LIGHT_GRAY);
+        pauseFont.draw(batch, "BACK TO PAUSE MENU   [ESC]", backX, backY + 32f, backW, Align.center, false);
+        batch.end();
+    }
+
+    private void drawPauseControlRow(String[] control, float x, float y, float width) {
+        font.setColor(new Color(0.98f, 0.72f, 0.20f, 1f));
+        font.draw(batch, control[0], x + 10f, y, 92f, Align.left, false);
+        font.setColor(new Color(0.90f, 0.94f, 0.98f, 1f));
+        font.draw(batch, control[1], x + 102f, y, width - 112f, Align.left, false);
+    }
+
+    private String missionObjectivesTitle() {
+        return switch (levelNumber) {
+            case 1 -> "HOSPITAL OBJECTIVES";
+            case 3 -> "ROAD APPROACH OBJECTIVES";
+            case 4 -> "SUBTERRANEAN OBJECTIVES";
+            case 5 -> "RESEARCH FACILITY OBJECTIVES";
+            default -> "MISSION OBJECTIVES";
+        };
+    }
+
+    private List<String> pauseObjectiveLines(WorldSnapshot snapshot) {
+        List<String> lines = new ArrayList<>();
+
+        if (levelNumber == 1) {
+            long rescued = levelVillagers.stream().filter(v -> !v.isDead && v.isRescued).count();
+            lines.add((herbPartsCollected >= 2 ? "[DONE] " : "[ ] ")
+                    + "Find Herb Parts (" + herbPartsCollected + "/2)");
+            lines.add((isJaneRevived ? "[DONE] " : "[ ] ") + "Revive Senseless Jane");
+            lines.add((rescued == 2 ? "[DONE] " : "[ ] ")
+                    + "Escort Ward Villagers (" + rescued + "/2)");
+            lines.add((hasStairsKey ? "[DONE] " : "[ ] ") + "Retrieve Staff Room Key");
+            lines.add((isAmbushDefeated ? "[DONE] " : "[ ] ")
+                    + "Neutralize the mutated boss and corridor swarm");
+            boolean canEscape = hasStairsKey && isAmbushDefeated;
+            lines.add((canEscape ? "[READY] " : "[LOCKED] ") + "Escape Upstairs (Floor 2)");
+            return lines;
+        }
+
+        if (levelNumber == 3) {
+            lines.add((isAmbushDefeated ? "[DONE] " : "[ ] ") + "Clear all roadside hostiles");
+            lines.add((hasAmbulanceKey ? "[DONE] " : "[ ] ") + "Find the ambulance key");
+            boolean extractionReady = isAmbushDefeated && hasAmbulanceKey;
+            lines.add((extractionReady ? "[READY] " : "[LOCKED] ") + "Return to Jane at the ambulance");
+            return lines;
+        }
+
+        if (levelNumber == 4) {
+            boolean puzzleSolved = level4PuzzlePartsCollected == LEVEL_4_PUZZLE_PART_COUNT;
+            lines.add((puzzleSolved ? "[DONE] " : "[ ] ") + "Collect puzzle parts ("
+                    + level4PuzzlePartsCollected + "/" + LEVEL_4_PUZZLE_PART_COUNT + ")");
+            lines.add((puzzleSolved ? "[READY] " : "[LOCKED] ") + "Return to the endpoint");
+            return lines;
+        }
+
+        if (levelNumber == 5) {
+            AmbushZombie redBrute = ambushZombies.stream().filter(z -> z.isBoss).findFirst().orElse(null);
+            boolean bruteDefeated = redBrute == null || redBrute.dead;
+            lines.add((bruteDefeated ? "[DONE] " : "[ ] ") + "Defeat the big red zombie");
+            lines.add((hasLabPasskey ? "[DONE] " : "[ ] ") + "Acquire Lab Passkey Card");
+            lines.add((hasLabPasskey ? "[READY] " : "[LOCKED] ") + "Return to the facility gate");
+            return lines;
+        }
+
+        if (snapshot != null && snapshot.objectives != null) {
+            for (WorldSnapshot.ObjectiveState objective : snapshot.objectives) {
+                lines.add((objective.complete ? "[DONE] " : "[ ] ")
+                        + objectiveLabel(objective.objectiveId) + " ("
+                        + objective.progress + "/" + objective.target + ")");
+            }
+        }
+        if (lines.isEmpty()) lines.add("[ ] Complete the current mission objective");
+        return lines;
+    }
+
+    private Color pauseObjectiveColor(String objective) {
+        if (objective.startsWith("[DONE]") || objective.startsWith("[READY]")) return Color.GREEN;
+        if (objective.startsWith("[LOCKED]")) return Color.GRAY;
+        if (objective.startsWith("[!]")) return Color.CORAL;
+        return Color.WHITE;
     }
 
     private InputCommand readLocalInput(WorldSnapshot.PlayerState me, float delta) {
@@ -4807,6 +5199,7 @@ public class GameScreen implements Screen {
         if (batch != null) batch.dispose();
         if (shapes != null) shapes.dispose();
         if (font != null) font.dispose();
+        if (pauseFont != null) pauseFont.dispose();
         if (mapTexture != null) mapTexture.dispose();
         if (markerTexture != null) markerTexture.dispose();
         if (playerTexture != null) playerTexture.dispose();

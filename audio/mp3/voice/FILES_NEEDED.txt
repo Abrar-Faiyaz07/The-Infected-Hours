@@ -1,0 +1,27 @@
+VOICE RECORDING CHECKLIST
+=========================
+
+Master/source files may be delivered here as MP3:
+
+[x] intro_elric.mp3
+[x] intro_jane.mp3
+[x] map1_starting.mp3
+[x] map1_part2_starting.mp3
+[x] map1_part2_escaping.mp3
+[x] map2_part1_starting.mp3
+[x] map2_part1_ending.mp3
+[x] map2_part2_starting.mp3
+[x] map2_part2_ending.mp3
+[x] map3_starting.mp3
+[x] map3_ending.mp3
+[x] map3_final_starting.mp3
+[x] map3_final_ending1.mp3
+[x] map3_final_ending2.mp3
+
+The game cannot use these MP3 masters directly. Export same-named OGG files to:
+
+assets/audio/voice/
+
+Example:
+audio/mp3/voice/intro_elric.mp3
+  -> assets/audio/voice/intro_elric.ogg

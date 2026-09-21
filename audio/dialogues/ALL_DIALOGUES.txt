@@ -1,0 +1,111 @@
+ASHGROVE: THE LAST CURE - ACTIVE RECORDING SCRIPT
+==================================================
+
+Runtime format: OGG
+Runtime folder: assets/audio/voice/
+Source/master MP3 folder: audio/mp3/voice/
+
+The exact subtitle source of truth is:
+core/src/main/java/com/infectedhour/core/content/DialogueCatalog.java
+
+One OGG is used per cinematic image. A file may contain multiple performed
+speakers where the subtitle names more than one character.
+
+intro_elric.ogg
+Speaker: Narrator
+Elric was one of Ashgrove Corporation's highest-ranked field agents. When
+classified intelligence surfaced from St. Mercy Hospital, Ashgrove sent him to
+investigate.
+
+intro_jane.ogg
+Speakers: Narrator, Jane recording
+Three weeks earlier, Agent Jane disappeared during an operation inside the same
+facility.
+JANE: If anyone receives this transmission... the experiment is still alive.
+Do not trust the official report.
+
+map1_starting.ogg
+Speakers: Narrator, Elric
+Jane's final signal led Elric to St. Mercy Hospital, a medical center connected
+to Ashgrove's biological research division. Somewhere inside, Jane was still
+alive.
+ELRIC: Hold on, Jane. I'm coming.
+
+map1_part2_starting.ogg
+Speakers: Narrator, Jane, Elric
+Elric found Jane injured but alive and helped her recover. Together, they
+entered the hospital's upper wing.
+JANE: Laboratory assistants are trapped near the emergency entrance.
+ELRIC: Then we clear the building and bring them out.
+
+map1_part2_escaping.ogg
+Speakers: Narrator, Laboratory Assistant, Jane
+Elric and Jane reached the trapped laboratory assistants, but another horde was
+closing on the entrance.
+LAB ASSISTANT: The ambulance is still operational!
+JANE: Stay between us. Keep moving.
+
+map2_part1_starting.ogg
+Speakers: Narrator, Elric, Jane
+The survivors reached the hospital grounds, but the route to the ambulance was
+surrounded.
+ELRIC: Protect the assistants. I'll clear a path.
+JANE: You're not doing it alone.
+
+map2_part1_ending.ogg
+Speakers: Narrator, Laboratory Assistant, Jane
+With the hospital grounds secured, the laboratory assistants escaped in the
+ambulance.
+LAB ASSISTANT: The outbreak began at another facility hidden beyond the forest.
+JANE: Then that is where we find the cure.
+
+map2_part2_starting.ogg
+Speakers: Narrator, Jane, Elric
+The ambulance could go no farther. Elric and Jane continued on foot through the
+infected hospital district.
+JANE: There are too many ahead.
+ELRIC: Then we remove them and keep moving.
+
+map2_part2_ending.ogg
+Speakers: Narrator, Jane, Elric
+Among the remains of an Ashgrove security officer, Elric found a damaged
+laboratory access card. Its encrypted coordinates were still readable.
+JANE: This belongs to the original research laboratory.
+ELRIC: Then that is our next destination.
+
+map3_starting.ogg
+Speakers: Narrator, Jane, Elric
+The damaged card led them deep into the forest, where an abandoned Ashgrove
+research facility remained powered.
+JANE: The missing authorization data must be inside this perimeter.
+ELRIC: We recover it and open that door.
+
+map3_ending.ogg
+Speakers: Narrator, Jane, Elric
+After breaking through the infected perimeter, Elric and Jane restored the
+access card. It identified the facility as the origin of the St. Mercy outbreak.
+JANE: The card will open the laboratory.
+ELRIC: Then Ashgrove's experiment ends now.
+
+map3_final_starting.ogg
+Speakers: Narrator, Scientist, Jane
+Inside, they found the lead scientist transforming into the final mutation.
+SCIENTIST: This virus was never a mistake. It was evolution.
+JANE: You destroyed St. Mercy for this.
+
+map3_final_ending1.ogg
+Speakers: Narrator, Jane, Elric
+After a brutal battle, the final mutation was defeated. Elric recovered the
+last completed dose of the antidote.
+JANE: The antidote survived.
+ELRIC: Then we recover its research data and destroy every remaining sample.
+
+map3_final_ending2.ogg
+Speakers: Computer, Narrator, Jane, Elric
+COMPUTER: Antidote data verified. Virus purge initiated. All active samples
+destroyed.
+NARRATOR: The St. Mercy outbreak was over, but the truth could no longer remain
+buried.
+JANE: It's over.
+ELRIC: No. Now we find out who authorized it.
+

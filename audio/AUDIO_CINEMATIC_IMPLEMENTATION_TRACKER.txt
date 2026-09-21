@@ -1,0 +1,133 @@
+ASHGROVE: THE LAST CURE - AUDIO & CINEMATIC TRACKER
+====================================================
+
+Last updated: 2026-09-21
+
+Runtime voice format: OGG
+Runtime voice folder: assets/audio/voice/
+Optional MP3 masters: audio/mp3/voice/
+
+STATUS
+------
+All 14 post-menu cinematic images are generated and WIRED.
+All 14 subtitle panels are WIRED.
+Optional voice playback is WIRED and safely tolerates missing files.
+Voice OGG binaries are READY for bg_menu and all post-menu scenes 01-14.
+The complete cinematic voice set is present in the runtime asset folder.
+
+Voice-production preparation is COMPLETE:
+- Verified source: audio/dialogues/CINEMATIC_DIALOGUE_VERIFIED.txt
+- Cast configuration: audio/voice-production/voice_cast.json
+- Generator: audio/tools/generate_voiceovers.cmd
+- Validation: 15 scenes / 75 spoken segments pass dry-run checks
+- Portable ffmpeg 9.0.2 is ready with MP3 and OGG encoders
+- Generation is waiting only for OPENAI_API_KEY; no paid request has run
+
+The menu uses assets/bg_menu.png. It is identical to
+assets/cinematics/bg_menu.png and appears before this sequence.
+Its planned narration master/runtime names are bg_menu.mp3 and bg_menu.ogg.
+
+
+ORDER AND ASSET MAPPING
+-----------------------
+
+01 intro_elric
+   Image: assets/cinematics/intro_elric.png
+   Voice: assets/audio/voice/intro_elric.ogg [READY]
+   Trigger: opening sequence before Map 1
+
+02 intro_jane
+   Image: assets/cinematics/intro_jane.png
+   Voice: assets/audio/voice/intro_jane.ogg [READY]
+   Trigger: opening sequence before Map 1
+
+03 map1_starting
+   Image: assets/cinematics/map1_starting.png
+   Voice: assets/audio/voice/map1_starting.ogg [READY]
+   Trigger: opening sequence before Map 1
+
+04 map1_part2_starting
+   Image: assets/cinematics/map1_part2_starting.png
+   Voice: assets/audio/voice/map1_part2_starting.ogg [READY]
+   Trigger: after Map 1, before Map 1 Part 2
+
+05 map1_part2_escaping
+   Image: assets/cinematics/map1_part2_escaping.png
+   Voice: assets/audio/voice/map1_part2_escaping.ogg [READY]
+   Trigger: after Map 1 Part 2
+
+06 map2_part1_starting
+   Image: assets/cinematics/map2_part1_starting.png
+   Voice: assets/audio/voice/map2_part1_starting.ogg [READY]
+   Trigger: immediately after scene 05, before Map 2 Part 1
+
+07 map2_part1_ending
+   Image: assets/cinematics/map2_part1_ending.png
+   Voice: assets/audio/voice/map2_part1_ending.ogg [READY]
+   Trigger: after Map 2 Part 1
+
+08 map2_part2_starting
+   Image: assets/cinematics/map2_part2_starting.png
+   Voice: assets/audio/voice/map2_part2_starting.ogg [READY]
+   Trigger: immediately after scene 07, before Map 2 Part 2
+
+09 map2_part2_ending
+   Image: assets/cinematics/map2_part2_ending.png
+   Voice: assets/audio/voice/map2_part2_ending.ogg [READY]
+   Trigger: after Map 2 Part 2
+
+10 map3_starting
+   Image: assets/cinematics/map3_starting.png
+   Voice: assets/audio/voice/map3_starting.ogg [READY]
+   Trigger: immediately after scene 09, before Map 3
+
+11 map3_ending
+   Image: assets/cinematics/map3_ending.png
+   Voice: assets/audio/voice/map3_ending.ogg [READY]
+   Trigger: after Map 3
+
+12 map3_final_starting
+   Image: assets/cinematics/map3_final_starting.png
+   Voice: assets/audio/voice/map3_final_starting.ogg [READY]
+   Trigger: immediately after scene 11, before the final level
+
+13 map3_final_ending1
+   Image: assets/cinematics/map3_final_ending1.png
+   Voice: assets/audio/voice/map3_final_ending1.ogg [READY]
+   Trigger: final boss victory
+
+14 map3_final_ending2
+   Image: assets/cinematics/map3_final_ending2.png
+   Voice: assets/audio/voice/map3_final_ending2.ogg [READY]
+   Trigger: immediately after scene 13, before campaign results
+
+
+CODE OWNERS
+-----------
+
+core/src/main/java/com/infectedhour/core/content/DialogueCatalog.java
+  Exact image, subtitle, speaker, title, and OGG mapping for every scene.
+
+core/src/main/java/com/infectedhour/core/screens/StoryPanelScreen.java
+  Loads images, renders subtitles, plays/stops narration, handles continue/skip,
+  synchronizes co-op advancement, and routes to the next level.
+
+core/src/main/java/com/infectedhour/core/screens/GameScreen.java
+  Sends completed Maps 1-5 into their next cinematic sequence.
+
+core/src/main/java/com/infectedhour/core/screens/BossScreen.java
+  Sends final victory into the two ending cinematics.
+
+core/src/main/java/com/infectedhour/core/InfectedHourGame.java
+  Routes developer split-screen map selections through their matching opening
+  cinematic; normal LAN co-op uses the same StoryPanelScreen event flow.
+
+core/src/main/java/com/infectedhour/core/audio/AudioDirector.java
+  Safely plays optional OGG narration. Missing files never crash the game.
+
+
+CONTROLS
+--------
+
+E / Space / Enter / Left Click: reveal subtitle, then continue
+S: skip the current cinematic sequence

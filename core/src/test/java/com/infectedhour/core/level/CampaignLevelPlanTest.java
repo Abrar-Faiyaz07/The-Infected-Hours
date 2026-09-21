@@ -12,10 +12,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CampaignLevelPlanTest {
 
     @Test
-    void campaignUsesHospitalVillageAndHiddenLabOrder() {
-        assertEquals("Ashgrove Hospital", LevelDefinition.level1().name());
-        assertEquals("Roadside Village", LevelDefinition.level2().name());
-        assertEquals("Hidden Laboratory", LevelDefinition.level3Boss().name());
+    void campaignUsesTheStMercyAndAshgroveFacilityOrder() {
+        assertEquals("St. Mercy Hospital", LevelDefinition.level1().name());
+        assertEquals("St. Mercy Upper Wing", LevelDefinition.level2().name());
+        assertEquals("St. Mercy Hospital Grounds", LevelDefinition.level3Boss().name());
         assertTrue(LevelDefinition.level3Boss().isBossLevel());
     }
 

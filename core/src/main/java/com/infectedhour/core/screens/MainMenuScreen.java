@@ -383,8 +383,8 @@ public class MainMenuScreen implements Screen {
         titleFont.draw(batch, "OPERATIVE ARCHIVE & COLLECTION", centerX - (layout.width / 2f), VIRTUAL_HEIGHT - 48f);
 
         subtitleFont.setColor(0.78f, 0.82f, 0.88f, 0.9f);
-        layout.setText(subtitleFont, "DECLASSIFIED FIELD DOSSIERS — OSCORP & GOVERNMENT COALITION");
-        subtitleFont.draw(batch, "DECLASSIFIED FIELD DOSSIERS — OSCORP & GOVERNMENT COALITION", centerX - (layout.width / 2f), VIRTUAL_HEIGHT - 90f);
+        layout.setText(subtitleFont, "DECLASSIFIED FIELD DOSSIERS — ASHGROVE CORPORATION");
+        subtitleFont.draw(batch, "DECLASSIFIED FIELD DOSSIERS — ASHGROVE CORPORATION", centerX - (layout.width / 2f), VIRTUAL_HEIGHT - 90f);
         batch.end();
 
         float cardW = 550f;
@@ -400,7 +400,7 @@ public class MainMenuScreen implements Screen {
                 "ELRIC — FIELD STRIKER",
                 "ROLE: MELEE COMBAT & CONTAINMENT",
                 new Color(0.22f, 0.74f, 0.97f, 1f),
-                "Oscorp Private Security Operative",
+                "Ashgrove Corporation Field Agent",
                 "A resilient survivor who thrives under pressure. Built for close-quarters clearing and holding choke points against infected swarms.",
                 new String[]{
                         "• Combat Focus: +20% Melee attack speed and knockback",
@@ -420,7 +420,7 @@ public class MainMenuScreen implements Screen {
                 "JANE — TACTICAL SCOUT",
                 "ROLE: HIGH AGILITY & OBJECTIVE RUNNER",
                 new Color(0.20f, 0.83f, 0.60f, 1f),
-                "Undercover Government Agent",
+                "Missing Ashgrove Field Agent",
                 "Analytical and razor-sharp. Uses superior agility and tactical blade strikes to secure quarantine zones and rescue survivors before time runs out.",
                 new String[]{
                         "• Agility Focus: +15% base movement speed and fast dash recovery",
@@ -650,7 +650,7 @@ public class MainMenuScreen implements Screen {
                     game.getServer().setHostCharacter(c);
                     game.getServer().restoreFrom(slot);
                 }
-                game.setScreen(new LevelBriefingScreen(game, client, bridge, slot.levelNumber()));
+                CampaignScreenRouter.openLevel(game, client, bridge, slot.levelNumber());
                 return;
             }
         }
@@ -705,9 +705,10 @@ public class MainMenuScreen implements Screen {
         font.draw(batch, "•  SPACEBAR              — Primary Attack (Machete Slash or Bomb Throw)", textX, textY - lineGap * 3);
         font.draw(batch, "•  E                     — Interact with Doors, Terminals, Keys & Evacuation", textX, textY - lineGap * 4);
         font.draw(batch, "•  H  or  [3]            — Healing Surge (+35 HP & 15s immunity, 12s cooldown)", textX, textY - lineGap * 5);
-        font.draw(batch, "•  ESC                   — Pause Game & Open Save Slots Overlay", textX, textY - lineGap * 6);
-        font.draw(batch, "•  1 / 2 (Keys)          — Switch between Machete & Bomb in gameplay", textX, textY - lineGap * 7);
-        font.draw(batch, "•  F11                   — Toggle Display Mode (Windows Fit / Full Screen)", textX, textY - lineGap * 8);
+        font.draw(batch, "•  O                     — Show / Hide Current Objectives", textX, textY - lineGap * 6);
+        font.draw(batch, "•  ESC                   — Pause Game & Open Save Slots Overlay", textX, textY - lineGap * 7);
+        font.draw(batch, "•  1 / 2 (Keys)          — Switch between Machete & Bomb in gameplay", textX, textY - lineGap * 8);
+        font.draw(batch, "•  F11                   — Toggle Display Mode (Windows Fit / Full Screen)", textX, textY - lineGap * 9);
         batch.end();
 
         // Back Button
@@ -748,7 +749,8 @@ public class MainMenuScreen implements Screen {
         if (game.getServer() != null) {
             game.getServer().setHostCharacter(character);
         }
-        game.setScreen(new LevelBriefingScreen(game, client, bridge, 1));
+        game.setScreen(new StoryPanelScreen(game, client, bridge,
+                StoryPanelScreen.Sequence.INTRO, 1));
     }
 
     private Texture loadTextureSafely(String path) {

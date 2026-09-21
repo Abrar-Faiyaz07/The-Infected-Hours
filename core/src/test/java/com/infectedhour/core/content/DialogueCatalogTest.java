@@ -18,6 +18,9 @@ class DialogueCatalogTest {
                 assertFalse(line.text().isBlank());
                 assertTrue(line.voiceAsset().startsWith("audio/voice/"));
                 assertTrue(line.voiceAsset().endsWith(".ogg"));
+                assertTrue(line.imageAsset().endsWith(".png"));
+                assertFalse(line.text().contains("Elena"));
+                assertFalse(line.text().contains("Oscorp"));
             });
             assertEquals(DialogueCatalog.lines(scene).size(), DialogueCatalog.panelText(scene).length);
             assertEquals(DialogueCatalog.lines(scene).size(), DialogueCatalog.panelTitles(scene).length);
@@ -31,5 +34,15 @@ class DialogueCatalogTest {
                 IndexOutOfBoundsException.class,
                 () -> DialogueCatalog.line(DialogueCatalog.Scene.INTRO, 99)
         );
+    }
+
+    @Test
+    void generatedCinematicSequenceHasFourteenStoryPanelsAfterTheMenu() {
+        int storyPanelCount = java.util.Arrays.stream(DialogueCatalog.Scene.values())
+                .filter(scene -> scene != DialogueCatalog.Scene.BOSS)
+                .mapToInt(scene -> DialogueCatalog.lines(scene).size())
+                .sum();
+
+        assertEquals(14, storyPanelCount);
     }
 }

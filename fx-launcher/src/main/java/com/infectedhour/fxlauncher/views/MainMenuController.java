@@ -6,10 +6,13 @@ import com.infectedhour.fxlauncher.state.SessionState;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.Parent;
-import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.input.KeyCode;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
+
+import java.util.List;
 
 public class MainMenuController {
 
@@ -18,7 +21,16 @@ public class MainMenuController {
     @FXML private Label usernameLabel;
     @FXML private Label statusChip;
     @FXML private Label versionLabel;
+    @FXML private Label menuDescription;
     @FXML private StackPane rootPane;
+    @FXML private Button singlePlayerBtn;
+    @FXML private Button coopButton;
+    @FXML private Button continueButton;
+    @FXML private Button settingsButton;
+    @FXML private Button intelButton;
+    @FXML private Button debugButton;
+    @FXML private Button bossButton;
+    @FXML private Button exitButton;
 
     private Stage stage;
     private BackendClient backendClient;
@@ -41,6 +53,47 @@ public class MainMenuController {
             statusChip.setText("⬤  connected");
             statusChip.getStyleClass().setAll("chip-connected");
         }
+
+        configureMenuNavigation();
+    }
+
+    private void configureMenuNavigation() {
+        List<Button> buttons = List.of(
+                singlePlayerBtn, coopButton, continueButton,
+                settingsButton, intelButton, debugButton, bossButton, exitButton);
+        List<String> descriptions = List.of(
+                "Begin the Ashgrove containment operation.",
+                "Host or join a two-operative survival session.",
+                "Resume the campaign from a saved checkpoint.",
+                "Configure display, audio, subtitles, and connection settings.",
+                "Open mission intelligence and project information.",
+                "Developer split-screen testing tools.",
+                "Developer shortcut to the final encounter.",
+                "Close The Infected Hour.");
+
+        for (int i = 0; i < buttons.size(); i++) {
+            Button button = buttons.get(i);
+            int index = i;
+
+            button.focusedProperty().addListener((observable, wasFocused, isFocused) -> {
+                if (isFocused) {
+                    menuDescription.setText(descriptions.get(index));
+                }
+            });
+            button.setOnMouseEntered(event -> {
+                button.requestFocus();
+                menuDescription.setText(descriptions.get(index));
+            });
+            button.setOnKeyPressed(event -> {
+                if (event.getCode() == KeyCode.UP || event.getCode() == KeyCode.DOWN) {
+                    int direction = event.getCode() == KeyCode.UP ? -1 : 1;
+                    buttons.get(Math.floorMod(index + direction, buttons.size())).requestFocus();
+                    event.consume();
+                }
+            });
+        }
+
+        Platform.runLater(singlePlayerBtn::requestFocus);
     }
 
     @FXML
@@ -80,18 +133,7 @@ public class MainMenuController {
 
     @FXML
     private void onAbout() {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("About");
-        alert.setHeaderText("The Infected Hour — " + VERSION);
-        alert.setContentText("""
-                2D top-down co-op action game. Contain the epidemic, destroy the Virus Heart.
-
-                CSE 4402 Visual Programming Lab
-                Islamic University of Technology
-
-                Asset credits: see ASSETS_CREDITS.md""");
-        alert.initOwner(stage);
-        alert.showAndWait();
+        navigate(new IntelView(stage, backendClient).getRoot());
     }
 
     @FXML

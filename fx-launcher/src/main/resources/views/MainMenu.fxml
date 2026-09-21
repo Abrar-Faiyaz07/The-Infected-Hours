@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.Label?>
-<?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.layout.AnchorPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
@@ -18,122 +16,76 @@
         styleClass="menu-root"
         minWidth="900" minHeight="560">
 
-    <!-- The village art stays full-screen; these layers create a cinematic
-         console-dashboard treatment without hiding the scene. -->
     <Region styleClass="menu-overlay"/>
     <Region styleClass="menu-bottom-fade" StackPane.alignment="BOTTOM_CENTER"/>
 
     <AnchorPane styleClass="menu-content">
-        <!-- Console-style navigation bar. -->
-        <HBox alignment="CENTER_LEFT" spacing="30"
-              AnchorPane.leftAnchor="56" AnchorPane.rightAnchor="56"
-              AnchorPane.topAnchor="24">
+        <VBox spacing="1" AnchorPane.leftAnchor="66" AnchorPane.topAnchor="34">
             <Label text="THE INFECTED HOUR" styleClass="top-brand"/>
-            <HBox alignment="CENTER_LEFT" spacing="24">
-                <Label text="HOME" styleClass="top-nav-link, top-nav-link-active"/>
-                <Label text="SURVIVAL" styleClass="top-nav-link"/>
-                <Label text="ARCHIVE" styleClass="top-nav-link"/>
-            </HBox>
-            <Region HBox.hgrow="ALWAYS"/>
-            <VBox alignment="CENTER_RIGHT" spacing="2">
-                <HBox alignment="CENTER_RIGHT" spacing="8">
-                    <Label fx:id="statusChip" text="●  offline" styleClass="chip-searching"/>
-                    <Label fx:id="usernameLabel" text="Guest" styleClass="player-name"/>
-                </HBox>
-                <Label fx:id="versionLabel" text="v0.1-alpha" styleClass="version-label"/>
-            </VBox>
-        </HBox>
-
-        <!-- Horizontal activity rail inspired by a console home screen. -->
-        <ScrollPane fx:id="menuScroller"
-                    AnchorPane.leftAnchor="56" AnchorPane.rightAnchor="56"
-                    AnchorPane.topAnchor="84"
-                    prefHeight="140"
-                    fitToHeight="true"
-                    hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
-                    styleClass="mode-scroll">
-            <HBox fx:id="menuRail" alignment="TOP_LEFT" spacing="12">
-                <padding><Insets top="5" right="12" bottom="12" left="2"/></padding>
-                <Button text="STORY&#10;1 PLAYER"
-                        prefWidth="182" prefHeight="104"
-                        styleClass="mode-card, mode-card-active"
-                        onAction="#onSinglePlayer"/>
-                <Button text="CO-OP&#10;2 PLAYERS"
-                        prefWidth="170" prefHeight="104"
-                        styleClass="mode-card"
-                        onAction="#onCoopMode"/>
-                <Button text="DEBUG CO-OP&#10;SPLIT SCREEN"
-                        prefWidth="175" prefHeight="104"
-                        styleClass="mode-card, mode-card-compact"
-                        onAction="#onDebugCoop"/>
-                <Button text="FINAL BOSS&#10;FIGHT"
-                        prefWidth="165" prefHeight="104"
-                        styleClass="mode-card, mode-card-compact"
-                        onAction="#onFinalBossFight"/>
-                <Button text="CONTINUE&#10;LOAD GAME"
-                        prefWidth="170" prefHeight="104"
-                        styleClass="mode-card"
-                        onAction="#onLoadGame"/>
-                <Button text="COLLECTION&#10;DOSSIERS"
-                        prefWidth="160" prefHeight="104"
-                        styleClass="mode-card, mode-card-compact"
-                        onAction="#onCollection"/>
-                <Button text="SYSTEM&#10;SETTINGS"
-                        prefWidth="155" prefHeight="104"
-                        styleClass="mode-card, mode-card-compact"
-                        onAction="#onSettings"/>
-                <Button text="INTEL&#10;ABOUT"
-                        prefWidth="145" prefHeight="104"
-                        styleClass="mode-card, mode-card-compact"
-                        onAction="#onAbout"/>
-                <Button text="EXIT&#10;QUIT"
-                        prefWidth="135" prefHeight="104"
-                        styleClass="mode-card, mode-card-danger, mode-card-compact"
-                        onAction="#onQuit"/>
-            </HBox>
-        </ScrollPane>
-
-        <!-- Featured activity information. -->
-        <VBox spacing="9"
-              AnchorPane.leftAnchor="64" AnchorPane.bottomAnchor="62"
-              maxWidth="590">
-            <Label text="FEATURED  /  STORY MODE" styleClass="hero-eyebrow"/>
-            <Label text="THE INFECTED" styleClass="hero-title"/>
-            <Label text="HOUR" styleClass="hero-title, hero-title-accent"/>
-            <Label text="The night is spreading. Contain the epidemic, rescue the survivors, and destroy the Virus Heart before dawn."
-                   wrapText="true" maxWidth="560" styleClass="hero-description"/>
-            <Region prefHeight="8"/>
-            <HBox alignment="CENTER_LEFT" spacing="12">
-                <Button fx:id="singlePlayerBtn" text="PLAY STORY"
-                        styleClass="hero-play-btn" onAction="#onSinglePlayer"/>
-                <Label text="WASD MOVE   •   E INTERACT   •   SPACE ATTACK"
-                       styleClass="hero-control-hint"/>
-            </HBox>
+            <Label text="ASHGROVE INCIDENT // ACTIVE" styleClass="menu-brand-subtitle"/>
         </VBox>
 
-        <!-- Compact operation card, matching the reference composition. -->
-        <VBox spacing="10"
-              AnchorPane.rightAnchor="56" AnchorPane.bottomAnchor="62"
-              prefWidth="270" styleClass="survival-card">
-            <HBox alignment="CENTER_LEFT">
-                <VBox spacing="2">
-                    <Label text="CURRENT OPERATION" styleClass="survival-label"/>
-                    <Label text="CONTAINMENT" styleClass="survival-value"/>
-                </VBox>
-                <Region HBox.hgrow="ALWAYS"/>
-                <Label text="01" styleClass="chapter-number"/>
+        <VBox alignment="CENTER_RIGHT" spacing="2"
+              AnchorPane.rightAnchor="58" AnchorPane.topAnchor="34">
+            <HBox alignment="CENTER_RIGHT" spacing="8">
+                <Label fx:id="statusChip" text="●  offline" styleClass="chip-searching"/>
+                <Label fx:id="usernameLabel" text="Guest" styleClass="player-name"/>
             </HBox>
-            <Region prefHeight="1" styleClass="survival-divider"/>
-            <HBox alignment="CENTER_LEFT" spacing="24">
-                <VBox spacing="2">
-                    <Label text="PLAYERS" styleClass="survival-label"/>
-                    <Label text="1–2" styleClass="survival-stat"/>
-                </VBox>
-                <VBox spacing="2">
-                    <Label text="THREAT" styleClass="survival-label"/>
-                    <Label text="CRITICAL" styleClass="survival-stat-danger"/>
-                </VBox>
-            </HBox>
+            <Label fx:id="versionLabel" text="v0.1-alpha" styleClass="version-label"/>
+        </VBox>
+
+        <VBox spacing="8" prefWidth="350"
+              AnchorPane.leftAnchor="66" AnchorPane.topAnchor="132">
+            <Label text="MAIN MENU" styleClass="horror-menu-heading"/>
+            <Region prefHeight="8"/>
+
+            <Button fx:id="singlePlayerBtn" text="SINGLE PLAYER STORY"
+                    prefWidth="350" prefHeight="42"
+                    styleClass="horror-menu-item, horror-menu-item-primary"
+                    onAction="#onSinglePlayer"/>
+            <Button fx:id="coopButton" text="MULTIPLAYER STORY"
+                    prefWidth="350" prefHeight="42"
+                    styleClass="horror-menu-item"
+                    onAction="#onCoopMode"/>
+            <Button fx:id="continueButton" text="LOAD SAVED GAMES"
+                    prefWidth="350" prefHeight="42"
+                    styleClass="horror-menu-item"
+                    onAction="#onLoadGame"/>
+            <Button fx:id="settingsButton" text="OPTIONS"
+                    prefWidth="350" prefHeight="42"
+                    styleClass="horror-menu-item"
+                    onAction="#onSettings"/>
+            <Button fx:id="intelButton" text="ABOUT"
+                    prefWidth="350" prefHeight="42"
+                    styleClass="horror-menu-item"
+                    onAction="#onAbout"/>
+
+            <Region prefHeight="9"/>
+            <Label text="DEVELOPER" styleClass="horror-menu-section"/>
+            <Button fx:id="debugButton" text="DEBUG CO-OP"
+                    prefWidth="350" prefHeight="36"
+                    styleClass="horror-menu-item, horror-menu-item-developer"
+                    onAction="#onDebugCoop"/>
+            <Button fx:id="bossButton" text="FINAL BOSS TEST"
+                    prefWidth="350" prefHeight="36"
+                    styleClass="horror-menu-item, horror-menu-item-developer"
+                    onAction="#onFinalBossFight"/>
+
+            <Region prefHeight="5"/>
+            <Button fx:id="exitButton" text="EXIT"
+                    prefWidth="350" prefHeight="42"
+                    styleClass="horror-menu-item, horror-menu-item-danger"
+                    onAction="#onQuit"/>
+        </VBox>
+
+        <VBox alignment="CENTER" spacing="7"
+              AnchorPane.leftAnchor="430" AnchorPane.rightAnchor="70"
+              AnchorPane.bottomAnchor="32">
+            <Label fx:id="menuDescription"
+                   text="Begin the Ashgrove containment operation."
+                   styleClass="horror-menu-description"/>
+            <Label text="↑ / ↓  NAVIGATE     ENTER  SELECT"
+                   styleClass="horror-menu-hint"/>
         </VBox>
     </AnchorPane>
 </StackPane>

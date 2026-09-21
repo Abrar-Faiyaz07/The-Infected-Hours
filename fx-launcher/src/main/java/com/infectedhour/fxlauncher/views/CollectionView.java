@@ -38,7 +38,7 @@ public class CollectionView {
         root.setAlignment(Pos.CENTER);
         root.getStyleClass().add("bg-night");
 
-        Label eyebrow = new Label("DECLASSIFIED PERSONNEL ARCHIVE  •  OSCORP & GOVERNMENT COALITION");
+        Label eyebrow = new Label("DECLASSIFIED PERSONNEL ARCHIVE  •  ASHGROVE CORPORATION");
         eyebrow.setStyle("-fx-text-fill: #E8B02A; -fx-font-size: 11px; -fx-font-weight: bold; -fx-letter-spacing: 1px;");
 
         Label title = new Label("OPERATIVE COLLECTION");
@@ -56,7 +56,7 @@ public class CollectionView {
                 "ELRIC — FIELD STRIKER",
                 "ROLE: MELEE COMBAT & CONTAINMENT",
                 "#38BDF8",
-                "Oscorp Private Security Operative",
+                "Ashgrove Corporation Field Agent",
                 "A resilient survivor who thrives under pressure. Built for close-quarters clearing and holding choke points against infected swarms.",
                 new String[]{
                         "• Combat Focus: +20% Melee attack speed & knockback",
@@ -73,7 +73,7 @@ public class CollectionView {
                 "JANE — TACTICAL SCOUT",
                 "ROLE: HIGH AGILITY & OBJECTIVE RUNNER",
                 "#34D399",
-                "Undercover Government Agent",
+                "Missing Ashgrove Field Agent",
                 "Analytical and razor-sharp. Uses superior agility and tactical blade strikes to secure quarantine zones and rescue survivors before time runs out.",
                 new String[]{
                         "• Agility Focus: +15% base speed & fast dash recovery",

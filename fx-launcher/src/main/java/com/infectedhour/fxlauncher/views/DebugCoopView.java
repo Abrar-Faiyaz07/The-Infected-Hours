@@ -57,7 +57,7 @@ public class DebugCoopView {
         title.getStyleClass().add("title-gold");
 
         Label hint = new Label(
-                "Select any of the 6 maps below to test gameplay, villager rescue & commands, or inspect collision blocks in split-screen.");
+                "Select any map to test its opening cinematic, subtitles, gameplay, co-op interactions, and collision blocks in split-screen.");
         hint.getStyleClass().add("brand-subtitle");
 
         List<LevelOption> levels = List.of(
@@ -119,7 +119,7 @@ public class DebugCoopView {
         CheckBox collisionBox = new CheckBox("Show Collision Blocks Overlay during play [Hotkey: C / F1]");
         collisionBox.setStyle("-fx-text-fill: #f59e0b; -fx-font-size: 13px; -fx-font-weight: bold;");
 
-        Button splitScreenBtn = new Button("▶  Play Split-Screen Debug Co-Op (Selected Level)");
+        Button splitScreenBtn = new Button("▶  Play Cinematic + Split-Screen Debug Co-Op");
         splitScreenBtn.setMaxWidth(520);
         splitScreenBtn.getStyleClass().addAll("menu-btn", "menu-btn-primary");
         splitScreenBtn.setOnAction(e -> {
@@ -136,6 +136,7 @@ public class DebugCoopView {
         Label controlsHint = new Label(
                 "P1 (Elric): WASD | Space (Attack) | E (Rescue) | X (Command) | H/[3] (Heal)\n" +
                 "P2 (Jane): Arrow Keys | Num 0 (Attack) | Num 3/[.] (Rescue) | Num 7/[,] (Command) | Num 9 (Heal)\n" +
+                "Cinematic: E/Space/Enter/Click (Reveal or Continue) | S (Skip Sequence)\n" +
                 "In-Game Collision Toggle: Press [C] or [F1], or click [COLLISION: ON/OFF] HUD button.");
         controlsHint.setStyle("-fx-text-fill: #64748b; -fx-font-size: 11px;");
 

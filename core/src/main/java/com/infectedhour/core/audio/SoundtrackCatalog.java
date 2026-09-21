@@ -17,7 +17,6 @@ public final class SoundtrackCatalog {
         ROADSIDE_VILLAGE("audio/music/level_2_roadside_village.ogg"),
         HIDDEN_LABORATORY("audio/music/level_3_hidden_laboratory.ogg"),
         VIRUS_HEART_BOSS("audio/music/boss_virus_heart.ogg"),
-        JANE_DUEL("audio/music/jane_duel.ogg"),
         STORY("audio/music/story_interlude.ogg"),
         VICTORY("audio/music/victory.ogg");
 

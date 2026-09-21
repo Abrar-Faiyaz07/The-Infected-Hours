@@ -194,6 +194,42 @@ class LoopbackSessionTest {
                 "host should have applied the client's input: " + startX + " -> " + movedX);
     }
 
+    @Test
+    @DisplayName("pause menu freezes and resumes the authoritative simulation")
+    void pauseMenuFreezesAuthoritativeSimulation() throws Exception {
+        startServer();
+
+        CountDownLatch accepted = new CountDownLatch(1);
+        CountDownLatch pauseSeen = new CountDownLatch(1);
+        CountDownLatch resumeSeen = new CountDownLatch(1);
+        GameClient client = new GameClient(new GameBridge());
+        clients.add(client);
+        client.setOnJoinAccepted(accept -> accepted.countDown());
+        client.setOnEvent(event -> {
+            if (GameConstants.EVENT_PAUSE.equals(event.type)) pauseSeen.countDown();
+            if (GameConstants.EVENT_RESUME.equals(event.type)) resumeSeen.countDown();
+        });
+        client.connect("localhost", "p1", "Pauser");
+        assertTrue(accepted.await(AWAIT_SECONDS, TimeUnit.SECONDS));
+
+        server.fixedTimestepUpdate(GameServer.SIM_STEP_SECONDS);
+        client.sendEvent(GameConstants.EVENT_PAUSE, "");
+        assertTrue(pauseSeen.await(AWAIT_SECONDS, TimeUnit.SECONDS), "pause was not acknowledged");
+
+        long pausedAtTick = server.getServerTick();
+        for (int i = 0; i < 30; i++) {
+            server.fixedTimestepUpdate(GameServer.SIM_STEP_SECONDS);
+        }
+        assertEquals(pausedAtTick, server.getServerTick(),
+                "authoritative simulation advanced while the pause menu was open");
+
+        client.sendEvent(GameConstants.EVENT_RESUME, "");
+        assertTrue(resumeSeen.await(AWAIT_SECONDS, TimeUnit.SECONDS), "resume was not acknowledged");
+        server.fixedTimestepUpdate(GameServer.SIM_STEP_SECONDS);
+        assertEquals(pausedAtTick + 1, server.getServerTick(),
+                "authoritative simulation did not resume after closing the pause menu");
+    }
+
     // ------------------------------------------------------------------
 
     private void startServer() throws Exception {

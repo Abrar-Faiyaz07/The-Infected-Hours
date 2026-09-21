@@ -1,6 +1,7 @@
 package com.infectedhour.core.bridge;
 
 import com.infectedhour.shared.dto.SaveSlotDto;
+import com.infectedhour.core.state.CampaignSquadState;
 
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -25,6 +26,10 @@ import java.util.function.Supplier;
 public class GameBridge {
 
     private volatile boolean hasLauncher = false;
+    private volatile boolean cinematicSubtitleCentered = true;
+    private volatile float musicVolume = 0.80f;
+    private volatile float sfxVolume = 0.85f;
+    private volatile float subtitleVoiceVolume = 1.00f;
     private volatile Consumer<MatchOutcome> onMatchEnded = outcome -> {
     };
     private volatile Runnable onGameReady = () -> {
@@ -118,6 +123,43 @@ public class GameBridge {
         this.hasLauncher = hasLauncher;
     }
 
+    /** Device-local cinematic preference. Center alignment is the default. */
+    public boolean isCinematicSubtitleCentered() {
+        return cinematicSubtitleCentered;
+    }
+
+    public void setCinematicSubtitleCentered(boolean cinematicSubtitleCentered) {
+        this.cinematicSubtitleCentered = cinematicSubtitleCentered;
+    }
+
+    public float getMusicVolume() {
+        return musicVolume;
+    }
+
+    public void setMusicVolume(float musicVolume) {
+        this.musicVolume = clampVolume(musicVolume);
+    }
+
+    public float getSfxVolume() {
+        return sfxVolume;
+    }
+
+    public void setSfxVolume(float sfxVolume) {
+        this.sfxVolume = clampVolume(sfxVolume);
+    }
+
+    public float getSubtitleVoiceVolume() {
+        return subtitleVoiceVolume;
+    }
+
+    public void setSubtitleVoiceVolume(float subtitleVoiceVolume) {
+        this.subtitleVoiceVolume = clampVolume(subtitleVoiceVolume);
+    }
+
+    private static float clampVolume(float volume) {
+        return Math.max(0f, Math.min(1f, volume));
+    }
+
     public void setOnReturnToLauncherRequested(Consumer<Runnable> callback) {
         this.onReturnToLauncherRequested = callback != null ? callback : completion -> completion.run();
         if (callback != null) {
@@ -146,7 +188,18 @@ public class GameBridge {
     }
 
     /** Minimal payload core hands back to the launcher for the Results screen. */
-    public record MatchOutcome(String result, int finalLevelReached) {
+    public record MatchOutcome(String result, int finalLevelReached,
+                               long totalGameTimeSeconds, int coinsCollected,
+                               int npcsSaved, int npcsFailed) {
+        public MatchOutcome(String result, int finalLevelReached) {
+            this(result, finalLevelReached,
+                    CampaignSquadState.totalGameTimeSeconds(),
+                    CampaignSquadState.coins,
+                    CampaignSquadState.npcsSaved,
+                    CampaignSquadState.survivorReportFinalized
+                            ? CampaignSquadState.npcsFailed
+                            : CampaignSquadState.TOTAL_RESCUABLE_NPCS - CampaignSquadState.npcsSaved);
+        }
     }
 
     /** @param type one of {@code GameConstants.EVENT_PARTNER_*} / {@code EVENT_CONVERTED_TO_SOLO}. */

@@ -87,6 +87,12 @@ class CheckpointRegistryTest {
         assertEquals("l3_cp01_descent", CheckpointRegistry.firstOf(3).id());
         assertEquals(9.5f, CheckpointRegistry.firstOf(3).spawnTileX());
         assertEquals(4.5f, CheckpointRegistry.firstOf(3).spawnTileY());
+        assertEquals(31.37f, CheckpointRegistry.firstOf(4).spawnTileX());
+        assertEquals(35.0f, CheckpointRegistry.firstOf(4).spawnTileY());
+        assertEquals(28.68f, CheckpointRegistry.firstOf(5).spawnTileX());
+        assertEquals(4.43f, CheckpointRegistry.firstOf(5).spawnTileY());
+        assertEquals(30.63f, CheckpointRegistry.firstOf(6).spawnTileX());
+        assertEquals(39.12f, CheckpointRegistry.firstOf(6).spawnTileY());
         Checkpoint extraction = CheckpointRegistry.byId("l3_cp07_core").orElseThrow();
         assertEquals(20.0f, extraction.spawnTileX());
         assertEquals(26.0f, extraction.spawnTileY());
