@@ -333,6 +333,45 @@ public class BossScreen implements Screen {
         Texture tex = new Texture(pixmap); pixmap.dispose(); return tex;
     }
 
+    /**
+     * Keeps the complete camera viewport inside the 1280x720 boss arena.
+     * The camera may follow the player, but it stops moving when one of its
+     * viewport edges reaches the map boundary.
+     */
+    private void clampCameraToArena() {
+        if (camera == null) return;
+
+        float halfViewWidth = (camera.viewportWidth * camera.zoom) * 0.5f;
+        float halfViewHeight = (camera.viewportHeight * camera.zoom) * 0.5f;
+
+        float clampedX;
+        float clampedY;
+
+        // If the viewport is as large as (or larger than) the arena,
+        // keep that axis centered.
+        if (halfViewWidth * 2f >= WIDTH) {
+            clampedX = WIDTH * 0.5f;
+        } else {
+            clampedX = MathUtils.clamp(
+                    camera.position.x,
+                    halfViewWidth,
+                    WIDTH - halfViewWidth
+            );
+        }
+
+        if (halfViewHeight * 2f >= HEIGHT) {
+            clampedY = HEIGHT * 0.5f;
+        } else {
+            clampedY = MathUtils.clamp(
+                    camera.position.y,
+                    halfViewHeight,
+                    HEIGHT - halfViewHeight
+            );
+        }
+
+        camera.position.set(clampedX, clampedY, 0f);
+    }
+
     @Override
     public void show() {
         batch = new SpriteBatch(); shapes = new ShapeRenderer(); font = new BitmapFont();
@@ -645,16 +684,28 @@ public class BossScreen implements Screen {
 
         camera.zoom += (targetZoom - camera.zoom) * (delta * 3.0f);
 
-        // Small camera shake (e.g. when a final-phase wave hits the player); offset is removed after update
+        // Keep the normal follow camera completely inside the arena.
+        clampCameraToArena();
+
+        // Save the valid unclipped position before applying temporary shake.
+        float baseCameraX = camera.position.x;
+        float baseCameraY = camera.position.y;
+
+        // Small camera shake (e.g. when a final-phase wave hits the player).
+        // The shaken camera is clamped too, so shake never exposes outside the map.
         float camShakeX = 0f, camShakeY = 0f;
         if (cameraShakeTimer > 0f) {
             if (!paused) cameraShakeTimer -= delta;
             camShakeX = MathUtils.random(-CAMERA_SHAKE_STRENGTH, CAMERA_SHAKE_STRENGTH);
             camShakeY = MathUtils.random(-CAMERA_SHAKE_STRENGTH, CAMERA_SHAKE_STRENGTH);
         }
+
         camera.position.add(camShakeX, camShakeY, 0f);
+        clampCameraToArena();
         camera.update();
-        camera.position.sub(camShakeX, camShakeY, 0f);
+
+        // Restore the stable clamped follow position after the draw matrix is prepared.
+        camera.position.set(baseCameraX, baseCameraY, 0f);
 
         batch.setProjectionMatrix(camera.combined);
         batch.begin();

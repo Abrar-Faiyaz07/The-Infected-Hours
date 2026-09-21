@@ -3,6 +3,7 @@ package com.infectedhour.core.screens;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.audio.Music;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
@@ -76,6 +77,10 @@ public class GameScreen implements Screen {
     private ShapeRenderer shapes;
     private BitmapFont font;
     private BitmapFont pauseFont;
+
+    // Level Music
+    private Music levelMusic;
+    private static final float LEVEL_MUSIC_VOLUME = 0.55f;
 
     private OrthographicCamera camera;
     private Viewport viewport;
@@ -175,6 +180,21 @@ public class GameScreen implements Screen {
     private Texture healIconTexture;
     private Texture healEffectTexture;
 
+    // Level 1 ground pickup art
+    // herb.png = 1 row x 2 animated frames
+    private Texture herbTexture;
+    private TextureRegion[] herbFrames;
+    private int herbFrameWidth;
+
+    // medic.png = single image
+    private Texture medicTexture;
+
+    private static final float HERB_FRAME_DURATION = 0.30f;
+
+    // Ground pickup draw sizes: +75% from the previous 20px size.
+    private static final float HERB_DRAW_SIZE = 35f;
+    private static final float MEDIC_DRAW_SIZE = 35f;
+
     // HUD Damage Screen Tracking
     private Texture damagedScreen1Texture;
     private Texture damagedScreen2Texture;
@@ -266,8 +286,12 @@ public class GameScreen implements Screen {
     private boolean hasReviveKit = false;
     private boolean hasPickedFloorMedkit = false;
 
-    // Level 1 Senseless Jane in Pharmacy
-    private static final float JANE_PHARMACY_X = 40.0f, JANE_PHARMACY_Y = 8.0f;
+    private static final float JANE_PHARMACY_X = 42.0f, JANE_PHARMACY_Y = 5.5f;
+
+    // Single-frame unconscious Jane sprite shown only before revival.
+    // File: assets/player 2/jane_knocked.png
+    private Texture janeKnockedTexture;
+    private static final float JANE_KNOCKED_SCALE = 0.25f;
     private boolean isJaneRevived = false;
     private float janeX = 40.0f, janeY = 8.0f;
     private float janeHp = 100f, janeMaxHp = 100f;
@@ -276,6 +300,42 @@ public class GameScreen implements Screen {
     private int janeMedkitsProduced = 0;
 
     // Level 1 Villagers
+    // All villager sheets are 4 rows x 8 columns:
+    // row 0 = DOWN, row 1 = LEFT, row 2 = RIGHT, row 3 = UP.
+    //
+    // Asset mapping:
+    // Dr. Ramirez (villager id v1) uses v1 / v1_idle
+    // Nurse Claire (villager id v2) uses v2 / v2_idle
+    private Texture villagerV1WalkTexture;
+    private TextureRegion[][] villagerV1WalkFrames;
+    private int villagerV1WalkFrameWidth, villagerV1WalkFrameHeight;
+
+    private Texture villagerV1IdleTexture;
+    private TextureRegion[][] villagerV1IdleFrames;
+    private int villagerV1IdleFrameWidth, villagerV1IdleFrameHeight;
+
+    private Texture villagerV2WalkTexture;
+    private TextureRegion[][] villagerV2WalkFrames;
+    private int villagerV2WalkFrameWidth, villagerV2WalkFrameHeight;
+
+    private Texture villagerV2IdleTexture;
+    private TextureRegion[][] villagerV2IdleFrames;
+    private int villagerV2IdleFrameWidth, villagerV2IdleFrameHeight;
+
+    private static final float VILLAGER_SCALE = 0.80f;
+
+    // Per-sheet size adjustments:
+    // Per-sheet size adjustments.
+    // v2.png walking frames are 30% larger.
+    // v1_idle.png idle frames are 30% larger.
+    // v2_idle.png idle frames are 30% larger.
+    private static final float V2_WALK_SCALE_MULTIPLIER = 1.30f;
+    private static final float V1_IDLE_SCALE_MULTIPLIER = 1.30f;
+    private static final float V2_IDLE_SCALE_MULTIPLIER = 1.30f;
+
+    private static final float VILLAGER_WALK_FRAME_DURATION = 0.12f;
+    private static final float VILLAGER_IDLE_FRAME_DURATION = 0.18f;
+
     private static class LevelVillager {
         final String id;
         final String name;
@@ -288,6 +348,8 @@ public class GameScreen implements Screen {
         String leaderId = null;
         float biteCooldown = 0.8f;
         float stateTime = 0f;
+        int facing = 0; // 0=DOWN, 1=LEFT, 2=RIGHT, 3=UP
+        boolean moving = false;
 
         LevelVillager(String id, String name, float x, float y) {
             this.id = id;
@@ -431,6 +493,63 @@ public class GameScreen implements Screen {
         Gdx.gl.glDisable(GL20.GL_BLEND);
     }
 
+    /**
+     * Follows a world position while keeping the camera viewport completely
+     * inside the playable tile-map bounds.
+     *
+     * The player can still move all the way to the edge; only the camera stops.
+     */
+    private void updateCameraClamped(float targetWorldX, float targetWorldY) {
+        if (camera == null) return;
+
+        // Fallback if the map has not been initialized yet.
+        if (tileMap == null) {
+            camera.position.set(
+                    Math.round(targetWorldX),
+                    Math.round(targetWorldY),
+                    0f
+            );
+            camera.update();
+            return;
+        }
+
+        float mapWidthPx = tileMap.getWidth() * PIXELS_PER_TILE;
+        float mapHeightPx = tileMap.getHeight() * PIXELS_PER_TILE;
+
+        float halfViewWidth = (camera.viewportWidth * camera.zoom) * 0.5f;
+        float halfViewHeight = (camera.viewportHeight * camera.zoom) * 0.5f;
+
+        float cameraX;
+        float cameraY;
+
+        // If a map dimension is smaller than the camera viewport,
+        // keep that dimension centered instead of trying to clamp it.
+        if (mapWidthPx <= halfViewWidth * 2f) {
+            cameraX = mapWidthPx * 0.5f;
+        } else {
+            cameraX = Math.max(
+                    halfViewWidth,
+                    Math.min(targetWorldX, mapWidthPx - halfViewWidth)
+            );
+        }
+
+        if (mapHeightPx <= halfViewHeight * 2f) {
+            cameraY = mapHeightPx * 0.5f;
+        } else {
+            cameraY = Math.max(
+                    halfViewHeight,
+                    Math.min(targetWorldY, mapHeightPx - halfViewHeight)
+            );
+        }
+
+        camera.position.set(
+                Math.round(cameraX),
+                Math.round(cameraY),
+                0f
+        );
+        camera.update();
+    }
+
     private void drawMapAlignedToCollisionGrid() {
         float scale = PIXELS_PER_TILE / MAP_ART_TILE_PX;
         float gridBottomFromTexBottomPx = mapTexture.getHeight() - (MAP_ART_ORIGIN_Y_TOP_PX + MAP_ART_ROWS * MAP_ART_TILE_PX);
@@ -507,8 +626,58 @@ public class GameScreen implements Screen {
         return texture;
     }
 
+    private void startLevelMusic() {
+        stopLevelMusic();
+
+        String musicPath;
+        if (levelNumber == 1 || levelNumber == 2) {
+            musicPath = "music/lvl1-2.mp3";
+        } else if (levelNumber == 3) {
+            musicPath = "music/lvl3.mp3";
+        } else {
+            return;
+        }
+
+        try {
+            if (!Gdx.files.internal(musicPath).exists()) {
+                Gdx.app.error("GameScreen", "Level music not found: " + musicPath);
+                return;
+            }
+
+            levelMusic = Gdx.audio.newMusic(Gdx.files.internal(musicPath));
+            levelMusic.setLooping(true);
+            levelMusic.setVolume(LEVEL_MUSIC_VOLUME);
+            levelMusic.play();
+
+            Gdx.app.log(
+                    "GameScreen",
+                    "Playing level music: " + musicPath + " for level " + levelNumber
+            );
+        } catch (Exception e) {
+            Gdx.app.error(
+                    "GameScreen",
+                    "Failed to load/play level music: " + musicPath,
+                    e
+            );
+            levelMusic = null;
+        }
+    }
+
+    private void stopLevelMusic() {
+        if (levelMusic != null) {
+            try {
+                levelMusic.stop();
+                levelMusic.dispose();
+            } catch (Exception ignored) {
+            }
+            levelMusic = null;
+        }
+    }
+
     @Override
     public void show() {
+        startLevelMusic();
+
         batch = new SpriteBatch();
         shapes = new ShapeRenderer();
         font = new BitmapFont();
@@ -779,6 +948,114 @@ public class GameScreen implements Screen {
         idleFrameHeight = idleTexture.getHeight() / 4;
         idleFrames = TextureRegion.split(idleTexture, idleFrameWidth, idleFrameHeight);
 
+        // Villager spritesheets: assets/Villager/
+        // All sheets: 4 rows x 8 columns.
+        // Row order: DOWN, LEFT, RIGHT, UP.
+        villagerV1WalkTexture = loadTextureSafely("Villager/v1.png");
+        villagerV1IdleTexture = loadTextureSafely("Villager/v1_idle.png");
+        villagerV2WalkTexture = loadTextureSafely("Villager/v2.png");
+        villagerV2IdleTexture = loadTextureSafely("Villager/v2_idle.png");
+
+        if (villagerV1WalkTexture == null || villagerV1IdleTexture == null) {
+            Gdx.app.error(
+                    "GameScreen",
+                    "V1 SPRITES MISSING: expected assets/Villager/v1.png and assets/Villager/v1_idle.png."
+            );
+        }
+
+        if (villagerV2WalkTexture == null || villagerV2IdleTexture == null) {
+            Gdx.app.error(
+                    "GameScreen",
+                    "V2 SPRITES MISSING: expected assets/Villager/v2.png and assets/Villager/v2_idle.png."
+            );
+        }
+
+        if (villagerV1WalkTexture != null) {
+            villagerV1WalkTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            if (villagerV1WalkTexture.getWidth() % 8 != 0 || villagerV1WalkTexture.getHeight() % 4 != 0) {
+                Gdx.app.error(
+                        "GameScreen",
+                        "Villager/v1.png must be a true 4x8 sheet. Size found: "
+                                + villagerV1WalkTexture.getWidth() + "x" + villagerV1WalkTexture.getHeight()
+                );
+            }
+            villagerV1WalkFrameWidth = villagerV1WalkTexture.getWidth() / 8;
+            villagerV1WalkFrameHeight = villagerV1WalkTexture.getHeight() / 4;
+            villagerV1WalkFrames = TextureRegion.split(
+                    villagerV1WalkTexture,
+                    villagerV1WalkFrameWidth,
+                    villagerV1WalkFrameHeight
+            );
+        }
+
+        if (villagerV1IdleTexture != null) {
+            villagerV1IdleTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            if (villagerV1IdleTexture.getWidth() % 8 != 0 || villagerV1IdleTexture.getHeight() % 4 != 0) {
+                Gdx.app.error(
+                        "GameScreen",
+                        "Villager/v1_idle.png must be a true 4x8 sheet. Size found: "
+                                + villagerV1IdleTexture.getWidth() + "x" + villagerV1IdleTexture.getHeight()
+                );
+            }
+            villagerV1IdleFrameWidth = villagerV1IdleTexture.getWidth() / 8;
+            villagerV1IdleFrameHeight = villagerV1IdleTexture.getHeight() / 4;
+            villagerV1IdleFrames = TextureRegion.split(
+                    villagerV1IdleTexture,
+                    villagerV1IdleFrameWidth,
+                    villagerV1IdleFrameHeight
+            );
+        }
+
+        if (villagerV2WalkTexture != null) {
+            villagerV2WalkTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            if (villagerV2WalkTexture.getWidth() % 8 != 0 || villagerV2WalkTexture.getHeight() % 4 != 0) {
+                Gdx.app.error(
+                        "GameScreen",
+                        "Villager/v2.png must be a true 4x8 sheet. Size found: "
+                                + villagerV2WalkTexture.getWidth() + "x" + villagerV2WalkTexture.getHeight()
+                );
+            }
+            villagerV2WalkFrameWidth = villagerV2WalkTexture.getWidth() / 8;
+            villagerV2WalkFrameHeight = villagerV2WalkTexture.getHeight() / 4;
+            villagerV2WalkFrames = TextureRegion.split(
+                    villagerV2WalkTexture,
+                    villagerV2WalkFrameWidth,
+                    villagerV2WalkFrameHeight
+            );
+        }
+
+        if (villagerV2IdleTexture != null) {
+            villagerV2IdleTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            if (villagerV2IdleTexture.getWidth() % 8 != 0 || villagerV2IdleTexture.getHeight() % 4 != 0) {
+                Gdx.app.error(
+                        "GameScreen",
+                        "Villager/v2_idle.png must be a true 4x8 sheet. Size found: "
+                                + villagerV2IdleTexture.getWidth() + "x" + villagerV2IdleTexture.getHeight()
+                );
+            }
+            villagerV2IdleFrameWidth = villagerV2IdleTexture.getWidth() / 8;
+            villagerV2IdleFrameHeight = villagerV2IdleTexture.getHeight() / 4;
+            villagerV2IdleFrames = TextureRegion.split(
+                    villagerV2IdleTexture,
+                    villagerV2IdleFrameWidth,
+                    villagerV2IdleFrameHeight
+            );
+        }
+
+        // Jane unconscious sprite (single frame).
+        janeKnockedTexture = loadTextureSafely("player 2/jane_knocked.png");
+        if (janeKnockedTexture != null) {
+            janeKnockedTexture.setFilter(
+                    Texture.TextureFilter.Nearest,
+                    Texture.TextureFilter.Nearest
+            );
+        } else {
+            Gdx.app.error(
+                    "GameScreen",
+                    "Jane knocked sprite missing: assets/player 2/jane_knocked.png"
+            );
+        }
+
         // Player 2 / Jane sprite sheets from player 2/ directory
         p2Texture = loadTextureSafely("player 2/player.png");
         if (p2Texture == null) p2Texture = loadTextureSafely("player 2/map_player.png");
@@ -910,6 +1187,50 @@ public class GameScreen implements Screen {
         damagedScreen2Texture = loadTextureSafely("damaged_screen2.png");
         healIconTexture = loadTextureSafely("heal_icon.png");
         healEffectTexture = loadTextureSafely("heal_effect.png");
+
+        // Herb pickup: 2-frame horizontal spritesheet.
+        herbTexture = loadTextureSafely("herb.png");
+        if (herbTexture != null) {
+            herbTexture.setFilter(
+                    Texture.TextureFilter.Nearest,
+                    Texture.TextureFilter.Nearest
+            );
+
+            if (herbTexture.getWidth() % 2 != 0) {
+                Gdx.app.error(
+                        "GameScreen",
+                        "herb.png must contain 2 equal horizontal frames. Width found: "
+                                + herbTexture.getWidth()
+                );
+            }
+
+            herbFrameWidth = herbTexture.getWidth() / 2;
+            TextureRegion[][] herbSplit = TextureRegion.split(
+                    herbTexture,
+                    herbFrameWidth,
+                    herbTexture.getHeight()
+            );
+
+            if (herbSplit.length > 0 && herbSplit[0].length >= 2) {
+                herbFrames = new TextureRegion[]{
+                        herbSplit[0][0],
+                        herbSplit[0][1]
+                };
+            }
+        } else {
+            Gdx.app.error("GameScreen", "Missing ground pickup sprite: assets/herb.png");
+        }
+
+        // Floor medkit pickup: single image.
+        medicTexture = loadTextureSafely("medic.png");
+        if (medicTexture != null) {
+            medicTexture.setFilter(
+                    Texture.TextureFilter.Nearest,
+                    Texture.TextureFilter.Nearest
+            );
+        } else {
+            Gdx.app.error("GameScreen", "Missing ground pickup sprite: assets/medic.png");
+        }
 
         timerTexture = loadTextureSafely("timer.png");
         if (timerTexture != null) {
@@ -1819,8 +2140,10 @@ public class GameScreen implements Screen {
                 int halfW = screenW / 2;
 
                 Gdx.gl.glViewport(0, 0, halfW, screenH);
-                camera.position.set(Math.round(p1.x * PIXELS_PER_TILE), Math.round(p1.y * PIXELS_PER_TILE), 0);
-                camera.update();
+                updateCameraClamped(
+                        p1.x * PIXELS_PER_TILE,
+                        p1.y * PIXELS_PER_TILE
+                );
 
                 batch.setProjectionMatrix(camera.combined);
                 batch.begin();
@@ -1830,8 +2153,10 @@ public class GameScreen implements Screen {
                 if (showCollisionOverlay) drawCollisionOverlay();
 
                 Gdx.gl.glViewport(halfW, 0, halfW, screenH);
-                camera.position.set(Math.round(p2.x * PIXELS_PER_TILE), Math.round(p2.y * PIXELS_PER_TILE), 0);
-                camera.update();
+                updateCameraClamped(
+                        p2.x * PIXELS_PER_TILE,
+                        p2.y * PIXELS_PER_TILE
+                );
 
                 batch.setProjectionMatrix(camera.combined);
                 batch.begin();
@@ -1864,8 +2189,10 @@ public class GameScreen implements Screen {
                 batch.end();
             } else {
                 if (me != null) {
-                    camera.position.set(Math.round(me.x * PIXELS_PER_TILE), Math.round(me.y * PIXELS_PER_TILE), 0);
-                    camera.update();
+                    updateCameraClamped(
+                            me.x * PIXELS_PER_TILE,
+                            me.y * PIXELS_PER_TILE
+                    );
                 }
 
                 batch.setProjectionMatrix(camera.combined);
@@ -2039,8 +2366,14 @@ public class GameScreen implements Screen {
 
         // 2. Villager Escort Following & Bites from Ambush/Middle Zombies (All levels)
         for (LevelVillager v : levelVillagers) {
-            if (!v.isRescued || v.isDead) continue;
+            if (v.isDead) continue;
+
+            // Keep the idle animation running even before the villager is rescued.
             v.stateTime += delta;
+            v.moving = false;
+
+            // Stranded villagers stay in place and play v1_idle.png.
+            if (!v.isRescued) continue;
 
             WorldSnapshot.PlayerState followTarget = null;
             if (snapshot != null && snapshot.players != null) {
@@ -2072,11 +2405,26 @@ public class GameScreen implements Screen {
             float distP = (float) Math.hypot(distXP, distYP);
 
             if (!v.isStaying && distP > 1.8f) {
+                // Pick the spritesheet row from the direction the villager is travelling.
+                if (Math.abs(distXP) > Math.abs(distYP)) {
+                    v.facing = distXP > 0f ? 2 : 1; // RIGHT : LEFT
+                } else {
+                    v.facing = distYP > 0f ? 3 : 0; // UP : DOWN
+                }
                 float speed = 2.0f;
                 float moveX = (distXP / distP) * speed * delta;
                 float moveY = (distYP / distP) * speed * delta;
-                if (isWalkable(v.x + moveX, v.y, 0.25f)) v.x += moveX;
-                if (isWalkable(v.x, v.y + moveY, 0.25f)) v.y += moveY;
+
+                boolean moved = false;
+                if (isWalkable(v.x + moveX, v.y, 0.25f)) {
+                    v.x += moveX;
+                    moved = true;
+                }
+                if (isWalkable(v.x, v.y + moveY, 0.25f)) {
+                    v.y += moveY;
+                    moved = true;
+                }
+                v.moving = moved;
             }
 
             if (isAmbushActive) {
@@ -2754,33 +3102,54 @@ public class GameScreen implements Screen {
         // Draw Herbs and Floor Medkit in Level 1
         if (levelNumber == 1) {
             float bob = (float) Math.sin(groundItemStateTime * 4.0f) * 3.0f;
+
+            TextureRegion currentHerbFrame = null;
+            if (herbFrames != null && herbFrames.length >= 2) {
+                int herbFrameIndex =
+                        ((int) (groundItemStateTime / HERB_FRAME_DURATION)) % 2;
+                currentHerbFrame = herbFrames[herbFrameIndex];
+            }
+
             if (!herb1Collected) {
-                float hx = Math.round((HERB_1_X * PIXELS_PER_TILE) - 10f);
-                float hy = Math.round((HERB_1_Y * PIXELS_PER_TILE) - 10f + bob);
-                batch.setColor(0.3f, 1.0f, 0.4f, 1.0f);
-                if (healIconTexture != null) {
-                    batch.draw(healIconTexture, hx, hy, 20f, 20f);
+                float herbSize = HERB_DRAW_SIZE;
+                float hx = Math.round((HERB_1_X * PIXELS_PER_TILE) - (herbSize / 2f));
+                float hy = Math.round((HERB_1_Y * PIXELS_PER_TILE) - (herbSize / 2f) + bob);
+
+                batch.setColor(Color.WHITE);
+                if (currentHerbFrame != null) {
+                    batch.draw(currentHerbFrame, hx, hy, herbSize, herbSize);
                 } else if (markerTexture != null) {
                     batch.draw(markerTexture, hx, hy, 16f, 16f);
                 }
+            }
+
+            if (!hasPickedFloorMedkit) {
+                float medicSize = MEDIC_DRAW_SIZE;
+                float mx = Math.round((MEDKIT_X * PIXELS_PER_TILE) - (medicSize / 2f));
+                float my = Math.round((MEDKIT_Y * PIXELS_PER_TILE) - (medicSize / 2f) + bob);
+
                 batch.setColor(Color.WHITE);
+                if (medicTexture != null) {
+                    batch.draw(medicTexture, mx, my, medicSize, medicSize);
+                } else if (markerTexture != null) {
+                    batch.draw(markerTexture, mx, my, 16f, 16f);
+                }
             }
-            if (!hasPickedFloorMedkit && healIconTexture != null) {
-                float mx = Math.round((MEDKIT_X * PIXELS_PER_TILE) - 10f);
-                float my = Math.round((MEDKIT_Y * PIXELS_PER_TILE) - 10f + bob);
-                batch.draw(healIconTexture, mx, my, 20f, 20f);
-            }
+
             if (!herb2Collected) {
-                float hx = Math.round((HERB_2_X * PIXELS_PER_TILE) - 10f);
-                float hy = Math.round((HERB_2_Y * PIXELS_PER_TILE) - 10f + bob);
-                batch.setColor(0.3f, 1.0f, 0.4f, 1.0f);
-                if (healIconTexture != null) {
-                    batch.draw(healIconTexture, hx, hy, 20f, 20f);
+                float herbSize = HERB_DRAW_SIZE;
+                float hx = Math.round((HERB_2_X * PIXELS_PER_TILE) - (herbSize / 2f));
+                float hy = Math.round((HERB_2_Y * PIXELS_PER_TILE) - (herbSize / 2f) + bob);
+
+                batch.setColor(Color.WHITE);
+                if (currentHerbFrame != null) {
+                    batch.draw(currentHerbFrame, hx, hy, herbSize, herbSize);
                 } else if (markerTexture != null) {
                     batch.draw(markerTexture, hx, hy, 16f, 16f);
                 }
-                batch.setColor(Color.WHITE);
             }
+
+            batch.setColor(Color.WHITE);
         }
 
         batch.end();
@@ -2971,25 +3340,105 @@ public class GameScreen implements Screen {
         }
 
         // 5d. Rescued / Stranded Villagers (Follow squad across all levels)
+        // Dr. Ramirez (v1) uses v1 sprites, Nurse Claire (v2) uses v2 sprites.
         for (LevelVillager v : levelVillagers) {
             if (v.isDead) continue;
-            float vx = Math.round((v.x * PIXELS_PER_TILE) - (idleFrameWidth * 0.8f / 2f));
+            if (!v.isRescued && levelNumber != 1) continue;
+
+            boolean isV2 = "v2".equals(v.id);
+
+            // Normal mapping:
+            // v1 id -> v1/v1_idle assets
+            // v2 id -> v2/v2_idle assets
+            TextureRegion[][] walkFramesForVillager = isV2
+                    ? villagerV2WalkFrames
+                    : villagerV1WalkFrames;
+            TextureRegion[][] idleFramesForVillager = isV2
+                    ? villagerV2IdleFrames
+                    : villagerV1IdleFrames;
+
+            int walkFrameWidthForVillager = isV2
+                    ? villagerV2WalkFrameWidth
+                    : villagerV1WalkFrameWidth;
+            int walkFrameHeightForVillager = isV2
+                    ? villagerV2WalkFrameHeight
+                    : villagerV1WalkFrameHeight;
+
+            int idleFrameWidthForVillager = isV2
+                    ? villagerV2IdleFrameWidth
+                    : villagerV1IdleFrameWidth;
+            int idleFrameHeightForVillager = isV2
+                    ? villagerV2IdleFrameHeight
+                    : villagerV1IdleFrameHeight;
+
+            TextureRegion villagerFrame;
+            int baseFrameWidth;
+            int baseFrameHeight;
+            boolean usingIdleFrame = false;
+
+            int row = Math.max(0, Math.min(3, v.facing));
+
+            if (v.moving && walkFramesForVillager != null) {
+                int frame = ((int) (v.stateTime / VILLAGER_WALK_FRAME_DURATION)) % 8;
+                villagerFrame = walkFramesForVillager[row][frame];
+                baseFrameWidth = walkFrameWidthForVillager;
+                baseFrameHeight = walkFrameHeightForVillager;
+            } else if (idleFramesForVillager != null) {
+                int frame = ((int) (v.stateTime / VILLAGER_IDLE_FRAME_DURATION)) % 8;
+                villagerFrame = idleFramesForVillager[row][frame];
+                baseFrameWidth = idleFrameWidthForVillager;
+                baseFrameHeight = idleFrameHeightForVillager;
+                usingIdleFrame = true;
+            } else if (walkFramesForVillager != null) {
+                // If an idle sheet is missing, keep the character visible
+                // using the first walking frame for its current facing.
+                villagerFrame = walkFramesForVillager[row][0];
+                baseFrameWidth = walkFrameWidthForVillager;
+                baseFrameHeight = walkFrameHeightForVillager;
+            } else {
+                // Never fall back to player sprites.
+                continue;
+            }
+
+            float drawScale = VILLAGER_SCALE;
+
+            // v2.png walking frames: +30%
+            if (isV2 && !usingIdleFrame) {
+                drawScale *= V2_WALK_SCALE_MULTIPLIER;
+            }
+
+            // v1_idle.png idle frames: +30%
+            if (!isV2 && usingIdleFrame) {
+                drawScale *= V1_IDLE_SCALE_MULTIPLIER;
+            }
+
+            // v2_idle.png idle frames: +30%
+            if (isV2 && usingIdleFrame) {
+                drawScale *= V2_IDLE_SCALE_MULTIPLIER;
+            }
+
+            float drawWidth = baseFrameWidth * drawScale;
+            float drawHeight = baseFrameHeight * drawScale;
+
+            // Keep the sprite centered on the same world X and anchored at the feet.
+            float vx = Math.round((v.x * PIXELS_PER_TILE) - (drawWidth / 2f));
             float vy = Math.round((v.y * PIXELS_PER_TILE) - SPRITE_FEET_INSET_PX);
+
             if (!v.isRescued) {
                 batch.setColor(1.0f, 0.95f, 0.70f, 1.0f);
             } else {
-                batch.setColor(0.75f, 0.90f, 1.0f, 1.0f);
+                batch.setColor(Color.WHITE);
             }
-            batch.draw(idleFrames[0][0], vx, vy, idleFrameWidth * 0.8f, idleFrameHeight * 0.8f);
+            batch.draw(villagerFrame, vx, vy, drawWidth, drawHeight);
             batch.setColor(Color.WHITE);
 
             if (!v.isRescued) {
                 font.setColor(Color.YELLOW);
-                font.draw(batch, v.name, Math.round(v.x * PIXELS_PER_TILE - 28f), Math.round(vy + idleFrameHeight * 0.8f + 12f));
+                font.draw(batch, v.name, Math.round(v.x * PIXELS_PER_TILE - 28f), Math.round(vy + drawHeight + 12f));
                 font.setColor(Color.WHITE);
             } else if (v.isStaying) {
                 font.setColor(Color.ORANGE);
-                font.draw(batch, "[HOLD]", Math.round(v.x * PIXELS_PER_TILE - 18f), Math.round(vy + idleFrameHeight * 0.8f + 12f));
+                font.draw(batch, "[HOLD]", Math.round(v.x * PIXELS_PER_TILE - 18f), Math.round(vy + drawHeight + 12f));
                 font.setColor(Color.WHITE);
             }
         }
@@ -3005,18 +3454,28 @@ public class GameScreen implements Screen {
                 }
             }
         }
-               if (!hasPlayerJane) {
+        if (!hasPlayerJane) {
             TextureRegion jFrame = aiJaneAnim.currentFrame != null ? aiJaneAnim.currentFrame :
                     ((p2IdleMeleeFrames != null) ? p2IdleMeleeFrames[0][0]
-                    : ((p2IdleFrames != null) ? p2IdleFrames[0][0]
-                    : ((femaleFrames != null) ? femaleFrames[0][0] : idleFrames[0][0])));
+                     : ((p2IdleFrames != null) ? p2IdleFrames[0][0]
+                        : ((femaleFrames != null) ? femaleFrames[0][0] : idleFrames[0][0])));
             if (!isJaneRevived) {
-                if (levelNumber == 1) {
-                    float jx = Math.round((JANE_PHARMACY_X * PIXELS_PER_TILE) - (frameWidth * 0.8f / 2f));
-                    float jy = Math.round((JANE_PHARMACY_Y * PIXELS_PER_TILE) - SPRITE_FEET_INSET_PX);
-                    batch.setColor(0.9f, 0.7f, 0.8f, 0.95f);
-                    batch.draw(jFrame, jx, jy, frameWidth * 0.8f * FEMALE_SPRITE_SCALE, frameHeight * 0.8f * FEMALE_SPRITE_SCALE);
+                if (levelNumber == 1 && janeKnockedTexture != null) {
+                    float knockedWidth = janeKnockedTexture.getWidth() * JANE_KNOCKED_SCALE;
+                    float knockedHeight = janeKnockedTexture.getHeight() * JANE_KNOCKED_SCALE;
+
+                    // Center the lying sprite on Jane's pharmacy world position.
+                    float jx = Math.round((JANE_PHARMACY_X * PIXELS_PER_TILE) - (knockedWidth / 2f));
+                    float jy = Math.round((JANE_PHARMACY_Y * PIXELS_PER_TILE) - (knockedHeight / 2f));
+
                     batch.setColor(Color.WHITE);
+                    batch.draw(
+                            janeKnockedTexture,
+                            jx,
+                            jy,
+                            knockedWidth,
+                            knockedHeight
+                    );
                 }
             } else {
                 float jScale = FEMALE_MELEE_SCALE;
@@ -3045,10 +3504,24 @@ public class GameScreen implements Screen {
 
                 float drawX = Math.round((player.x * PIXELS_PER_TILE) - (anim.currentDrawWidth / 2f));
                 float drawY = Math.round((player.y * PIXELS_PER_TILE) - SPRITE_FEET_INSET_PX);
-                if (isUnconsciousJane) {
-                    batch.setColor(0.9f, 0.7f, 0.8f, 0.95f);
-                    batch.draw(currentFrame, drawX, drawY, anim.currentDrawWidth, anim.currentDrawHeight);
+
+                if (isUnconsciousJane && janeKnockedTexture != null) {
+                    float knockedWidth = janeKnockedTexture.getWidth() * JANE_KNOCKED_SCALE;
+                    float knockedHeight = janeKnockedTexture.getHeight() * JANE_KNOCKED_SCALE;
+
+                    // Before revival, always show the dedicated knocked Jane art,
+                    // even if Jane exists as Player 2 in the world snapshot.
+                    float knockedX = Math.round((JANE_PHARMACY_X * PIXELS_PER_TILE) - (knockedWidth / 2f));
+                    float knockedY = Math.round((JANE_PHARMACY_Y * PIXELS_PER_TILE) - (knockedHeight / 2f));
+
                     batch.setColor(Color.WHITE);
+                    batch.draw(
+                            janeKnockedTexture,
+                            knockedX,
+                            knockedY,
+                            knockedWidth,
+                            knockedHeight
+                    );
                 } else {
                     batch.draw(currentFrame, drawX, drawY, anim.currentDrawWidth, anim.currentDrawHeight);
                 }
@@ -3717,10 +4190,10 @@ public class GameScreen implements Screen {
         if (healIconTexture != null) {
             float badgeX = timerX + scaledTW + 180f;
             float badgeY = timerY + scaledTH - 32f;
-            float bSize = 32f;
+            float bSize = 48f; // heal_icon.png: +50% from previous 32px size
 
             batch.setColor(healCooldown > 0f ? new Color(0.6f, 0.6f, 0.6f, 0.7f) : Color.WHITE);
-            batch.draw(healIconTexture, badgeX, badgeY, bSize, bSize);
+            batch.draw(healIconTexture, badgeX, (badgeY - 6f), bSize, bSize);
             batch.setColor(Color.WHITE);
 
             font.setColor(0.910f, 0.690f, 0.165f, 1f);
@@ -5051,6 +5524,7 @@ public class GameScreen implements Screen {
 
     @Override
     public void hide() {
+        stopLevelMusic();
         client.setOnEvent(null);
         client.setOnLevelTransition(null);
     }
@@ -5196,6 +5670,7 @@ public class GameScreen implements Screen {
 
     @Override
     public void dispose() {
+        stopLevelMusic();
         if (batch != null) batch.dispose();
         if (shapes != null) shapes.dispose();
         if (font != null) font.dispose();
@@ -5204,6 +5679,11 @@ public class GameScreen implements Screen {
         if (markerTexture != null) markerTexture.dispose();
         if (playerTexture != null) playerTexture.dispose();
         if (idleTexture != null) idleTexture.dispose();
+        if (villagerV1WalkTexture != null) villagerV1WalkTexture.dispose();
+        if (villagerV1IdleTexture != null) villagerV1IdleTexture.dispose();
+        if (villagerV2WalkTexture != null) villagerV2WalkTexture.dispose();
+        if (villagerV2IdleTexture != null) villagerV2IdleTexture.dispose();
+        if (janeKnockedTexture != null) janeKnockedTexture.dispose();
         if (femalePlayerTexture != null) femalePlayerTexture.dispose();
         if (p2Texture != null) p2Texture.dispose();
         if (p2IdleTexture != null) p2IdleTexture.dispose();
@@ -5235,5 +5715,7 @@ public class GameScreen implements Screen {
         if (keyTexture != null) keyTexture.dispose();
         if (healIconTexture != null) healIconTexture.dispose();
         if (healEffectTexture != null) healEffectTexture.dispose();
+        if (herbTexture != null) herbTexture.dispose();
+        if (medicTexture != null) medicTexture.dispose();
     }
 }
