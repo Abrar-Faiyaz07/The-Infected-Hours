@@ -1,5 +1,11 @@
 # The Infected Hour
+## 🎥 Project Presentation
 
+<p align="center">
+  <a href="https://youtu.be/X8p334KBfes">
+    <img src="https://img.shields.io/badge/▶%20WATCH%20PROJECT%20PRESENTATION-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch Project Presentation">
+  </a>
+</p>
 A 2D top-down co-op action game built with **libGDX + JavaFX + Spring Boot** where players contain an escalating biological epidemic, rescue stranded survivors, complete containment objectives, and destroy the final Virus Heart.
 
 Developed as a final project for **CSE 4402: Visual Programming Lab**, Islamic University of Technology (IUT).
