@@ -2248,7 +2248,9 @@ public class GameScreen implements Screen {
             shapes.setProjectionMatrix(camera.combined);
             shapes.begin(ShapeRenderer.ShapeType.Filled);
 
-            if (snapshot.players != null) {
+            // Split-screen already has one HUD health bar per player. Drawing the world-space player
+            // bars after restoring the full viewport makes them appear detached in both camera panes.
+            if (!isDualViewDebugMode && snapshot.players != null) {
                 for (WorldSnapshot.PlayerState player : snapshot.players) {
                     if (!player.downed && player.hp > 0) {
                         float barW = 24f;
