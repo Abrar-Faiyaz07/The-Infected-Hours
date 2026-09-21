@@ -187,12 +187,10 @@ public class GameScreen implements Screen {
 
     // Level 1 ground pickup art
     // herb.png = 1 row x 2 animated frames
-    private Texture herbTexture;
     private TextureRegion[] herbFrames;
-    private int herbFrameWidth;
 
     // medic.png = single image
-    private Texture medicTexture;
+    private TextureRegion medicRegion;
 
     private static final float HERB_FRAME_DURATION = 0.30f;
 
@@ -1244,47 +1242,17 @@ public class GameScreen implements Screen {
         healIconTexture = loadTextureSafely("heal_icon.png");
         healEffectTexture = loadTextureSafely("heal_effect.png");
 
-        // Herb pickup: 2-frame horizontal spritesheet.
-        herbTexture = loadTextureSafely("herb.png");
-        if (herbTexture != null) {
-            herbTexture.setFilter(
-                    Texture.TextureFilter.Nearest,
-                    Texture.TextureFilter.Nearest
-            );
-
-            if (herbTexture.getWidth() % 2 != 0) {
-                Gdx.app.error(
-                        "GameScreen",
-                        "herb.png must contain 2 equal horizontal frames. Width found: "
-                                + herbTexture.getWidth()
-                );
-            }
-
-            herbFrameWidth = herbTexture.getWidth() / 2;
-            TextureRegion[][] herbSplit = TextureRegion.split(
-                    herbTexture,
-                    herbFrameWidth,
-                    herbTexture.getHeight()
-            );
-
-            if (herbSplit.length > 0 && herbSplit[0].length >= 2) {
-                herbFrames = new TextureRegion[]{
-                        herbSplit[0][0],
-                        herbSplit[0][1]
-                };
-            }
-        } else {
+        // Crop the transparent padding from each animation frame. The source is 475 px wide, so
+        // splitting it with TextureRegion.split used to discard a column and shrink the actual herb
+        // artwork until it was practically invisible in the world.
+        herbFrames = loadTrimmedHorizontalFrames("herb.png", 2);
+        if (herbFrames == null) {
             Gdx.app.error("GameScreen", "Missing ground pickup sprite: assets/herb.png");
         }
 
         // Floor medkit pickup: single image.
-        medicTexture = loadTextureSafely("medic.png");
-        if (medicTexture != null) {
-            medicTexture.setFilter(
-                    Texture.TextureFilter.Nearest,
-                    Texture.TextureFilter.Nearest
-            );
-        } else {
+        medicRegion = loadTrimmedRegion("medic.png");
+        if (medicRegion == null) {
             Gdx.app.error("GameScreen", "Missing ground pickup sprite: assets/medic.png");
         }
 
@@ -3069,6 +3037,82 @@ public class GameScreen implements Screen {
         return new TextureRegion(texture, minX, minY, maxX - minX + 1, maxY - minY + 1);
     }
 
+    /** Loads an uneven-width horizontal sheet and crops transparent padding independently per frame. */
+    private TextureRegion[] loadTrimmedHorizontalFrames(String path, int frameCount) {
+        com.badlogic.gdx.files.FileHandle file = Gdx.files.internal(path);
+        if (!file.exists() || frameCount <= 0) return null;
+
+        Pixmap pixmap;
+        try {
+            pixmap = new Pixmap(file);
+        } catch (RuntimeException e) {
+            Gdx.app.error("GameScreen", "Could not load " + path, e);
+            return null;
+        }
+
+        Texture texture = new Texture(pixmap);
+        texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        objectiveTextures.add(texture);
+
+        TextureRegion[] frames = new TextureRegion[frameCount];
+        int imageWidth = pixmap.getWidth();
+        int imageHeight = pixmap.getHeight();
+        for (int i = 0; i < frameCount; i++) {
+            int startX = (i * imageWidth) / frameCount;
+            int endX = ((i + 1) * imageWidth) / frameCount;
+            frames[i] = trimVisibleRegion(texture, pixmap, startX, 0, endX - startX, imageHeight);
+        }
+        pixmap.dispose();
+        return frames;
+    }
+
+    private static TextureRegion trimVisibleRegion(
+            Texture texture,
+            Pixmap pixmap,
+            int regionX,
+            int regionY,
+            int regionWidth,
+            int regionHeight
+    ) {
+        int corner = pixmap.getPixel(regionX, regionY);
+        boolean solidBackground = (corner & 0xff) > 200;
+        int minX = regionWidth, minY = regionHeight, maxX = -1, maxY = -1;
+
+        for (int y = 0; y < regionHeight; y++) {
+            for (int x = 0; x < regionWidth; x++) {
+                int px = pixmap.getPixel(regionX + x, regionY + y);
+                boolean content;
+                if (solidBackground) {
+                    int dr = Math.abs(((px >>> 24) & 0xff) - ((corner >>> 24) & 0xff));
+                    int dg = Math.abs(((px >>> 16) & 0xff) - ((corner >>> 16) & 0xff));
+                    int db = Math.abs(((px >>> 8) & 0xff) - ((corner >>> 8) & 0xff));
+                    content = dr + dg + db > 60;
+                } else {
+                    content = (px & 0xff) > 40;
+                }
+                if (content) {
+                    minX = Math.min(minX, x);
+                    minY = Math.min(minY, y);
+                    maxX = Math.max(maxX, x);
+                    maxY = Math.max(maxY, y);
+                }
+            }
+        }
+
+        if (maxX < 0) return new TextureRegion(texture, regionX, regionY, regionWidth, regionHeight);
+        minX = Math.max(0, minX - 1);
+        minY = Math.max(0, minY - 1);
+        maxX = Math.min(regionWidth - 1, maxX + 1);
+        maxY = Math.min(regionHeight - 1, maxY + 1);
+        return new TextureRegion(
+                texture,
+                regionX + minX,
+                regionY + minY,
+                maxX - minX + 1,
+                maxY - minY + 1
+        );
+    }
+
     /** Draws a sprite centred on a tile position, fitted inside a box of the given size (keeps aspect ratio). */
     private void drawObjectiveSprite(TextureRegion region, float tileX, float tileY, float boxSize, float bob) {
         float rw = region.getRegionWidth(), rh = region.getRegionHeight();
@@ -3350,41 +3394,29 @@ public class GameScreen implements Screen {
             }
 
             if (!herb1Collected) {
-                float herbSize = HERB_DRAW_SIZE;
-                float hx = Math.round((HERB_1_X * PIXELS_PER_TILE) - (herbSize / 2f));
-                float hy = Math.round((HERB_1_Y * PIXELS_PER_TILE) - (herbSize / 2f) + bob);
-
                 batch.setColor(Color.WHITE);
                 if (currentHerbFrame != null) {
-                    batch.draw(currentHerbFrame, hx, hy, herbSize, herbSize);
+                    drawObjectiveSprite(currentHerbFrame, HERB_1_X, HERB_1_Y, HERB_DRAW_SIZE, bob);
                 } else if (markerTexture != null) {
-                    batch.draw(markerTexture, hx, hy, 16f, 16f);
+                    drawMarkerSquare(HERB_1_X, HERB_1_Y, 16f, Color.GREEN);
                 }
             }
 
             if (!hasPickedFloorMedkit) {
-                float medicSize = MEDIC_DRAW_SIZE;
-                float mx = Math.round((MEDKIT_X * PIXELS_PER_TILE) - (medicSize / 2f));
-                float my = Math.round((MEDKIT_Y * PIXELS_PER_TILE) - (medicSize / 2f) + bob);
-
                 batch.setColor(Color.WHITE);
-                if (medicTexture != null) {
-                    batch.draw(medicTexture, mx, my, medicSize, medicSize);
+                if (medicRegion != null) {
+                    drawObjectiveSprite(medicRegion, MEDKIT_X, MEDKIT_Y, MEDIC_DRAW_SIZE, bob);
                 } else if (markerTexture != null) {
-                    batch.draw(markerTexture, mx, my, 16f, 16f);
+                    drawMarkerSquare(MEDKIT_X, MEDKIT_Y, 16f, Color.WHITE);
                 }
             }
 
             if (!herb2Collected) {
-                float herbSize = HERB_DRAW_SIZE;
-                float hx = Math.round((HERB_2_X * PIXELS_PER_TILE) - (herbSize / 2f));
-                float hy = Math.round((HERB_2_Y * PIXELS_PER_TILE) - (herbSize / 2f) + bob);
-
                 batch.setColor(Color.WHITE);
                 if (currentHerbFrame != null) {
-                    batch.draw(currentHerbFrame, hx, hy, herbSize, herbSize);
+                    drawObjectiveSprite(currentHerbFrame, HERB_2_X, HERB_2_Y, HERB_DRAW_SIZE, bob);
                 } else if (markerTexture != null) {
-                    batch.draw(markerTexture, hx, hy, 16f, 16f);
+                    drawMarkerSquare(HERB_2_X, HERB_2_Y, 16f, Color.GREEN);
                 }
             }
 
@@ -5976,7 +6008,5 @@ public class GameScreen implements Screen {
         if (keyTexture != null) keyTexture.dispose();
         if (healIconTexture != null) healIconTexture.dispose();
         if (healEffectTexture != null) healEffectTexture.dispose();
-        if (herbTexture != null) herbTexture.dispose();
-        if (medicTexture != null) medicTexture.dispose();
     }
 }
