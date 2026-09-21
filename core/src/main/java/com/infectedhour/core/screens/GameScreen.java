@@ -4234,13 +4234,11 @@ public class GameScreen implements Screen {
         if (levelNumber != 2 || markerTexture == null) return;
         for (CampaignLevelPlan.Feature feature : levelFeatures) {
             if (completedFeatureIds.contains(feature.actionId())) continue;
+            // Survivors and the zombie patrol are shown by their own sprites; only relays need a marker
+            if (feature.type() != CampaignLevelPlan.FeatureType.POWER_RELAY) continue;
 
-            Color tint = switch (feature.type()) {
-                case ZOMBIE_ENCOUNTER -> new Color(0.82f, 0.18f, 0.16f, 0.60f);
-                case SURVIVOR -> new Color(0.20f, 0.78f, 0.67f, 0.82f);
-                case POWER_RELAY -> new Color(0.94f, 0.70f, 0.15f, 0.82f);
-            };
-            float size = feature.type() == CampaignLevelPlan.FeatureType.ZOMBIE_ENCOUNTER ? 54f : 30f;
+            Color tint = new Color(0.94f, 0.70f, 0.15f, 0.82f);
+            float size = 30f;
             float x = feature.tileX() * PIXELS_PER_TILE - size / 2f;
             float y = feature.tileY() * PIXELS_PER_TILE - size / 2f;
             batch.setColor(tint);
