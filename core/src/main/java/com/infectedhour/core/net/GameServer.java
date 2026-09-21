@@ -830,7 +830,7 @@ public class GameServer {
                 .findFirst()
                 .orElse(null);
 
-        float hp = player == null ? 100f : player.getHp();
+        float hp = player == null ? GameConstants.PLAYER_MAX_HP : player.getHp();
         float personalContamination = player == null ? 0f : player.getPersonalContaminationPct();
         String character = player == null ? null : player.getCharacter().name();
 

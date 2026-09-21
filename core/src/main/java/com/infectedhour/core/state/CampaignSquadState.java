@@ -14,7 +14,7 @@ public final class CampaignSquadState {
 
     public static int coins = 0;
     public static boolean isJaneRevived = false;
-    public static float janeHp = 100f;
+    public static float janeHp = com.infectedhour.shared.constants.GameConstants.PLAYER_MAX_HP;
     public static boolean hasMachete = true;
     public static boolean isMacheteEquipped = true;
     public static boolean hasBomb = false;
@@ -37,7 +37,7 @@ public final class CampaignSquadState {
     public static void reset() {
         coins = 0;
         isJaneRevived = false;
-        janeHp = 100f;
+        janeHp = com.infectedhour.shared.constants.GameConstants.PLAYER_MAX_HP;
         hasMachete = true;
         isMacheteEquipped = true;
         hasBomb = false;

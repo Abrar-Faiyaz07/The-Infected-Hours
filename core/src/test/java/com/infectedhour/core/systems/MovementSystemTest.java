@@ -124,7 +124,7 @@ class MovementSystemTest {
     void downedPlayersDoNotMove() {
         MovementSystem movement = openFieldMovement();
         Player player = playerAt(10f, 10f);
-        player.applyDamage(999f); // drops the player into the revive window
+        player.applyDamage(player.getHp()); // drops the player into the revive window
 
         movement.apply(player, input(1f, 1f), ONE_TICK);
 

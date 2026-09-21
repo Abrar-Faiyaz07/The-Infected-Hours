@@ -303,7 +303,7 @@ public class GameScreen implements Screen {
     private static final float JANE_KNOCKED_SCALE = 0.25f;
     private boolean isJaneRevived = false;
     private float janeX = 40.0f, janeY = 8.0f;
-    private float janeHp = 100f, janeMaxHp = 100f;
+    private float janeHp = GameConstants.PLAYER_MAX_HP, janeMaxHp = GameConstants.PLAYER_MAX_HP;
     private float janeAttackCooldown = 0f;
     private float janeMedkitTimer = 60.0f;
     private int janeMedkitsProduced = 0;
@@ -857,7 +857,7 @@ public class GameScreen implements Screen {
             isJaneRevived = false;
             janeX = 40.0f;
             janeY = 8.0f;
-            janeHp = 100f;
+            janeHp = GameConstants.PLAYER_MAX_HP;
             janeMedkitTimer = 60.0f;
             coins = CampaignSquadState.coins;
             hasBomb = CampaignSquadState.hasBomb;
@@ -884,7 +884,7 @@ public class GameScreen implements Screen {
             isJaneRevived = true;
             janeX = 3.5f;
             janeY = 37.22f;
-            janeHp = CampaignSquadState.janeHp > 0f ? CampaignSquadState.janeHp : 100f;
+            janeHp = CampaignSquadState.janeHp > 0f ? CampaignSquadState.janeHp : GameConstants.PLAYER_MAX_HP;
 
             // Rescued hospital villagers carry over as active followers
             levelVillagers.clear();
@@ -932,7 +932,7 @@ public class GameScreen implements Screen {
             boolean squadStartsAtCheckpoint = levelNumber >= 3 && levelNumber <= 6;
             janeX = squadStartsAtCheckpoint ? levelStart.spawnTileX() + 1.0f : 28.0f;
             janeY = squadStartsAtCheckpoint ? levelStart.spawnTileY() : 10.0f;
-            janeHp = CampaignSquadState.janeHp > 0f ? CampaignSquadState.janeHp : 100f;
+            janeHp = CampaignSquadState.janeHp > 0f ? CampaignSquadState.janeHp : GameConstants.PLAYER_MAX_HP;
 
             levelVillagers.clear();
             if (levelNumber == 3) {
@@ -1697,14 +1697,14 @@ public class GameScreen implements Screen {
                     showBanner("First Aid on cooldown (" + String.format("%.1f", healCooldown) + "s)");
                 }
             } else if (healCooldown <= 0f) {
-                if (me.hp < 100f) {
+                if (me.hp < GameConstants.PLAYER_MAX_HP) {
                     healCooldown = MAX_HEAL_COOLDOWN;
                     healEffectTimer = 1.5f;
                     healFloatingTextTimer = 1.5f;
                     client.sendEvent("PLAYER_HEAL", String.valueOf(healAmt));
                     showBanner("Used First Aid! (+" + (int) healAmt + " HP)");
                 } else {
-                    showBanner("Health is already full (100 HP)!");
+                    showBanner("Health is already full (" + (int) GameConstants.PLAYER_MAX_HP + " HP)!");
                 }
             } else {
                 showBanner("First Aid on cooldown (" + String.format("%.1f", healCooldown) + "s)");
@@ -2353,7 +2353,7 @@ public class GameScreen implements Screen {
                         shapes.rect(px - 1f, py - 1f, barW + 2f, barH + 2f);
 
                         shapes.setColor(Color.GREEN);
-                        shapes.rect(px, py, barW * (player.hp / 100f), barH);
+                        shapes.rect(px, py, barW * (player.hp / GameConstants.PLAYER_MAX_HP), barH);
                     }
                 }
             }
@@ -4421,9 +4421,9 @@ public class GameScreen implements Screen {
         if (snapshot != null) {
             WorldSnapshot.PlayerState me = client.findLocalPlayer(snapshot);
             if (me != null && !me.downed && me.hp > 0f) {
-                if (me.hp <= 35f && damagedScreen2Texture != null) {
+                if (me.hp <= GameConstants.PLAYER_MAX_HP * 0.35f && damagedScreen2Texture != null) {
                     batch.draw(damagedScreen2Texture, 0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
-                } else if (me.hp <= 70f && damagedScreen1Texture != null) {
+                } else if (me.hp <= GameConstants.PLAYER_MAX_HP * 0.70f && damagedScreen1Texture != null) {
                     batch.draw(damagedScreen1Texture, 0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
                 }
             }
@@ -4472,7 +4472,7 @@ public class GameScreen implements Screen {
         if (snapshot != null) {
             WorldSnapshot.PlayerState me = client.findLocalPlayer(snapshot);
             if (me != null) {
-                float hpPercent = Math.max(0f, Math.min(me.hp, 100f)) / 100f;
+                float hpPercent = Math.max(0f, Math.min(me.hp, GameConstants.PLAYER_MAX_HP)) / GameConstants.PLAYER_MAX_HP;
 
                 float barX = timerX + scaledTW + (scaledTW > 0 ? 15f : 0f);
                 float barWidth = 150f, barHeight = 14f;
@@ -4496,7 +4496,7 @@ public class GameScreen implements Screen {
             }
 
             if (p2State != null) {
-                float p2HpPercent = Math.max(0f, Math.min(p2State.hp, 100f)) / 100f;
+                float p2HpPercent = Math.max(0f, Math.min(p2State.hp, GameConstants.PLAYER_MAX_HP)) / GameConstants.PLAYER_MAX_HP;
                 float barWidth = 150f, barHeight = 14f;
 
                 shapes.setColor(0.2f, 0.2f, 0.2f, 0.8f);
