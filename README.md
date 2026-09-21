@@ -147,24 +147,19 @@ infected-hour/
 ## 5. Team Contributions
 
 ### Abrar Faiyaz
-- **Campaign & Gameplay Flow:** Built the 6-level campaign progression, level transitions, narrative story screens with voice-overs, and cinematic sequences.
-- **Rescue & Economy:** Implemented the villager rescue & escort AI, field healing mechanics (`[H]`), herb crafting recipes, and coin reward economy.
-- **HUD & UI:** Built the single-window menu, in-game HUDs (minimap, health panels, objective checklist overlay `[O]`), and pause menus.
+- **Campaign & Gameplay:** Built the 6-level campaign progression, level transitions, story/cinematic sequences, and rescue/escort gameplay.
+- **UI & Gameplay Systems:** Developed the main menu, HUD, minimap, objective system, pause menus, healing, crafting, and coin economy.
 - **Networking & Integration:** Configured LAN co-op and Radmin VPN integration, dynamic backend routing, and master branch merges.
-- **Database Implementation:** Implemented the complete database system, including database architecture, entities, repositories, persistence, and database-related integration.
+- **Database Implementation:** Implemented the complete database system, including its architecture, entities, repositories, and persistence.
 
 ### Sadnan Kibria
-- **Main Character Movement:** Implemented the main character movement system, including player movement, controls, and related movement mechanics.
-- **Combat Mechanics:** Developed the main character combat mechanics, including attacks, combat interactions, attack behavior, and related gameplay systems.
-- **Final Boss Fight Architecture:** Authored and implemented the multi-phase final boss encounter (`BossScreen.java`) with AI state machine, attack patterns, and camera screenshakes.
-- **Boss Combat Mechanics:** Programmed boss laser beams, bio-aura bursts, shockwaves, and stun reactions.
-- **Aseprite Sprite Sheets & Animation:** Created and integrated Aseprite sprite sheets and animations for characters, villagers, medical items, knocked-out states, and other gameplay elements.
-- **Inventory System:** Implemented the inventory system and its related gameplay functionality.
-- **Inventory Database:** Implemented the inventory database and its integration with the inventory system.
-- **Audio & Assets:** Integrated sound effects (machete, laser, bomb) and stage soundtrack catalogs.
+- **Player Movement & Combat:** Implemented the main character movement and combat mechanics, including attacks and related gameplay interactions.
+- **Boss System:** Developed the multi-phase final boss fight, including boss AI, attack patterns, laser beams, shockwaves, bio-aura, and stun mechanics.
+- **Sprites & Assets:** Created and integrated Aseprite sprite sheets, animations, and related game assets.
+- **Inventory:** Implemented the inventory system and inventory database integration.
 
 ### AKM Azimul Ashique Khan
 - **Collision Grid Authoring:** Generated and refined walkability grids for Levels 1–5 from painted map masks using the custom grid tool.
 - **Map & Collision Fixes:** Resolved doorway alignment, pass-through wall bugs, stair transitions, and map reachability.
-- **Checkpoints & Persistence:** Implemented local save slots and checkpoint mechanisms.
+- **Checkpoints & Persistence:** Implemented local save slots, checkpoint mechanisms, and database architecture documentation.
 - **Core Architecture:** Contributed to the initial multi-module skeleton, entity model designs, and baseline networking.
