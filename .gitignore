@@ -32,3 +32,4 @@ replay_pid*.log
 # Regenerable TTS paragraph cache and intermediate WAV mixes.
 audio/voice-production/generated/
 audio/voice-production/tools/
+archive_untracked_files/

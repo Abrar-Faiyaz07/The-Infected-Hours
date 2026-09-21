@@ -1,145 +1,146 @@
 # The Infected Hour
 
-2D top-down co-op action game — contain an epidemic, destroy the Virus Heart.
-CSE 4402 Visual Programming Lab, Islamic University of Technology.
-6-day sprint (v2.0) — see `docs/` for the full specs this skeleton was built from.
+A 2D top-down co-op action game built with **libGDX + JavaFX + Spring Boot** where players contain an escalating biological epidemic, rescue stranded survivors, complete containment objectives, and destroy the final Virus Heart.
 
-Boss/combat implementation research and the adaptation plan for the Level 3
-Virus Heart fight are documented in
-[`docs/09_PROMISE_BENEATH_THE_STORM_REFERENCE.md`](docs/09_PROMISE_BENEATH_THE_STORM_REFERENCE.md).
+Developed as a final project for **CSE 4402: Visual Programming Lab**, Islamic University of Technology (IUT).
 
-## Module layout (TRD §3)
+---
+
+## 1. System Overview
+
+This build features a playable vertical slice of the multi-level campaign, complete with combat, NPC escort AI, networking, and meta-systems:
+
+| System / Feature | Status | Key File(s) |
+| :--- | :---: | :--- |
+| **JavaFX Pre-Game Launcher** (Login, Lobby, Dossiers, Settings) | Complete | `fx-launcher/.../views/`, `MainMenuController.java` |
+| **libGDX Desktop Handoff & Single-Window Runner** | Complete | `core/bridge/GameBridge.java`, `Lwjgl3Launcher.java` |
+| **In-Game Main Menu & Operative Dossiers** | Complete | `core/screens/MainMenuScreen.java` |
+| **Character Selection** (Elric / Jane with unique stats & weapons) | Complete | `core/screens/MainMenuScreen.java`, `Player.java` |
+| **Level Briefing & Squad Ready Gate** | Complete | `core/screens/LevelBriefingScreen.java` |
+| **Level 1 — Hospital Containment** (Crafting, Revive, Swarm) | Playable | `core/screens/GameScreen.java`, `maps/level1.map` |
+| **Senseless Jane Revive Sequence** (Herb Crafting) | Complete | `core/screens/GameScreen.java` |
+| **Villager Rescue & Escort AI** (Follow, Bite reaction, First Aid) | Complete | `core/entities/Villager.java`, `GameScreen.java` |
+| **Campaign Levels 2–5 Progression** (Upper Wing, Road, Perimeter) | Playable | `core/level/LevelDefinition.java`, `CampaignLevelPlan.java` |
+| **Level 6 Final Boss Fight** (Multi-phase, Laser, Shockwave, Aura) | Playable | `core/screens/BossScreen.java`, `BossPhaseSystem.java` |
+| **Story Sequences & Cinematics** (Typewriter dialogue, Voice-overs) | Complete | `core/screens/StoryPanelScreen.java` |
+| **HUD Overlay** (Health, Contamination Meter, Minimap, Coins, Objective Checklist `[O]`) | Complete | `core/screens/GameScreen.java`, `MiniMap.java` |
+| **Host-Authoritative LAN Co-Op** (KryoNet TCP/UDP, 60Hz Sim, Interpolation) | Complete | `core/net/GameServer.java`, `GameClient.java` |
+| **LAN Lobby Auto-Discovery** (UDP Broadcast on 54778) | Complete | `shared/net/LanDiscovery.java` |
+| **Spring Boot Backend** (Auth, Saves, Match History, H2 Database) | Complete | `backend/.../InfectedHourBackendApplication.java` |
+| **Save / Checkpoint System** (Ctrl+S save screen, 22 Checkpoints) | Complete | `backend/service/PlayerService.java`, `GameScreen.java` |
+
+---
+
+## 2. Running the Application
+
+Prerequisites: **JDK 21** and Gradle (wrapper included).
+
+### Option 1: Direct Game Execution (Single-Window / Testing)
+```bash
+# 1. Start Spring Boot Backend (Terminal 1)
+./gradlew :backend:bootRun
+
+# 2. Run Game directly (Terminal 2)
+./gradlew :lwjgl3:run
+```
+*(Windows: use `.\gradlew.bat`)*
+
+### Option 2: Full JavaFX Launcher & LAN Co-Op
+```bash
+# Host Machine:
+./gradlew :backend:bootRun
+./gradlew :fx-launcher:run
+
+# Client Machine (Same LAN / Wi-Fi):
+./gradlew :fx-launcher:run
+```
+
+### Option 3: Run Automated Test Suite
+```bash
+./gradlew test
+```
+
+---
+
+## 3. Controls Reference
+
+| Action | Key / Input |
+| :--- | :--- |
+| **Movement** | `W`, `A`, `S`, `D` |
+| **Attack** | `SPACE` or `Left Click` |
+| **Interact / Rescue / Revive** | `E` |
+| **First Aid (Self / Villager)** | `H` |
+| **Objective Checklist** | `O` |
+| **Dodge / Dash** | `SHIFT` or `X` |
+| **Parry (Boss)** | `F` or `Q` |
+| **Pause / Menu** | `ESC` |
+| **Fullscreen Toggle** | `F11` |
+
+---
+
+## 4. Project File Structure
 
 ```
 infected-hour/
-├── shared/       DTOs + KryoNet message classes + constants — no libGDX/Spring deps
-├── core/         libGDX game logic: entities, systems, KryoNet networking, HUD, levels
-├── lwjgl3/       LWJGL3 desktop backend — booted by fx-launcher, or run directly as a dev shortcut
-├── fx-launcher/  JavaFX pre-game app: login, lobby, settings, profile, leaderboards, results
-├── backend/      Spring Boot: player profiles, saves, matches, leaderboards (H2 + JWT)
-├── docs/         Source specs (PRD, TRD, UI/UX, App Flow, Backend Schema) — authoritative
-└── assets/       Sprites, tilesets, audio, fonts (see ASSETS_CREDITS.md)
+├── build.gradle.kts                   <- Multi-project build configuration (Java 21)
+├── README.md
+├── assets/                            <- Textures, spritesheets, audio, maps, fonts
+│   ├── female/                        <- Jane operative animations & portraits
+│   ├── Villager/                      <- NPC escort sprite sheets
+│   └── music/                         <- Soundtrack catalog & sound effects
+├── shared/                            <- Zero-dependency shared data contracts
+│   └── src/main/java/com/infectedhour/shared/
+│       ├── constants/                 <- GameConstants, tile dimensions, ports
+│       ├── dto/                       <- Auth, match, and save DTOs
+│       ├── net/                       <- LanDiscovery (UDP 54778)
+│       └── network/                   <- InputCommand, WorldSnapshot, network packets
+├── core/                              <- Core libGDX engine & gameplay logic
+│   └── src/main/java/com/infectedhour/core/
+│       ├── InfectedHourGame.java      <- Main libGDX Game lifecycle coordinator
+│       ├── bridge/GameBridge.java     <- Thread-safe JavaFX <-> libGDX bridge
+│       ├── entities/                  <- Player, Enemy, Villager, ContaminationZone
+│       ├── level/                     <- LevelDefinition, TileMap, CampaignLevelPlan
+│       ├── net/                       <- GameServer (60Hz), GameClient, SnapshotInterpolator
+│       ├── screens/                   <- MainMenuScreen, LevelBriefingScreen, GameScreen, BossScreen, StoryPanelScreen
+│       ├── systems/                   <- CollisionSystem, AISystem, ContaminationSystem, ObjectiveSystem
+│       └── ui/                        <- Hud, MiniMap, InventoryHotbar
+├── lwjgl3/                            <- LWJGL3 desktop backend entrypoint
+│   └── src/main/java/com/infectedhour/lwjgl3/
+│       └── Lwjgl3Launcher.java        <- Desktop bootstrapper
+├── fx-launcher/                       <- Pre-game JavaFX desktop application
+│   └── src/main/java/com/infectedhour/fxlauncher/
+│       ├── LauncherApplication.java   <- JavaFX entry point
+│       ├── bridge/                    <- GameLauncherBridge
+│       ├── net/BackendClient.java     <- HTTP client for Spring Boot REST API
+│       └── views/                     <- Controllers & views (Login, Lobby, Dossiers, Settings)
+└── backend/                           <- Spring Boot REST backend
+    └── src/main/java/com/infectedhour/backend/
+        ├── InfectedHourBackendApplication.java
+        ├── entity/                    <- User, Player, Match, SaveState, LevelResult
+        ├── repository/                <- Spring Data JPA repositories
+        ├── security/                  <- JwtAuthFilter, JwtService, SecurityConfig
+        └── service/                   <- AuthService, MatchService, PlayerService
 ```
 
-## Architecture at a glance
+---
 
-- **JavaFX ↔ libGDX handoff (TRD §2):** app starts as JavaFX (`fx-launcher`). On match
-  start, `GameLauncherBridge` hides the FX stage and boots a libGDX `Lwjgl3Application`
-  on its own dedicated thread. Never touch Gdx from the FX thread or vice versa —
-  everything crosses through `core.bridge.GameBridge`.
-- **Networking (TRD §5) — implemented and tested:** host-authoritative. Laptop A (Elric)
-  runs `core.net.GameServer` (KryoNet, TCP 54555 + UDP 54777, 60Hz sim, 20Hz snapshot
-  broadcast). Laptop B (Jane) runs `core.net.GameClient` — sends input at 30Hz, renders
-  via snapshot interpolation (`SnapshotInterpolator`, 100ms buffer). **No client-side
-  prediction** in this build. Lobby discovery is a UDP broadcast on **54778**
-  (`shared.net.LanDiscovery`) — *not* 54777, which KryoNet already owns; see
-  `docs/07_CHANGE_LOG_LAN_AND_MENU.md` §2.
-  The host also runs a client against its own loopback, so both players are created by
-  the same join handshake and there is no "local player" special case.
-- **Backend (Backend Schema doc):** single Spring Boot instance, run on the host laptop,
-  both laptops call the same `http://<host-ip>:8080`. H2 file DB only. JWT auth (HS256,
-  12h). `POST /matches/{id}/complete` is the single-transaction source of truth for
-  saves + leaderboards (business rules in Backend Schema §7, implemented in `MatchService`).
+## 5. Team Contributions (From Git Commit History)
 
-## Running
+### Abrar Faiyaz
+- **Campaign & Gameplay Flow:** Built the 6-level campaign progression, level transitions, narrative story screens with voice-overs, and cinematic sequences.
+- **Character & Combat Systems:** Added Elric and Jane character selection, attack combos, sprite animations, and hitbox scaling.
+- **Rescue & Economy:** Implemented the villager rescue & escort AI, field healing mechanics (`[H]`), herb crafting recipes, and coin reward economy.
+- **HUD & UI:** Built the single-window menu, in-game HUDs (minimap, health panels, objective checklist overlay `[O]`), and pause menus.
+- **Networking & Integration:** Configured LAN co-op and Radmin VPN integration, dynamic backend routing, and master branch merges.
 
-```bash
-./gradlew :backend:bootRun       # Spring Boot backend (host laptop only)
-./gradlew :fx-launcher:run       # full game, each laptop
-./gradlew :lwjgl3:run            # dev shortcut: skips JavaFX, boots host-solo directly
-./gradlew test                   # all unit + MockMvc/integration tests
-```
+### Sadnan Kibria
+- **Final Boss Fight Architecture:** Authored and implemented the multi-phase final boss encounter (`BossScreen.java`) with AI state machine, attack patterns, and camera screenshakes.
+- **Combat Mechanics:** Programmed boss laser beams, bio-aura bursts, shockwaves, and stun reactions.
+- **Audio & Assets:** Integrated sound effects (machete, laser, bomb) and stage soundtrack catalogs.
+- **Sprites & Animation:** Created and integrated Aseprite sprite sheets for villagers, medical items, and knocked-out states.
 
-### Testing co-op without a second laptop
-
-Two windows on one machine exercise the entire networking path — discovery aside:
-
-```bash
-./gradlew :lwjgl3:run
-```
-
-```bash
-./gradlew :lwjgl3:run --args="join"
-```
-
-Press `E` in both to clear the ready gate, then move with `WASD` in either window;
-both windows render both players from the host's snapshots. `--args="join <ip>"`
-targets a real host on the LAN.
-
-> The network tests bind the real ports. Close any running copy of the game before
-> `./gradlew test`, or `bind()` fails with "Address already in use".
-
-### Two-laptop checklist
-
-Allow inbound **TCP 54555** and **UDP 54777/54778** for Java on the host — a
-firewall prompt nobody clicked is the usual reason "no host answered". Full run
-book in `docs/07_CHANGE_LOG_LAN_AND_MENU.md` §6.
-
-## Status
-
-**Done and verified:** the backend, the critical game logic (contamination math,
-objective state machine, boss phase machine), the JavaFX main menu, and the whole
-LAN networking layer — discovery, join handshake, authoritative 60Hz sim, 20Hz
-snapshot broadcast with cloud deltas, snapshot interpolation, disconnect/reconnect,
-and the READY sync gates. Two instances connect and share one simulation; see
-`Images/verification/` for screenshots and `docs/07_CHANGE_LOG_LAN_AND_MENU.md`
-for what changed and why.
-
-**Not done:** everything that draws or simulates the actual level — Tiled map
-loading, collision, enemy AI, cloud BFS expansion, sprites, audio, and the Scene2D
-HUD. In-game entities are currently coloured quads. These are marked with
-`TEAMMATE TASK` blocks.
-
-### Course / PRD Definition of Done checklist (PRD §13)
-
-- [x] Two laptops host/join on LAN (**networking done**; completing all 3 levels needs the level content below)
-- [ ] All 6 mission types implemented (`core.systems.ObjectiveSystem` types)
-- [ ] 3-phase boss fight functional (`core.systems.BossPhaseSystem` — logic done, rendering TODO)
-- [ ] HUD: health, contamination, global meter, inventory, minimap (`core.ui` — structure done, rendering TODO)
-- [ ] 4 story panel sequences (`core.screens.StoryPanelScreen` — sync + typewriter done, art/copy TODO)
-- [x] Backend live: login, save sync, leaderboard, match history (`backend` module)
-- [ ] Stable 60 FPS, no crashes across a full playthrough
-
-### Finding your tasks — the TEAMMATE TASK convention
-
-Every unfinished piece of code is marked with a detailed placeholder block that
-explains WHAT to build, HOW to build it step by step, and WHICH doc section it
-comes from. To list all of them:
-
-```bash
-grep -rn "TEAMMATE TASK" --include="*.java" .
-```
-
-Or filter by area (each TODO is tagged):
-
-```bash
-grep -rn "TODO(net)" --include="*.java" .        # networking tasks
-grep -rn "TODO(screens)" --include="*.java" .    # game screens / flow
-grep -rn "TODO(ui)" --include="*.java" .         # HUD / minimap / hotbar
-grep -rn "TODO(boss)" --include="*.java" .       # boss fight
-grep -rn "TODO(fx)" --include="*.java" .         # JavaFX launcher
-grep -rn "TODO(backend)" --include="*.java" .    # backend (very little left)
-grep -rn "TODO(level)" --include="*.java" .      # Tiled map loading
-grep -rn "TODO(story)" --include="*.java" .      # story panels
-```
-
-Tags also make ownership easy: assign each teammate one or two tags and they can
-grep exactly their own work.
-
-### Suggested build order
-
-Steps 3 and 5 of the original list (KryoNet payloads + interpolation, and lobby
-UDP discovery) are **done**. What is left, in dependency order:
-
-1. `core/level/LevelLoader` — real Tiled `.tmx` loading + collision extraction.
-   Everything below needs the tile grid this produces.
-2. `core/systems/MovementSystem` — normalise diagonal input and check the collision
-   grid before moving (diagonal movement is currently ~41% faster than orthogonal).
-3. `core/systems/ContaminationSystem.computeFrontierExpansion` — BFS cloud growth.
-   Returns an empty set today, so clouds never expand; the snapshot delta pipeline
-   around it is finished and tested.
-4. `core/systems/AISystem` — enemy chase and attack.
-5. `core/screens/GameScreen.drawWorld` — sprites + a camera following
-   `client.findLocalPlayer(snapshot)`, replacing the placeholder quads.
-6. `core/ui/Hud` — actual Scene2D widgets per UI/UX doc §3 layout.
-7. `backend.service.MatchService.upsertLeaderboardEntries` — currently a TODO stub.
+### AKM Azimul Ashique Khan
+- **Collision Grid Authoring:** Generated and refined walkability grids for Levels 1–5 from painted map masks using the custom grid tool.
+- **Map & Collision Fixes:** Resolved doorway alignment, pass-through wall bugs, stair transitions, and map reachability.
+- **Checkpoints & Persistence:** Implemented local save slots, checkpoint mechanisms, and database architecture documentation.
+- **Core Architecture:** Contributed to the initial multi-module skeleton, entity model designs, and baseline networking.
