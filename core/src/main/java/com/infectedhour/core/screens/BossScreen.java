@@ -167,6 +167,7 @@ public class BossScreen implements Screen {
 
     // Arena walkability (level_final.map) so heal orbs only spawn on tiles the player can reach
     private TileMap arenaTileMap;
+    private boolean showCollisionOverlay = false;
     private boolean[] reachableArenaCells;
     private float waveSpawnIntervalTimer = 0f;
     private float pushWaveAnimTime = 0f;
@@ -489,16 +490,18 @@ public class BossScreen implements Screen {
             mapTexture = loadTextureSafely(candidate);
             if (mapTexture != null) {
                 mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-                // Collision grid for the final arena (stretched over the full screen like the map art)
-                if (candidate.startsWith("map_final")) {
-                    try {
-                        arenaTileMap = new LevelLoader().loadTileMap("maps/level_final.map");
-                    } catch (RuntimeException e) {
-                        arenaTileMap = null;
-                    }
-                }
                 break;
             }
+        }
+
+        try {
+            arenaTileMap = new LevelLoader().loadTileMap("maps/level_final.map");
+        } catch (Exception e) {
+            Gdx.app.error("BossScreen", "Failed to load maps/level_final.map: " + e.getMessage());
+        }
+
+        if (game != null && game.getSession() != null && game.getSession().showCollisionOverlay()) {
+            showCollisionOverlay = true;
         }
 
         scientistTexture = loadTextureSafely("scientist.png");
@@ -834,6 +837,8 @@ public class BossScreen implements Screen {
         drawPlayer();
         batch.end();
 
+        if (showCollisionOverlay) drawCollisionOverlay();
+
         drawInterface();
         if (isInventoryOpen) drawInventoryOverlay();
         if (paused) drawPauseOverlay();
@@ -850,6 +855,10 @@ public class BossScreen implements Screen {
         if (paused) {
             if (Gdx.input.isKeyJustPressed(Input.Keys.Q)) returnToLauncher();
             return;
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.C) || Gdx.input.isKeyJustPressed(Input.Keys.F1)) {
+            showCollisionOverlay = !showCollisionOverlay;
         }
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.I)) {
@@ -991,8 +1000,29 @@ public class BossScreen implements Screen {
         playerMoving = (moveX != 0 || moveY != 0);
         if (playerMoving) {
             float len = (float) Math.sqrt(moveX * moveX + moveY * moveY);
-            playerX = MathUtils.clamp(playerX + (moveX / len) * speed * delta, 90f, WIDTH - 90f);
-            playerY = MathUtils.clamp(playerY + (moveY / len) * speed * delta, 90f, HEIGHT - 120f);
+            float stepX = (moveX / len) * speed * delta;
+            float stepY = (moveY / len) * speed * delta;
+
+            float candidateX = MathUtils.clamp(playerX + stepX, 90f, WIDTH - 90f);
+            float candidateY = MathUtils.clamp(playerY + stepY, 90f, HEIGHT - 120f);
+
+            boolean canMoveX = isPlayerWalkable(candidateX, playerY);
+            boolean canMoveY = isPlayerWalkable(playerX, candidateY);
+            if (!isPlayerWalkable(playerX, playerY)) {
+                int cxX = arenaCellX(candidateX);
+                int cyX = arenaCellY(playerY);
+                canMoveX = arenaTileMap == null || arenaTileMap.isCellWalkable(cxX, cyX);
+                int cxY = arenaCellX(playerX);
+                int cyY = arenaCellY(candidateY);
+                canMoveY = arenaTileMap == null || arenaTileMap.isCellWalkable(cxY, cyY);
+            }
+            if (canMoveX) {
+                playerX = candidateX;
+            }
+            if (canMoveY) {
+                playerY = candidateY;
+            }
+
             playerAnimTime += delta;
             playerFacing = Math.abs(moveX) > Math.abs(moveY) ? (moveX > 0 ? 2 : 1) : (moveY > 0 ? 3 : 0);
         } else {
@@ -1758,14 +1788,62 @@ public class BossScreen implements Screen {
     }
 
     private int arenaCellX(float worldX) {
+        if (arenaTileMap == null) return 0;
         return (int) Math.floor(worldX / WIDTH * arenaTileMap.getCollisionWidth());
     }
 
     private int arenaCellY(float worldY) {
+        if (arenaTileMap == null) return 0;
         return (int) Math.floor(worldY / HEIGHT * arenaTileMap.getCollisionHeight());
     }
 
+    private boolean isPlayerWalkable(float wx, float wy) {
+        if (arenaTileMap == null) return true;
+        int cw = arenaTileMap.getCollisionWidth();
+        int ch = arenaTileMap.getCollisionHeight();
+        float r = 12f;
+        float[][] offsets = {
+                {0f, 0f},
+                {-r, 0f},
+                {r, 0f},
+                {0f, -r},
+                {0f, r}
+        };
+        for (float[] off : offsets) {
+            int cx = (int) Math.floor((wx + off[0]) / WIDTH * cw);
+            int cy = (int) Math.floor((wy + off[1]) / HEIGHT * ch);
+            if (cx < 0 || cx >= cw || cy < 0 || cy >= ch) return false;
+            if (!arenaTileMap.isCellWalkable(cx, cy)) return false;
+        }
+        return true;
+    }
+
+    private void drawCollisionOverlay() {
+        if (arenaTileMap == null) return;
+        int cw = arenaTileMap.getCollisionWidth();
+        int ch = arenaTileMap.getCollisionHeight();
+        float cellW = WIDTH / (float) cw;
+        float cellH = HEIGHT / (float) ch;
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shapes.setProjectionMatrix(camera.combined);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(1f, 0f, 0f, 0.35f);
+
+        for (int cy = 0; cy < ch; cy++) {
+            for (int cx = 0; cx < cw; cx++) {
+                if (!arenaTileMap.isCellWalkable(cx, cy)) {
+                    shapes.rect(cx * cellW, cy * cellH, cellW, cellH);
+                }
+            }
+        }
+        shapes.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+    }
+
     private boolean isArenaCellReachable(int cx, int cy) {
+        if (arenaTileMap == null || reachableArenaCells == null) return false;
         int cw = arenaTileMap.getCollisionWidth(), ch = arenaTileMap.getCollisionHeight();
         return cx >= 0 && cx < cw && cy >= 0 && cy < ch && reachableArenaCells[cy * cw + cx];
     }
@@ -2323,6 +2401,19 @@ public class BossScreen implements Screen {
     private void drawInterface() {
         Matrix4 uiMatrix = new Matrix4().setToOrtho2D(0f, 0f, WIDTH, HEIGHT);
 
+        float collBtnW = 190f;
+        float collBtnH = 26f;
+        float collBtnX = WIDTH - collBtnW - 20f;
+        float collBtnY = HEIGHT - 38f;
+
+        float mouseX = Gdx.input.getX() * (WIDTH / (float) Gdx.graphics.getWidth());
+        float mouseY = (Gdx.graphics.getHeight() - Gdx.input.getY()) * (HEIGHT / (float) Gdx.graphics.getHeight());
+        boolean isCollHovered = mouseX >= collBtnX && mouseX <= collBtnX + collBtnW && mouseY >= collBtnY && mouseY <= collBtnY + collBtnH;
+
+        if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT) && isCollHovered && !isInventoryOpen && !paused) {
+            showCollisionOverlay = !showCollisionOverlay;
+        }
+
         shapes.setProjectionMatrix(uiMatrix);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         shapes.setColor(0.2f, 0.2f, 0.2f, 0.8f);
@@ -2334,10 +2425,28 @@ public class BossScreen implements Screen {
         shapes.rect(30f, 30f, 180f, 12f);
         shapes.setColor(0.2f, 0.75f, 0.95f, 1f);
         shapes.rect(30f, 30f, 180f * (playerStamina / 100f), 12f);
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        if (showCollisionOverlay) {
+            shapes.setColor(isCollHovered ? new Color(0.2f, 0.7f, 0.3f, 0.95f) : new Color(0.12f, 0.45f, 0.18f, 0.85f));
+        } else {
+            shapes.setColor(isCollHovered ? new Color(0.35f, 0.35f, 0.4f, 0.9f) : new Color(0.15f, 0.15f, 0.2f, 0.8f));
+        }
+        shapes.rect(collBtnX, collBtnY, collBtnW, collBtnH);
         shapes.end();
+
+        shapes.begin(ShapeRenderer.ShapeType.Line);
+        shapes.setColor(showCollisionOverlay ? Color.LIME : (isCollHovered ? Color.GOLD : Color.GRAY));
+        shapes.rect(collBtnX, collBtnY, collBtnW, collBtnH);
+        shapes.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
 
         batch.setProjectionMatrix(uiMatrix);
         batch.begin();
+        font.setColor(showCollisionOverlay ? Color.WHITE : Color.LIGHT_GRAY);
+        String collText = (showCollisionOverlay ? "[v] COLLISION: ON" : "[ ] COLLISION: OFF") + " [Click/C]";
+        font.draw(batch, collText, collBtnX + 12f, collBtnY + 18f);
+
         font.setColor(0.95f, 0.85f, 0.35f, 1f);
         font.draw(batch, "OPERATIVE: " + playerCharacter.name() + "   (STAMINA)", 30f, 58f);
 
@@ -2351,7 +2460,7 @@ public class BossScreen implements Screen {
         font.draw(batch, String.format("TIME: %02d:%02d", minutes, seconds), WIDTH / 2f - 40f, HEIGHT - 65f);
 
         font.setColor(Color.LIGHT_GRAY);
-        font.draw(batch, "Press [I] to open Inventory | [1] Machete | [2] Grenade", 230f, 40f);
+        font.draw(batch, "Press [I] to open Inventory | [1] Machete | [2] Grenade | [C] Collision", 230f, 40f);
         batch.end();
     }
 

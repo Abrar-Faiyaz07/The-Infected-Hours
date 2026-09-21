@@ -61,12 +61,39 @@ public class LevelLoader {
      */
     public TileMap loadTileMap(String resourcePath) {
         String classpathPath = resourcePath.startsWith("/") ? resourcePath : "/" + resourcePath;
-        try (InputStream in = LevelLoader.class.getResourceAsStream(classpathPath)) {
-            if (in == null) {
-                LOG.warning(() -> "Map resource not found: " + classpathPath + " — falling back to an open field");
-                return TileMap.allWalkable(FALLBACK_WIDTH, FALLBACK_HEIGHT);
+        InputStream in = LevelLoader.class.getResourceAsStream(classpathPath);
+        if (in == null) {
+            ClassLoader cl = Thread.currentThread().getContextClassLoader();
+            if (cl != null) {
+                String sub = classpathPath.startsWith("/") ? classpathPath.substring(1) : classpathPath;
+                in = cl.getResourceAsStream(sub);
             }
-            ParsedMap parsed = readRows(in);
+        }
+        if (in == null) {
+            try {
+                if (com.badlogic.gdx.Gdx.files != null) {
+                    com.badlogic.gdx.files.FileHandle fh = com.badlogic.gdx.Gdx.files.internal(resourcePath);
+                    if (!fh.exists()) {
+                        fh = com.badlogic.gdx.Gdx.files.internal("assets/" + resourcePath);
+                    }
+                    if (!fh.exists()) {
+                        fh = com.badlogic.gdx.Gdx.files.classpath(classpathPath);
+                    }
+                    if (fh.exists()) {
+                        in = fh.read();
+                    }
+                }
+            } catch (Throwable ignored) {
+                // Keep headless environments from crashing when Gdx is uninitialized
+            }
+        }
+        if (in == null) {
+            LOG.warning(() -> "Map resource not found: " + classpathPath + " — falling back to an open field");
+            return TileMap.allWalkable(FALLBACK_WIDTH, FALLBACK_HEIGHT);
+        }
+
+        try (InputStream input = in) {
+            ParsedMap parsed = readRows(input);
             return TileMap.fromRows(parsed.rows, parsed.subdivisions);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read map resource " + classpathPath, e);
