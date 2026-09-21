@@ -7,6 +7,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 
@@ -15,6 +16,7 @@ public class SettingsView {
     private final Stage stage;
     private final BackendClient backendClient;
     private final StackPane root = new StackPane();
+    private Slider activeVolumeSlider;
 
     public SettingsView(Stage stage, BackendClient backendClient) {
         this.stage = stage;
@@ -45,8 +47,29 @@ public class SettingsView {
         scroll.setPadding(new Insets(30, 0, 0, 0));
         shell.setCenter(scroll);
         root.getChildren().addAll(overlay, shell);
-        root.setOnKeyPressed(event -> {
-            if (event.getCode() == KeyCode.ESCAPE) returnToMenu();
+        root.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == KeyCode.ESCAPE) {
+                returnToMenu();
+                event.consume();
+                return;
+            }
+
+            Node focusOwner = stage.getScene() != null ? stage.getScene().getFocusOwner() : null;
+            if (focusOwner instanceof TextInputControl) {
+                return;
+            }
+
+            if (isPlusKey(event)) {
+                if (activeVolumeSlider != null) {
+                    stepSlider(activeVolumeSlider, 5.0);
+                    event.consume();
+                }
+            } else if (isMinusKey(event)) {
+                if (activeVolumeSlider != null) {
+                    stepSlider(activeVolumeSlider, -5.0);
+                    event.consume();
+                }
+            }
         });
     }
 
@@ -92,8 +115,12 @@ public class SettingsView {
         Slider sfxVolume = createSlider(SessionState.get().getSfxVolumePercent());
         Slider subtitleVoiceVolume = createSlider(SessionState.get().getSubtitleVoiceVolumePercent());
 
-        musicVolume.valueProperty().addListener((observable, oldValue, newValue) ->
-                SessionState.get().setMusicVolumePercent(newValue.doubleValue()));
+        activeVolumeSlider = musicVolume;
+
+        musicVolume.valueProperty().addListener((observable, oldValue, newValue) -> {
+            SessionState.get().setMusicVolumePercent(newValue.doubleValue());
+            MainMenuController.updateMenuMusicVolume(newValue.doubleValue());
+        });
         sfxVolume.valueProperty().addListener((observable, oldValue, newValue) ->
                 SessionState.get().setSfxVolumePercent(newValue.doubleValue()));
         subtitleVoiceVolume.valueProperty().addListener((observable, oldValue, newValue) ->
@@ -302,8 +329,89 @@ public class SettingsView {
         HBox heading = new HBox(12, icon, copy, spacer, value);
         heading.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        control.getChildren().addAll(heading, slider);
+
+        Button minusBtn = new Button("−");
+        minusBtn.getStyleClass().add("settings-step-btn");
+        minusBtn.setFocusTraversable(true);
+        minusBtn.setTooltip(new Tooltip("Decrease volume (-5%)"));
+        minusBtn.setOnAction(event -> {
+            activeVolumeSlider = slider;
+            stepSlider(slider, -5.0);
+        });
+
+        Button plusBtn = new Button("+");
+        plusBtn.getStyleClass().add("settings-step-btn");
+        plusBtn.setFocusTraversable(true);
+        plusBtn.setTooltip(new Tooltip("Increase volume (+5%)"));
+        plusBtn.setOnAction(event -> {
+            activeVolumeSlider = slider;
+            stepSlider(slider, 5.0);
+        });
+
+        slider.focusedProperty().addListener((obs, was, isNow) -> {
+            if (isNow) activeVolumeSlider = slider;
+        });
+        minusBtn.focusedProperty().addListener((obs, was, isNow) -> {
+            if (isNow) activeVolumeSlider = slider;
+        });
+        plusBtn.focusedProperty().addListener((obs, was, isNow) -> {
+            if (isNow) activeVolumeSlider = slider;
+        });
+
+        slider.setOnKeyPressed(event -> {
+            if (isPlusKey(event)) {
+                stepSlider(slider, 5.0);
+                event.consume();
+            } else if (isMinusKey(event)) {
+                stepSlider(slider, -5.0);
+                event.consume();
+            }
+        });
+
+        minusBtn.setOnKeyPressed(event -> {
+            if (isPlusKey(event)) {
+                stepSlider(slider, 5.0);
+                event.consume();
+            } else if (isMinusKey(event)) {
+                stepSlider(slider, -5.0);
+                event.consume();
+            }
+        });
+
+        plusBtn.setOnKeyPressed(event -> {
+            if (isPlusKey(event)) {
+                stepSlider(slider, 5.0);
+                event.consume();
+            } else if (isMinusKey(event)) {
+                stepSlider(slider, -5.0);
+                event.consume();
+            }
+        });
+
+        HBox sliderRow = new HBox(10, minusBtn, slider, plusBtn);
+        sliderRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(slider, Priority.ALWAYS);
+
+        control.getChildren().addAll(heading, sliderRow);
         return control;
+    }
+
+    private void stepSlider(Slider slider, double delta) {
+        double current = slider.getValue();
+        double next = Math.max(0.0, Math.min(100.0, Math.round(current + delta)));
+        slider.setValue(next);
+    }
+
+    private static boolean isPlusKey(KeyEvent event) {
+        KeyCode code = event.getCode();
+        return code == KeyCode.PLUS || code == KeyCode.ADD || code == KeyCode.EQUALS
+                || "+".equals(event.getText());
+    }
+
+    private static boolean isMinusKey(KeyEvent event) {
+        KeyCode code = event.getCode();
+        return code == KeyCode.MINUS || code == KeyCode.SUBTRACT || code == KeyCode.UNDERSCORE
+                || "-".equals(event.getText());
     }
 
     private Node buildFooter() {
@@ -313,7 +421,7 @@ public class SettingsView {
         back.getStyleClass().add("settings-return-btn");
         back.setOnAction(event -> returnToMenu());
         footer.getChildren().addAll(
-                styledLabel("ESC  BACK    •    CHANGES APPLY TO THIS DEVICE", "settings-footer-hint"), back);
+                styledLabel("ESC  BACK    •    + / -  ADJUST SOUND    •    CHANGES APPLY TO THIS DEVICE", "settings-footer-hint"), back);
         return footer;
     }
 

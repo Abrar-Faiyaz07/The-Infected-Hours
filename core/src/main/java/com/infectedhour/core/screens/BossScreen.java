@@ -3,6 +3,7 @@ package com.infectedhour.core.screens;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.audio.Music;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -17,8 +18,6 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.infectedhour.core.InfectedHourGame;
-import com.infectedhour.core.audio.SoundtrackCatalog;
-import com.infectedhour.core.content.DialogueCatalog;
 import com.infectedhour.core.bridge.GameBridge;
 import com.infectedhour.core.level.LevelLoader;
 import com.infectedhour.core.level.TileMap;
@@ -50,9 +49,7 @@ public class BossScreen implements Screen {
     private final InfectedHourGame game;
     private final GameClient client;
     private final GameBridge bridge;
-    private CharacterType playerCharacter;
-    private TileMap tileMap;
-    private boolean showCollisionOverlay = false;
+    private final CharacterType playerCharacter;
 
     private SpriteBatch batch;
     private ShapeRenderer shapes;
@@ -61,17 +58,25 @@ public class BossScreen implements Screen {
 
     private Texture mapTexture;
 
+    // Boss Fight Time Limit (4 min 5 sec = 245 seconds)
+    private static final float BOSS_TIME_LIMIT = 245.0f;
+    private float bossFightElapsedTime = 0f;
+
+    // Boss Fight Music
+    private static final float BOSS_MUSIC_VOLUME = 0.3f; // 0 = silent, 1 = full volume (was 0.8)
+    private Music bossMusic;
+
     // Scientist State & Textures (4x4 Spritesheet)
     private Texture scientistTexture;
     private TextureRegion[][] scientistFrames;
     private int scientistWidth, scientistHeight;
-    private float scientistX = 400f, scientistY = 360f, scientistHp = 500f;
+    private float scientistX = 400f, scientistY = 300f, scientistHp = 500f;
     private boolean isScientistAlive = true;
     private float scientistRoamTimer = 0f;
-    private float scientistTargetX = 400f, scientistTargetY = 360f;
+    private float scientistTargetX = 400f, scientistTargetY = 300f;
     private float scientistHitCooldown = 0f;
     private float scientistAnimTime = 0f;
-    private int scientistFacing = 0; // 0=Down, 1=Left, 2=Right, 3=Up
+    private int scientistFacing = 0;
 
     // Boss Spawn / Load Sequence States
     private float bossSpawnSequenceTimer = 0f;
@@ -102,23 +107,83 @@ public class BossScreen implements Screen {
     private float bossX = WIDTH / 2f, bossY = HEIGHT * 0.575f, bossSpeed = 85f, bossPulseTimer = 0f;
     private int bossFacing = 0;
     private float bossAnimTime = 0f;
-    private float bossHp = 1000f;
+    private float bossHp = 1500f;
     private float bossHitCooldown = 0f;
     private int bossHitCountPostPhase3 = 0;
-    private enum BossSpecialState { NORMAL, INTRO, AURA_RETURN, PHASE_THREE, POST_PHASE_THREE_LOOP }
+    // Projectile phase (post Phase 3) stun: 5 melee hits OR 3 bomb hits, counted separately and reset every sub-phase
+    private static final int POST_PHASE_MELEE_HITS_TO_STUN = 5;
+    private static final int POST_PHASE_BOMB_HITS_TO_STUN = 3;
+    private int postPhaseMeleeHits = 0;
+    private int postPhaseBombHits = 0;
+    private float finalPhaseStunCounter = 0f;
+
+    // Boss Special States including Final Form and Defeat
+    private enum BossSpecialState { NORMAL, INTRO, AURA_RETURN, PHASE_THREE, POST_PHASE_THREE_LOOP, FINAL_FORM, DEFEAT }
     private BossSpecialState bossSpecialState = BossSpecialState.NORMAL;
     private float bossInvulnerableTimer = 0f;
     private boolean phaseTwoTriggeredOnce = false;
     private boolean phaseThreeTriggeredOnce = false;
+    private boolean finalFormTriggeredOnce = false;
+    private float finalFormAnimTimer = 0f;
+    private float bossDefeatAnimTimer = 0f;
+    private boolean isGameOverActive = false;
+    private float gameOverTimer = 0f;
+
+    // Phase 4 Continuous Push Wave Variables (Continuous until boss/player dies, 3 hits = die)
+    private int waveHitCount = 0;
+    private boolean pushWaveActive = false;
+    private int pushWaveCount = 0;
+    private static class ActivePushWave {
+        int direction; // 0=UP, 1=DOWN, 2=LEFT, 3=RIGHT
+        float posX, posY;
+    }
+    private final List<ActivePushWave> activePushWaves = new ArrayList<>();
+    private static final float WAVE_SPAWN_INTERVAL = 0.4f;
+    private static final float WAVE_CROSS_TIME = 4.0f;
+    private static final int WAVE_HITS_TO_DIE = 5;
+    private static final float WAVE_HIT_HALF_EXTENT = 72f; // wave-vs-player hitbox half size (was 96)
+    private static final float CAMERA_SHAKE_DURATION = 0.2f;
+    private static final float CAMERA_SHAKE_STRENGTH = 3f;
+    private float cameraShakeTimer = 0f;
+
+    // Phase 3 heal orbs: 10 total, all spawned within the first 15s, then 5s extra before the phase ends
+    private static final int HEAL_ORB_TOTAL = 10;
+    private static final float HEAL_SPAWN_WINDOW = 15.0f;
+    private static final float HEAL_SPAWN_INTERVAL = HEAL_SPAWN_WINDOW / HEAL_ORB_TOTAL;
+    private static final float PHASE_THREE_DURATION = HEAL_SPAWN_WINDOW + 5.0f;
+
+    // Arena walkability (level_final.map) so heal orbs only spawn on tiles the player can reach
+    private TileMap arenaTileMap;
+    private boolean[] reachableArenaCells;
+    private float waveSpawnIntervalTimer = 0f;
+    private float pushWaveAnimTime = 0f;
+    private float pushWavePauseTimer = 0f;
+
+    // Boss Attack & Effect Textures
+    private Texture bossAttackTexture;
+    private TextureRegion[][] bossAttackFrames;
+    private int bossAttackWidth, bossAttackHeight;
+
+
+    private boolean isBossAttackingClose = false;
+    private boolean isBossRetreatingWalking = false;
+    private float bossAttackAnimTimer = 0f;
+    // boss_attack: 0.5s wind-up; damage only lands if the player is still inside the hitbox when it ends
+    private static final float BOSS_ATTACK_WINDUP = 0.5f;
+    private static final float BOSS_ATTACK_HIT_RANGE = 55f;
+    private static final float PLAYER_HIT_FLASH_DURATION = 0.3f;
+    private float playerHitFlashTimer = 0f;
+    private float bossRetreatTimer = 0f;
 
     // Phase 3 Mechanics Variables
     private float phaseThreeTimer = 0f;
     private float auraPhaseTimer = 0f;
     private boolean isBossFinalActivePhase3 = true;
     private float healSpawnIntervalTimer = 0f;
+    private int totalHealOrbsSpawnedCount = 0;
     private final List<Vector3> spawnedHealPositions = new ArrayList<>();
 
-    // Post Phase 3 Loop Variables (5 parts, 10s each with 2s delay)
+    // Post Phase 3 Loop Variables
     private int postPhaseThreeLoopCount = 0;
     private float postPhaseThreeLoopTimer = 0f;
     private boolean isPostLoopDelayActive = false;
@@ -139,7 +204,7 @@ public class BossScreen implements Screen {
     }
     private final List<ActiveHealOrb> activeHealOrbs = new ArrayList<>();
 
-    // Boss Textures for Phase 3 & Post-Loop
+    // Boss Textures for Phase 3, Post-Loop, Final Form, Defeat, Wave & Pop
     private Texture bossHealTexture;
     private TextureRegion bossHealRegion;
     private Texture bossP3Texture;
@@ -149,11 +214,28 @@ public class BossScreen implements Screen {
     private Animation<TextureRegion> bossIdleAnimation;
     private int bossIdleWidth, bossIdleHeight;
 
+    private Texture bossFinalFormTexture;
+    private TextureRegion[][] bossFinalFormFrames;
+    private int bossFinalFormWidth, bossFinalFormHeight;
+
+    private Texture bossDefeatTexture;
+    private TextureRegion[][] bossDefeatFrames;
+    private int bossDefeatWidth, bossDefeatHeight;
+
+    private Texture waveTexture;
+    private TextureRegion[][] waveFrames;
+    private int waveWidth, waveHeight;
+
+    private Texture popTexture;
+    private TextureRegion[][] popFrames;
+    private int popWidth, popHeight;
+
+    private Texture ringTexture;
+
     // Boss Stun Texture (Single Frame)
     private Texture bossStunTexture;
     private TextureRegion bossStunRegion;
 
-    // Void2 Texture & Animation (2 frames, 0.5s each -> 1.0s total per cycle)
     private Texture void2Texture;
     private Animation<TextureRegion> void2Animation;
     private int void2Width, void2Height;
@@ -165,10 +247,8 @@ public class BossScreen implements Screen {
     }
     private final List<SpiralVoid> activeSpiralVoids = new ArrayList<>();
 
-    // Camera Zoom Target Management
     private float targetZoom = 0.75f;
 
-    // Boss Laser Attack & Aura Charge Mechanics
     private enum BossBehaviorState { CHASING, AURA_CHARGING, FIRING_LASER }
     private BossBehaviorState bossBehaviorState = BossBehaviorState.CHASING;
     private float bossAttackTimer = MathUtils.random(1f, 7f);
@@ -181,10 +261,8 @@ public class BossScreen implements Screen {
     private float laserDurationTimer = 0f;
     private float laserTargetAngle = 0f;
 
-    // Boss Aura Texture
     private Texture bossAuraTexture;
 
-    // Void Texture & Animation (Phase 2)
     private Texture voidTexture;
     private Animation<TextureRegion> voidAnimation;
     private int voidWidth, voidHeight;
@@ -195,7 +273,6 @@ public class BossScreen implements Screen {
     }
     private final List<ActiveVoid> activeVoids = new ArrayList<>();
 
-    // Elric Textures & Sprint/Hit
     private Texture elricWalkTexture, elricIdleTexture, elricMeleeTexture, elricIdleMeleeTexture, elricSprintTexture;
     private TextureRegion[][] elricWalkFrames, elricIdleFrames, elricMeleeFrames, elricIdleMeleeFrames, elricSprintFrames;
     private Texture elricBombTexture, elricBombIdleTexture, elricBombThrowTexture;
@@ -205,7 +282,6 @@ public class BossScreen implements Screen {
     private int elricMeleeHitFrameWidth, elricMeleeHitFrameHeight;
     private boolean elricUsesTwoFrameMelee = false;
 
-    // Jane Textures & Sprint/Hit
     private Texture janeWalkTexture, janeIdleTexture, janeMeleeTexture, janeIdleMeleeTexture, janeSprintTexture;
     private TextureRegion[][] janeWalkFrames, janeIdleFrames, janeMeleeFrames, janeIdleMeleeFrames, janeSprintFrames;
     private Texture janeBombTexture, janeBombIdleTexture, janeBombThrowTexture;
@@ -215,11 +291,10 @@ public class BossScreen implements Screen {
     private int janeMeleeHitFrameWidth, janeMeleeHitFrameHeight;
     private boolean janeUsesTwoFrameMelee = false;
 
-    // Inventory & Projectile Textures
     private Texture inventoryTexture, meleeInventoryTexture, bombTexture, bombEffectTexture;
     private TextureRegion[][] bombFrames, bombEffectFrames;
     private boolean isInventoryOpen = false;
-    private boolean hasMachete = true, isMacheteEquipped = true;
+    private boolean hasMachete = true, isMacheteEquipped = false;
     private boolean hasBomb = true, isBombEquipped = false;
     private float bombCooldown = 0f;
 
@@ -229,20 +304,10 @@ public class BossScreen implements Screen {
     private final List<ActiveBomb> activeBombs = new ArrayList<>();
     private final List<ActiveExplosion> activeExplosions = new ArrayList<>();
 
-    // Player State & Match Progression
     private float playerX = 640f, playerY = 140f;
     private int playerFacing = 3;
     private boolean playerMoving, playerAttacking, playerSprinting, attackTriggeredThisFrame = false;
     private float playerAnimTime, playerAttackTime, playerStamina = 100f;
-    private float playerHp = 100f;
-    private static final float MAX_PLAYER_HP = 100f;
-    private float playerInvulnTimer = 0f;
-    private float playerDamageFlashTimer = 0f;
-    private boolean isGameOver = false;
-    private boolean isVictory = false;
-    private boolean returningToLauncher = false;
-    private float victoryTimer = 0f;
-    private float defeatTimer = 0f;
     private boolean paused;
 
     public BossScreen(InfectedHourGame game, GameClient client, GameBridge bridge, CharacterType playerCharacter) {
@@ -268,53 +333,77 @@ public class BossScreen implements Screen {
         Texture tex = new Texture(pixmap); pixmap.dispose(); return tex;
     }
 
+    /**
+     * Keeps the complete camera viewport inside the 1280x720 boss arena.
+     * The camera may follow the player, but it stops moving when one of its
+     * viewport edges reaches the map boundary.
+     */
+    private void clampCameraToArena() {
+        if (camera == null) return;
+
+        float halfViewWidth = (camera.viewportWidth * camera.zoom) * 0.5f;
+        float halfViewHeight = (camera.viewportHeight * camera.zoom) * 0.5f;
+
+        float clampedX;
+        float clampedY;
+
+        // If the viewport is as large as (or larger than) the arena,
+        // keep that axis centered.
+        if (halfViewWidth * 2f >= WIDTH) {
+            clampedX = WIDTH * 0.5f;
+        } else {
+            clampedX = MathUtils.clamp(
+                    camera.position.x,
+                    halfViewWidth,
+                    WIDTH - halfViewWidth
+            );
+        }
+
+        if (halfViewHeight * 2f >= HEIGHT) {
+            clampedY = HEIGHT * 0.5f;
+        } else {
+            clampedY = MathUtils.clamp(
+                    camera.position.y,
+                    halfViewHeight,
+                    HEIGHT - halfViewHeight
+            );
+        }
+
+        camera.position.set(clampedX, clampedY, 0f);
+    }
+
     @Override
     public void show() {
-        game.getAudioDirector().playMusic(SoundtrackCatalog.Track.VIRUS_HEART_BOSS);
-        game.getAudioDirector().playVoice(DialogueCatalog.line(DialogueCatalog.Scene.BOSS, 0));
         batch = new SpriteBatch(); shapes = new ShapeRenderer(); font = new BitmapFont();
         camera = new OrthographicCamera();
         camera.setToOrtho(false, WIDTH, HEIGHT);
         camera.position.set(WIDTH / 2f, HEIGHT / 2f, 0f);
+
+        if (Gdx.files.internal("music/boss_fight.mp3").exists()) {
+            bossMusic = Gdx.audio.newMusic(Gdx.files.internal("music/boss_fight.mp3"));
+            bossMusic.setLooping(true);
+            float masterMusic = bridge != null ? bridge.getMusicVolume() : 1.0f;
+            bossMusic.setVolume(BOSS_MUSIC_VOLUME * masterMusic);
+            bossMusic.play();
+        }
 
         String[] mapCandidates = {"map_final.png", "map_final.jpg", "map3.png"};
         for (String candidate : mapCandidates) {
             mapTexture = loadTextureSafely(candidate);
             if (mapTexture != null) {
                 mapTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+                // Collision grid for the final arena (stretched over the full screen like the map art)
+                if (candidate.startsWith("map_final")) {
+                    try {
+                        arenaTileMap = new LevelLoader().loadTileMap("maps/level_final.map");
+                    } catch (RuntimeException e) {
+                        arenaTileMap = null;
+                    }
+                }
                 break;
             }
         }
 
-        try {
-            tileMap = new LevelLoader().loadTileMap("maps/level_final.map");
-        } catch (Exception e) {
-            Gdx.app.log("BossScreen", "Failed to load maps/level_final.map: " + e.getMessage());
-        }
-
-        if (!isWalkable(playerX, playerY, 12f)) {
-            float cellW = WIDTH / (tileMap != null ? tileMap.getCollisionWidth() : 60f);
-            float cellH = HEIGHT / (tileMap != null ? tileMap.getCollisionHeight() : 40f);
-            for (int r = 1; r < 10; r++) {
-                boolean found = false;
-                for (int dy = -r; dy <= r; dy++) {
-                    for (int dx = -r; dx <= r; dx++) {
-                        float testX = playerX + dx * cellW;
-                        float testY = playerY + dy * cellH;
-                        if (isWalkable(testX, testY, 12f)) {
-                            playerX = testX;
-                            playerY = testY;
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (found) break;
-                }
-                if (found) break;
-            }
-        }
-
-        // Load Scientist Texture (4x4 Spritesheet)
         scientistTexture = loadTextureSafely("scientist.png");
         if (scientistTexture != null) {
             scientistTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
@@ -323,26 +412,59 @@ public class BossScreen implements Screen {
             scientistFrames = TextureRegion.split(scientistTexture, scientistWidth, scientistHeight);
         }
 
-        // Load Boss Aura Texture (Single Frame)
         bossAuraTexture = loadTextureSafely("boss_aura.png");
         if (bossAuraTexture != null) {
             bossAuraTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         }
 
-        // Load Boss Final & Aura Final Textures for Phase 3
+        waveTexture = loadTextureSafely("wave.png");
+        if (waveTexture != null) {
+            waveTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            waveWidth = waveTexture.getWidth() / 2;
+            waveHeight = waveTexture.getHeight() / 4;
+            waveFrames = TextureRegion.split(waveTexture, waveWidth, waveHeight);
+        }
+
+        popTexture = loadTextureSafely("pop.png");
+        if (popTexture != null) {
+            popTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            popWidth = popTexture.getWidth() / 2;
+            popHeight = popTexture.getHeight() / 1;
+            popFrames = TextureRegion.split(popTexture, popWidth, popHeight);
+        }
+
+        ringTexture = loadTextureSafely("ring.png");
+        if (ringTexture != null) {
+            ringTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        }
+
         bossFinalTexture = loadTextureSafely("boss_final.png");
         if (bossFinalTexture != null) bossFinalTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
 
         bossAuraFinalTexture = loadTextureSafely("boss_aura_final.png");
         if (bossAuraFinalTexture != null) bossAuraFinalTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
 
-        // Load Boss P3 Texture
         bossP3Texture = loadTextureSafely("boss_p3.png");
         if (bossP3Texture != null) {
             bossP3Texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         }
 
-        // Load Boss Idle Texture (3 frames, 0.3s each -> 0.9s total)
+        bossFinalFormTexture = loadTextureSafely("boss_final_form.png");
+        if (bossFinalFormTexture != null) {
+            bossFinalFormTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            bossFinalFormWidth = bossFinalFormTexture.getWidth() / 2;
+            bossFinalFormHeight = bossFinalFormTexture.getHeight() / 1;
+            bossFinalFormFrames = TextureRegion.split(bossFinalFormTexture, bossFinalFormWidth, bossFinalFormHeight);
+        }
+
+        bossDefeatTexture = loadTextureSafely("boss_defeat.png");
+        if (bossDefeatTexture != null) {
+            bossDefeatTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            bossDefeatWidth = bossDefeatTexture.getWidth() / 2;
+            bossDefeatHeight = bossDefeatTexture.getHeight() / 1;
+            bossDefeatFrames = TextureRegion.split(bossDefeatTexture, bossDefeatWidth, bossDefeatHeight);
+        }
+
         bossIdleTexture = loadTextureSafely("boss_idle.png");
         if (bossIdleTexture != null) {
             bossIdleTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
@@ -353,14 +475,20 @@ public class BossScreen implements Screen {
             bossIdleAnimation.setPlayMode(Animation.PlayMode.LOOP);
         }
 
-        // Load Boss Stun Texture (Single Frame)
         bossStunTexture = loadTextureSafely("boss_stun.png");
         if (bossStunTexture != null) {
             bossStunTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
             bossStunRegion = new TextureRegion(bossStunTexture);
         }
 
-        // Load Void2 Texture (2 frames, 0.5s each -> 1.0s total)
+        bossAttackTexture = loadTextureSafely("boss_attack.png");
+        if (bossAttackTexture != null) {
+            bossAttackTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            bossAttackWidth = bossAttackTexture.getWidth() / 2;
+            bossAttackHeight = bossAttackTexture.getHeight() / 4;
+            bossAttackFrames = TextureRegion.split(bossAttackTexture, bossAttackWidth, bossAttackHeight);
+        }
+
         void2Texture = loadTextureSafely("void2.png");
         if (void2Texture != null) {
             void2Texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
@@ -371,14 +499,12 @@ public class BossScreen implements Screen {
             void2Animation.setPlayMode(Animation.PlayMode.NORMAL);
         }
 
-        // Load Boss Heal Texture (Single Frame)
         bossHealTexture = loadTextureSafely("boss_heal.png");
         if (bossHealTexture != null) {
             bossHealTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
             bossHealRegion = new TextureRegion(bossHealTexture);
         }
 
-        // Load Boss Pose Texture (4 rows: 0=Down, 1=Left, 2=Right, 3=Up, 2 frames each)
         bossPoseTexture = loadTextureSafely("boss_pose.png");
         if (bossPoseTexture != null) {
             bossPoseTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
@@ -387,7 +513,6 @@ public class BossScreen implements Screen {
             bossPoseFrames = TextureRegion.split(bossPoseTexture, bossPoseWidth, bossPoseHeight);
         }
 
-        // Load Laser Texture (4 frames -> 0.2s each = 0.8s total duration)
         laserTexture = loadTextureSafely("laser.png");
         if (laserTexture != null) {
             laserTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
@@ -398,7 +523,6 @@ public class BossScreen implements Screen {
             laserAnimation.setPlayMode(Animation.PlayMode.NORMAL);
         }
 
-        // Load Void Texture (3 frames animation mapped to 0.5s total duration -> ~0.167s each)
         voidTexture = loadTextureSafely("void.png");
         if (voidTexture != null) {
             voidTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
@@ -409,7 +533,6 @@ public class BossScreen implements Screen {
             voidAnimation.setPlayMode(Animation.PlayMode.NORMAL);
         }
 
-        // Load Boss Load Sprite Sheet (1x2)
         bossLoadTexture = loadTextureSafely("boss_load.png");
         if (bossLoadTexture != null) {
             bossLoadTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
@@ -426,7 +549,6 @@ public class BossScreen implements Screen {
             bossFrames = TextureRegion.split(bossTexture, bossFrameWidth, bossFrameHeight);
         }
 
-        // Load Elric Textures & Sprint/Hit
         elricWalkTexture = loadTextureSafely("player.png");
         if (elricWalkTexture != null) elricWalkFrames = TextureRegion.split(elricWalkTexture, elricWalkTexture.getWidth() / 8, elricWalkTexture.getHeight() / 4);
 
@@ -462,7 +584,6 @@ public class BossScreen implements Screen {
         elricBombThrowTexture = loadTextureSafely("bomb_throw.png");
         if (elricBombThrowTexture != null) elricBombThrowFrames = TextureRegion.split(elricBombThrowTexture, elricBombThrowTexture.getWidth() / 2, elricBombThrowTexture.getHeight() / 4);
 
-        // Load Jane Textures & Sprint/Hit
         janeWalkTexture = loadTextureSafely("player 2/player.png");
         if (janeWalkTexture == null) janeWalkTexture = loadTextureSafely("player 2/map_player.png");
         if (janeWalkTexture != null) janeWalkFrames = TextureRegion.split(janeWalkTexture, janeWalkTexture.getWidth() / 8, janeWalkTexture.getHeight() / 4);
@@ -509,7 +630,6 @@ public class BossScreen implements Screen {
         janeBombThrowTexture = loadTextureSafely("player 2/bomb_throw.png");
         if (janeBombThrowTexture != null) janeBombThrowFrames = TextureRegion.split(janeBombThrowTexture, janeBombThrowTexture.getWidth() / 2, janeBombThrowTexture.getHeight() / 4);
 
-        // Load Inventory & Effects
         inventoryTexture = loadTextureSafely("inventory.png");
         if (inventoryTexture == null) inventoryTexture = createColorTexture(400, 300, new Color(0.1f, 0.12f, 0.15f, 0.9f));
 
@@ -533,7 +653,13 @@ public class BossScreen implements Screen {
         attackTriggeredThisFrame = false;
         handleInput(delta);
 
-        if (!paused && !isInventoryOpen) {
+        if (!paused && !isInventoryOpen && !isGameOverActive) {
+            bossFightElapsedTime += delta;
+            if (bossFightElapsedTime >= BOSS_TIME_LIMIT) {
+                isGameOverActive = true;
+                gameOverTimer = 0f;
+            }
+
             updatePlayer(delta);
             if (isScientistAlive) {
                 updateScientist(delta);
@@ -546,16 +672,42 @@ public class BossScreen implements Screen {
             }
         }
 
-        // Smooth camera tracking when zoomed in (targetZoom == 0.75f), else center on arena
+        if (isGameOverActive) {
+            gameOverTimer += delta;
+            if (gameOverTimer >= 2.0f) {
+                returnToLauncher();
+            }
+        }
+
         float targetCamX = (targetZoom <= 0.75f) ? playerX : (WIDTH / 2f);
         float targetCamY = (targetZoom <= 0.75f) ? playerY : (HEIGHT / 2f);
         camera.position.lerp(new Vector3(targetCamX, targetCamY, 0f), delta * 5f);
 
-        // Smooth camera zoom interpolation toward targetZoom
         camera.zoom += (targetZoom - camera.zoom) * (delta * 3.0f);
+
+        // Keep the normal follow camera completely inside the arena.
+        clampCameraToArena();
+
+        // Save the valid unclipped position before applying temporary shake.
+        float baseCameraX = camera.position.x;
+        float baseCameraY = camera.position.y;
+
+        // Small camera shake (e.g. when a final-phase wave hits the player).
+        // The shaken camera is clamped too, so shake never exposes outside the map.
+        float camShakeX = 0f, camShakeY = 0f;
+        if (cameraShakeTimer > 0f) {
+            if (!paused) cameraShakeTimer -= delta;
+            camShakeX = MathUtils.random(-CAMERA_SHAKE_STRENGTH, CAMERA_SHAKE_STRENGTH);
+            camShakeY = MathUtils.random(-CAMERA_SHAKE_STRENGTH, CAMERA_SHAKE_STRENGTH);
+        }
+
+        camera.position.add(camShakeX, camShakeY, 0f);
+        clampCameraToArena();
         camera.update();
 
-        // Draw Map
+        // Restore the stable clamped follow position after the draw matrix is prepared.
+        camera.position.set(baseCameraX, baseCameraY, 0f);
+
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
         if (mapTexture != null) {
@@ -566,7 +718,6 @@ public class BossScreen implements Screen {
         batch.end();
         if (mapTexture == null) drawProceduralArena();
 
-        // Draw Scientist or Boss Spawn Sequence or Phase 2 Intro or Boss
         if (isScientistAlive) {
             drawScientist(delta);
         } else if (bossSpawnState != BossSpawnState.ACTIVE) {
@@ -577,7 +728,6 @@ public class BossScreen implements Screen {
             drawBoss(delta);
         }
 
-        // Draw Player, Voids/Explosions, Lasers, Heal Orbs and Projectiles
         batch.begin();
         drawLaser(delta);
         drawVoids(delta);
@@ -587,21 +737,13 @@ public class BossScreen implements Screen {
         drawPlayer();
         batch.end();
 
-        if (showCollisionOverlay) {
-            drawCollisionOverlay();
-        }
-
-        // Draw HUD & UI overlays
         drawInterface();
         if (isInventoryOpen) drawInventoryOverlay();
         if (paused) drawPauseOverlay();
+        if (isGameOverActive) drawGameOverOverlay();
     }
 
     private void handleInput(float delta) {
-        if (isGameOver || isVictory) {
-            return;
-        }
-
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
             paused = !paused;
             if (paused) Gdx.input.setCursorCatched(false);
@@ -613,23 +755,11 @@ public class BossScreen implements Screen {
             return;
         }
 
-        // Operative toggle (TAB to swap between Elric and Jane)
-        if (Gdx.input.isKeyJustPressed(Input.Keys.TAB)) {
-            playerCharacter = (playerCharacter == CharacterType.ELRIC) ? CharacterType.JANE : CharacterType.ELRIC;
-        }
-
-        // Collision overlay toggle (F3 or C)
-        if (Gdx.input.isKeyJustPressed(Input.Keys.F3) || Gdx.input.isKeyJustPressed(Input.Keys.C)) {
-            showCollisionOverlay = !showCollisionOverlay;
-        }
-
-        // Inventory Toggle
         if (Gdx.input.isKeyJustPressed(Input.Keys.I)) {
             isInventoryOpen = !isInventoryOpen;
             Gdx.input.setCursorCatched(!isInventoryOpen);
         }
 
-        // Quick Equip / Toggle Toggles (Press 1 or 2 to equip, press again to unselect)
         if (!isInventoryOpen) {
             if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1)) {
                 isMacheteEquipped = !isMacheteEquipped;
@@ -642,31 +772,17 @@ public class BossScreen implements Screen {
         }
     }
 
-    private void damagePlayer(float amount) {
-        if (isGameOver || isVictory || playerInvulnTimer > 0f) return;
-        playerHp = Math.max(0f, playerHp - amount);
-        playerInvulnTimer = 0.5f;
-        playerDamageFlashTimer = 0.25f;
-        game.getAudioDirector().playEffect(SoundtrackCatalog.Effect.PLAYER_HIT);
-        if (playerHp <= 0f) {
-            isGameOver = true;
-            isVictory = false;
-            defeatTimer = 0f;
-        }
-    }
-
     private void updateScientist(float delta) {
         if (scientistHitCooldown > 0f) scientistHitCooldown -= delta;
         scientistAnimTime += delta;
 
-        // Check if player hits the scientist
         if (attackTriggeredThisFrame && scientistHitCooldown <= 0f) {
             float hitDist = 90f;
             float dx = playerX - scientistX;
             float dy = playerY - scientistY;
             float dist = (float) Math.sqrt(dx * dx + dy * dy);
             if (dist <= hitDist) {
-                scientistHp -= 100f; // Damage scientist
+                scientistHp -= 100f;
                 scientistHitCooldown = 0.4f;
 
                 if (scientistHp <= 0f) {
@@ -677,7 +793,7 @@ public class BossScreen implements Screen {
                     bossY = HEIGHT * 0.575f;
                     bossSpawnState = BossSpawnState.FLICKER_FIRST_FRAME;
                     bossSpawnSequenceTimer = 0f;
-                    targetZoom = 1.0f; // Zoom out wider for boss entry cinematic
+                    targetZoom = 1.0f;
                     return;
                 }
             }
@@ -686,25 +802,14 @@ public class BossScreen implements Screen {
         float moveX = 0f;
         float moveY = 0f;
 
-        // Random Roam & Flee Logic
         float distToPlayer = (float) Math.hypot(playerX - scientistX, playerY - scientistY);
-        if (distToPlayer <= 35f) {
-            damagePlayer(8f);
-        }
         if (distToPlayer < 180f) {
             float fleeAngle = MathUtils.atan2(scientistY - playerY, scientistX - playerX);
             moveX = MathUtils.cos(fleeAngle) * 110f;
             moveY = MathUtils.sin(fleeAngle) * 110f;
 
-            float nX = scientistX + moveX * delta;
-            float nY = scientistY + moveY * delta;
-            if (isWalkable(nX, nY, 14f)) {
-                scientistX = nX;
-                scientistY = nY;
-            } else {
-                if (isWalkable(nX, scientistY, 14f)) scientistX = nX;
-                if (isWalkable(scientistX, nY, 14f)) scientistY = nY;
-            }
+            scientistX = MathUtils.clamp(scientistX + moveX * delta, 90f, WIDTH - 90f);
+            scientistY = MathUtils.clamp(scientistY + moveY * delta, 90f, HEIGHT - 120f);
         } else {
             scientistRoamTimer -= delta;
             if (scientistRoamTimer <= 0f) {
@@ -718,15 +823,8 @@ public class BossScreen implements Screen {
             if (dist > 5f) {
                 moveX = (dx / dist) * 60f;
                 moveY = (dy / dist) * 60f;
-                float nX = scientistX + moveX * delta;
-                float nY = scientistY + moveY * delta;
-                if (isWalkable(nX, nY, 14f)) {
-                    scientistX = nX;
-                    scientistY = nY;
-                } else {
-                    if (isWalkable(nX, scientistY, 14f)) scientistX = nX;
-                    if (isWalkable(scientistX, nY, 14f)) scientistY = nY;
-                }
+                scientistX += moveX * delta;
+                scientistY += moveY * delta;
             }
         }
 
@@ -750,7 +848,7 @@ public class BossScreen implements Screen {
                 isBossLoaded = true;
                 bossX = bossSpawnX;
                 bossY = bossSpawnY;
-                targetZoom = 0.75f; // Zoom back in to normal gameplay view
+                targetZoom = 0.75f;
             }
         }
     }
@@ -768,20 +866,12 @@ public class BossScreen implements Screen {
                 bossSpecialState = BossSpecialState.AURA_RETURN;
                 bossInvulnerableTimer = 15f;
                 voidSpawnTimer = 0f;
-                targetZoom = 1.0f; // Zoom out wider for boss start cinematic
+                targetZoom = 1.0f;
             }
         }
     }
 
     private void updatePlayer(float delta) {
-        if (playerInvulnTimer > 0f) playerInvulnTimer -= delta;
-        if (playerDamageFlashTimer > 0f) playerDamageFlashTimer -= delta;
-        if (isGameOver || isVictory) {
-            playerMoving = false;
-            playerAttacking = false;
-            return;
-        }
-
         if (bombCooldown > 0f) bombCooldown -= delta;
 
         float moveX = 0f, moveY = 0f;
@@ -797,47 +887,20 @@ public class BossScreen implements Screen {
         playerStamina = playerSprinting ? Math.max(0f, playerStamina - delta * 25f) : Math.min(100f, playerStamina + delta * 18f);
 
         playerMoving = (moveX != 0 || moveY != 0);
-        float radius = 12f;
         if (playerMoving) {
             float len = (float) Math.sqrt(moveX * moveX + moveY * moveY);
-            float stepX = (moveX / len) * speed * delta;
-            float stepY = (moveY / len) * speed * delta;
-
-            float targetX = MathUtils.clamp(playerX + stepX, radius, WIDTH - radius);
-            float targetY = MathUtils.clamp(playerY + stepY, radius, HEIGHT - radius);
-
-            if (isWalkable(targetX, targetY, radius)) {
-                playerX = targetX;
-                playerY = targetY;
-            } else {
-                if (isWalkable(targetX, playerY, radius)) {
-                    playerX = targetX;
-                }
-                if (isWalkable(playerX, targetY, radius)) {
-                    playerY = targetY;
-                }
-            }
+            playerX = MathUtils.clamp(playerX + (moveX / len) * speed * delta, 90f, WIDTH - 90f);
+            playerY = MathUtils.clamp(playerY + (moveY / len) * speed * delta, 90f, HEIGHT - 120f);
             playerAnimTime += delta;
             playerFacing = Math.abs(moveX) > Math.abs(moveY) ? (moveX > 0 ? 2 : 1) : (moveY > 0 ? 3 : 0);
         } else {
             playerAnimTime += delta * 0.5f;
         }
 
-        boolean attackTrigger = (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) && !isInventoryOpen;
+        boolean attackTrigger = (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)
+                || Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) && !isInventoryOpen;
         if (attackTrigger && !playerAttacking) {
             attackTriggeredThisFrame = true;
-            if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
-                Vector3 mouseWorld = new Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
-                camera.unproject(mouseWorld);
-                float mdx = mouseWorld.x - playerX;
-                float mdy = mouseWorld.y - playerY;
-                if (Math.abs(mdx) > Math.abs(mdy)) {
-                    playerFacing = mdx > 0 ? 2 : 1;
-                } else {
-                    playerFacing = mdy > 0 ? 3 : 0;
-                }
-            }
-
             if (isBombEquipped) {
                 if (bombCooldown <= 0f) {
                     playerAttacking = true;
@@ -873,28 +936,40 @@ public class BossScreen implements Screen {
 
     private void updateBoss(float delta) {
         if (!isBossLoaded || bossSpawnState != BossSpawnState.ACTIVE) return;
-
-        // Check for Boss Defeat / Victory Condition
-        if (bossHp <= 0f) {
-            bossHp = 0f;
-            if (!isVictory && !isGameOver) {
-                isVictory = true;
-                victoryTimer = 0f;
-                isFiringLaser = false;
-                activeSpiralVoids.clear();
-                activeVoids.clear();
-                activeHealOrbs.clear();
-                game.getAudioDirector().playEffect(SoundtrackCatalog.Effect.BOSS_DEFEATED);
-                game.getAudioDirector().playMusic(SoundtrackCatalog.Track.VICTORY);
-            }
-            return;
-        }
-
-        if (isVictory) return;
         bossPulseTimer += delta;
         if (bossHitCooldown > 0f) bossHitCooldown -= delta;
 
-        // If boss is stunned, countdown stun timer and bypass regular updates
+        boolean isDefeated = (bossSpecialState == BossSpecialState.DEFEAT);
+        boolean directAttackPressed = Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.isButtonJustPressed(Input.Buttons.LEFT);
+
+        if (bossSpecialState == BossSpecialState.POST_PHASE_THREE_LOOP) {
+            if (directAttackPressed && bossHitCooldown <= 0f) {
+                float distToBoss = (float) Math.hypot(playerX - bossX, playerY - bossY);
+                if (distToBoss <= 45f) {
+                    bossHitCooldown = 0.2f;
+                    if (isMacheteEquipped) {
+                        postPhaseMeleeHits++;
+                        if (postPhaseMeleeHits >= POST_PHASE_MELEE_HITS_TO_STUN) {
+                            triggerPostPhaseStun();
+                        }
+                    }
+                }
+            }
+        } else if (!isDefeated && bossSpecialState != BossSpecialState.AURA_RETURN && bossSpecialState != BossSpecialState.PHASE_THREE) {
+            if (directAttackPressed && isMacheteEquipped && bossHitCooldown <= 0f) {
+                float distToBoss = (float) Math.hypot(playerX - bossX, playerY - bossY);
+                if (distToBoss <= 45f) {
+                    bossHp = Math.max(0f, bossHp - 50f);
+                    bossHitCooldown = 0.2f;
+                }
+            }
+        }
+
+        if (pushWavePauseTimer > 0f) {
+            pushWavePauseTimer -= delta;
+            return;
+        }
+
         if (isBossStunned) {
             bossStunTimer -= delta;
             if (bossStunTimer <= 0f) {
@@ -904,21 +979,165 @@ public class BossScreen implements Screen {
             }
         }
 
-        // Check for Phase 3 Trigger when boss HP drops to 100 or below
-        if (bossHp <= 100f && !phaseThreeTriggeredOnce) {
+        // Final Form State: Continuous edge-to-edge slow waves, 3 hits = die, strictly 5 hits = stun
+        if (bossSpecialState == BossSpecialState.FINAL_FORM) {
+            finalFormAnimTimer += delta;
+            waveSpawnIntervalTimer += delta;
+            bossX = WIDTH / 2f;
+            bossY = HEIGHT * 0.575f;
+
+            // Unlimited continuous waves: a new one spawns every WAVE_SPAWN_INTERVAL seconds
+            while (waveSpawnIntervalTimer >= WAVE_SPAWN_INTERVAL) {
+                waveSpawnIntervalTimer -= WAVE_SPAWN_INTERVAL;
+                int dir = MathUtils.random(0, 3); // 0=UP, 1=DOWN, 2=LEFT, 3=RIGHT
+                ActivePushWave w = new ActivePushWave();
+                w.direction = dir;
+                // Waves spawn from map edges
+                if (dir == 0) { w.posX = MathUtils.random(100f, WIDTH - 100f); w.posY = 0f; }
+                else if (dir == 1) { w.posX = MathUtils.random(100f, WIDTH - 100f); w.posY = HEIGHT; }
+                else if (dir == 2) { w.posX = 0f; w.posY = MathUtils.random(100f, HEIGHT - 100f); }
+                else { w.posX = WIDTH; w.posY = MathUtils.random(100f, HEIGHT - 100f); }
+
+                // Keep the wave's lane clear of the boss so it never passes through/hits the boss
+                float clearX = 48f + bossFinalFormWidth * (BOSS_SCALE * 0.4f) / 2f;
+                float clearY = 48f + bossFinalFormHeight * (BOSS_SCALE * 0.4f) / 2f;
+                if (dir <= 1 && Math.abs(w.posX - bossX) < clearX) {
+                    w.posX = (w.posX < bossX) ? bossX - clearX : bossX + clearX;
+                } else if (dir >= 2 && Math.abs(w.posY - bossY) < clearY) {
+                    w.posY = (w.posY < bossY) ? bossY - clearY : bossY + clearY;
+                }
+                activePushWaves.add(w);
+            }
+
+            pushWaveAnimTime += delta;
+
+            for (int i = activePushWaves.size() - 1; i >= 0; i--) {
+                ActivePushWave wave = activePushWaves.get(i);
+                // Each wave crosses the full map (edge to edge) in WAVE_CROSS_TIME seconds
+                float waveSpeed = (wave.direction <= 1 ? HEIGHT : WIDTH) / WAVE_CROSS_TIME;
+                if (wave.direction == 0) wave.posY += waveSpeed * delta;
+                else if (wave.direction == 1) wave.posY -= waveSpeed * delta;
+                else if (wave.direction == 2) wave.posX += waveSpeed * delta;
+                else wave.posX -= waveSpeed * delta;
+
+                if (wave.posX < -100f || wave.posX > WIDTH + 100f || wave.posY < -100f || wave.posY > HEIGHT + 100f) {
+                    activePushWaves.remove(i);
+                    continue;
+                }
+
+                if (Math.abs(playerX - wave.posX) < WAVE_HIT_HALF_EXTENT && Math.abs(playerY - wave.posY) < WAVE_HIT_HALF_EXTENT) {
+                    waveHitCount++;
+                    cameraShakeTimer = CAMERA_SHAKE_DURATION;
+
+                    if (waveHitCount >= WAVE_HITS_TO_DIE) {
+                        isGameOverActive = true;
+                        gameOverTimer = 0f;
+                    }
+
+                    activePushWaves.remove(i);
+                }
+            }
+
+            // Strictly 5 hits to stun (1 machete = 1 point, 1 bomb = 2 points)
+            if (directAttackPressed && bossHitCooldown <= 0f) {
+                float distToPlayer = (float) Math.hypot(playerX - bossX, playerY - bossY);
+                if (distToPlayer <= 45f) {
+                    bossHitCooldown = 0.2f;
+                    if (isMacheteEquipped) finalPhaseStunCounter += 1f;
+                    else if (isBombEquipped) finalPhaseStunCounter += 2f;
+
+                    if (finalPhaseStunCounter >= 5f) {
+                        finalPhaseStunCounter = 0f;
+                        isBossStunned = true;
+                        bossStunTimer = 1.0f;
+                        pushWavePauseTimer = 2.0f;
+                        activePushWaves.clear();
+
+                        bossHp = Math.max(0f, bossHp - 150f);
+                    }
+                }
+            }
+
+            if (bossHp <= 0f && bossSpecialState != BossSpecialState.DEFEAT) {
+                bossSpecialState = BossSpecialState.DEFEAT;
+                bossDefeatAnimTimer = 0f;
+                activePushWaves.clear();
+            }
+            return;
+        }
+
+        if (bossSpecialState == BossSpecialState.DEFEAT) {
+            bossDefeatAnimTimer += delta;
+            bossX = WIDTH / 2f;
+            bossY = HEIGHT * 0.575f;
+
+            if (bossDefeatAnimTimer >= 5.0f && !isGameOverActive) {
+                isGameOverActive = true;
+                gameOverTimer = 0f;
+            }
+            return;
+        }
+
+        // Keep the random 1s-7s laser timer running during melee/retreat so they don't delay the laser
+        if ((isBossAttackingClose || isBossRetreatingWalking)
+                && bossSpecialState == BossSpecialState.NORMAL
+                && bossBehaviorState == BossBehaviorState.CHASING
+                && bossAttackTimer > 0f) {
+            bossAttackTimer -= delta;
+        }
+
+        if (isBossAttackingClose) {
+            bossAttackAnimTimer += delta;
+            if (bossAttackAnimTimer >= BOSS_ATTACK_WINDUP) {
+                // Hit resolves only now: if the player escaped the hitbox during the wind-up, no damage
+                float distAtHit = (float) Math.hypot(playerX - bossX, playerY - bossY);
+                if (distAtHit <= BOSS_ATTACK_HIT_RANGE) {
+                    playerHitFlashTimer = PLAYER_HIT_FLASH_DURATION;
+                }
+
+                isBossAttackingClose = false;
+                isBossRetreatingWalking = true;
+                bossRetreatTimer = 0f;
+
+                float dxToPlayer = playerX - bossX;
+                float dyToPlayer = playerY - bossY;
+                if (Math.abs(dxToPlayer) > Math.abs(dyToPlayer)) {
+                    bossFacing = (dxToPlayer < 0) ? 1 : 2;
+                } else {
+                    bossFacing = (dyToPlayer < 0) ? 0 : 3;
+                }
+            }
+            return;
+        }
+
+        if (isBossRetreatingWalking) {
+            bossRetreatTimer += delta;
+            float retreatAngle = MathUtils.atan2(bossY - playerY, bossX - playerX);
+            bossX = MathUtils.clamp(bossX + MathUtils.cos(retreatAngle) * bossSpeed * delta, 90f, WIDTH - 90f);
+            bossY = MathUtils.clamp(bossY + MathUtils.sin(retreatAngle) * bossSpeed * delta, 90f, HEIGHT - 120f);
+            bossAnimTime += delta;
+
+            if (bossRetreatTimer >= 0.75f) {
+                isBossRetreatingWalking = false;
+            }
+            return;
+        }
+
+        if (bossHp <= 700f && !phaseThreeTriggeredOnce) {
             phaseThreeTriggeredOnce = true;
             bossSpecialState = BossSpecialState.PHASE_THREE;
             phaseThreeTimer = 0f;
             auraPhaseTimer = 0f;
             isBossFinalActivePhase3 = true;
-            healSpawnIntervalTimer = 0f;
+            healSpawnIntervalTimer = HEAL_SPAWN_INTERVAL; // First orb spawns immediately
+            totalHealOrbsSpawnedCount = 0;
             activeHealOrbs.clear();
             spawnedHealPositions.clear();
-            // Teleport boss to center spawn point
+            computeReachableArenaCells();
             bossX = bossSpawnX;
             bossY = bossSpawnY;
             isFiringLaser = false;
-            targetZoom = 1.0f;
+            targetZoom = 0.75f;
             return;
         }
 
@@ -927,37 +1146,61 @@ public class BossScreen implements Screen {
             auraPhaseTimer += delta;
             healSpawnIntervalTimer += delta;
 
-            // Alternating boss_final (0.3s) and boss_aura_final (0.3s)
             if (auraPhaseTimer >= 0.3f) {
                 auraPhaseTimer = 0f;
                 isBossFinalActivePhase3 = !isBossFinalActivePhase3;
             }
 
-            // Player can damage the boss anytime during Phase 3 via melee (width halved -> 32.5f, length decreased -> 45f with radial/above support)
-            if (attackTriggeredThisFrame && bossHitCooldown <= 0f) {
-                boolean hitBoxX = Math.abs(playerX - bossX) <= 45f;
-                boolean hitBoxY = Math.abs(playerY - bossY) <= 45f;
-                float radialDist = (float) Math.hypot(playerX - bossX, playerY - bossY);
-                if (hitBoxX && hitBoxY || radialDist <= 55f) {
-                    bossHp -= 50f;
-                    bossHitCooldown = 0.4f;
-                }
-            }
-
-            // Spawn boss_heal within 50f to 100f radius of boss at 1.5s interval for 15s total, ensuring unique positioning
-            // Restraint: boss_heal will NOT appear above the upper midpoint of the arena (HEIGHT * 0.45f)
-            if (healSpawnIntervalTimer >= 1.5f && phaseThreeTimer < 15.0f) {
-                healSpawnIntervalTimer = 0f;
+            if (healSpawnIntervalTimer >= HEAL_SPAWN_INTERVAL && totalHealOrbsSpawnedCount < HEAL_ORB_TOTAL && phaseThreeTimer < HEAL_SPAWN_WINDOW) {
+                healSpawnIntervalTimer -= HEAL_SPAWN_INTERVAL;
+                totalHealOrbsSpawnedCount++;
 
                 float candidateX = 0f, candidateY = 0f;
                 boolean uniqueFound = false;
                 int attempts = 0;
 
-                while (!uniqueFound && attempts < 20) {
-                    float offsetAngle = MathUtils.random(0f, MathUtils.PI2);
-                    float offsetDist = MathUtils.random(50f, 100f); // 50f to 100f radius
-                    candidateX = MathUtils.clamp(bossX + MathUtils.cos(offsetAngle) * offsetDist, 90f, WIDTH - 90f);
-                    candidateY = MathUtils.clamp(bossY + MathUtils.sin(offsetAngle) * offsetDist, 90f, HEIGHT * 0.45f); // Not above upper midpoint
+                // Half-extents of the Phase 3 boss sprite (largest of boss_final / boss_aura_final) and the heal orb
+                float bossHalfW = 0f, bossHalfH = 0f;
+                if (bossFinalTexture != null) {
+                    bossHalfW = bossFinalTexture.getWidth() * BOSS_FINAL_SCALE / 2f;
+                    bossHalfH = bossFinalTexture.getHeight() * BOSS_FINAL_SCALE / 2f;
+                }
+                if (bossAuraFinalTexture != null) {
+                    bossHalfW = Math.max(bossHalfW, bossAuraFinalTexture.getWidth() * BOSS_AURA_FINAL_SCALE / 2f);
+                    bossHalfH = Math.max(bossHalfH, bossAuraFinalTexture.getHeight() * BOSS_AURA_FINAL_SCALE / 2f);
+                }
+                float orbHalfW = bossHealTexture != null ? bossHealTexture.getWidth() * HEAL_SCALE / 2f : 0f;
+                float orbHalfH = bossHealTexture != null ? bossHealTexture.getHeight() * HEAL_SCALE / 2f : 0f;
+
+                // Fallback: a reachable spot that was merely too close to another orb
+                boolean reachableFallbackFound = false;
+                float fallbackX = 0f, fallbackY = 0f;
+
+                while (!uniqueFound && attempts < 40) {
+                    // 20-40px gap from the boss's edge, only to the left, right or below (never above / overlapping)
+                    float gap = MathUtils.random(20f, 40f);
+                    int side = MathUtils.random(0, 2); // 0=LEFT, 1=RIGHT, 2=BELOW
+                    if (side == 0) {
+                        candidateX = bossX - bossHalfW - gap - orbHalfW;
+                        candidateY = bossY + MathUtils.random(-bossHalfH, bossHalfH);
+                    } else if (side == 1) {
+                        candidateX = bossX + bossHalfW + gap + orbHalfW;
+                        candidateY = bossY + MathUtils.random(-bossHalfH, bossHalfH);
+                    } else {
+                        candidateX = bossX + MathUtils.random(-bossHalfW, bossHalfW);
+                        candidateY = bossY - bossHalfH - gap - orbHalfH;
+                    }
+                    candidateX = MathUtils.clamp(candidateX, 90f, WIDTH - 90f);
+                    candidateY = MathUtils.clamp(candidateY, 90f, HEIGHT - 120f);
+                    attempts++;
+
+                    // Must be on a walkable tile the player can actually reach
+                    if (!isReachableArenaSpot(candidateX, candidateY)) continue;
+                    if (!reachableFallbackFound) {
+                        reachableFallbackFound = true;
+                        fallbackX = candidateX;
+                        fallbackY = candidateY;
+                    }
 
                     boolean tooCloseToExisting = false;
                     for (Vector3 pos : spawnedHealPositions) {
@@ -970,53 +1213,60 @@ public class BossScreen implements Screen {
                     if (!tooCloseToExisting) {
                         uniqueFound = true;
                     }
-                    attempts++;
                 }
 
-                if (uniqueFound) {
-                    spawnedHealPositions.add(new Vector3(candidateX, candidateY, 0f));
-                    ActiveHealOrb orb = new ActiveHealOrb();
-                    orb.x = candidateX;
-                    orb.y = candidateY;
-                    activeHealOrbs.add(orb);
+                // Always spawn so exactly HEAL_ORB_TOTAL orbs appear, but never on a blocked/unreachable tile
+                if (!uniqueFound) {
+                    if (reachableFallbackFound) {
+                        candidateX = fallbackX;
+                        candidateY = fallbackY;
+                    } else {
+                        float[] spot = findNearestReachableArenaSpot(bossX, bossY - bossHalfH - 30f - orbHalfH,
+                                bossHalfW + orbHalfW, bossHalfH + orbHalfH);
+                        candidateX = spot[0];
+                        candidateY = spot[1];
+                    }
                 }
+                spawnedHealPositions.add(new Vector3(candidateX, candidateY, 0f));
+                ActiveHealOrb orb = new ActiveHealOrb();
+                orb.x = candidateX;
+                orb.y = candidateY;
+                activeHealOrbs.add(orb);
             }
 
-            // Update heal orbs state and check player attack hits (standing on top or touching counts)
             for (int i = activeHealOrbs.size() - 1; i >= 0; i--) {
                 ActiveHealOrb orb = activeHealOrbs.get(i);
                 if (orb.shakeTimer > 0f) {
                     orb.shakeTimer -= delta;
                     if (orb.shakeTimer <= 0f) {
-                        activeHealOrbs.remove(i); // Disappear after shaking
+                        activeHealOrbs.remove(i);
                     }
                 } else {
                     orb.durationTimer -= delta;
 
-                    // Check player melee attack hits on this specific heal orb (standing range 80f)
                     if (attackTriggeredThisFrame && bossHitCooldown <= 0f) {
                         float dist = (float) Math.hypot(playerX - orb.x, playerY - orb.y);
-                        if (dist <= 80f) {
-                            orb.shakeTimer = 0.3f; // Shake and disappear on hit
+                        if (dist <= 45f) {
+                            orb.shakeTimer = 0.3f;
                             bossHitCooldown = 0.3f;
                         }
                     }
 
-                    // Expired without destruction -> Automatically disappear and boss heals for 100 HP
                     if (orb.durationTimer <= 0f) {
-                        bossHp = Math.min(1000f, bossHp + 100f);
+                        bossHp = Math.min(1500f, bossHp + 100f);
                         activeHealOrbs.remove(i);
                     }
                 }
             }
 
-            // After 15s Phase 3 finishes, clear any remaining uncollected heal orbs automatically and transition to POST_PHASE_THREE_LOOP
-            if (phaseThreeTimer >= 15.0f) {
+            if (phaseThreeTimer >= PHASE_THREE_DURATION) {
                 activeHealOrbs.clear();
                 bossSpecialState = BossSpecialState.POST_PHASE_THREE_LOOP;
                 postPhaseThreeLoopCount = 0;
                 postPhaseThreeLoopTimer = 0f;
                 bossHitCountPostPhase3 = 0;
+                postPhaseMeleeHits = 0;
+                postPhaseBombHits = 0;
                 isPostLoopDelayActive = false;
                 postLoopDelayTimer = 0f;
                 waveSpawnedThisPart = false;
@@ -1030,7 +1280,6 @@ public class BossScreen implements Screen {
 
         if (bossSpecialState == BossSpecialState.POST_PHASE_THREE_LOOP) {
             if (isPostLoopDelayActive) {
-                // Handle 2s delay between each part
                 postLoopDelayTimer += delta;
                 if (postLoopDelayTimer >= 2.0f) {
                     isPostLoopDelayActive = false;
@@ -1038,8 +1287,13 @@ public class BossScreen implements Screen {
                     waveSpawnedThisPart = false;
                     postPhaseThreeLoopCount++;
                     if (postPhaseThreeLoopCount >= 5) {
-                        bossSpecialState = BossSpecialState.NORMAL;
-                        targetZoom = 0.75f;
+                        bossSpecialState = BossSpecialState.FINAL_FORM;
+                        finalFormAnimTimer = 0f;
+                        bossX = WIDTH / 2f;
+                        bossY = HEIGHT * 0.575f;
+                        targetZoom = 1.0f;
+                        pushWaveCount = 0;
+                        pushWaveActive = false;
                     }
                 }
                 return;
@@ -1047,43 +1301,11 @@ public class BossScreen implements Screen {
 
             postPhaseThreeLoopTimer += delta;
 
-            // Player can damage the boss during post-Phase 3 loops via melee with radial/above support
-            if (attackTriggeredThisFrame && bossHitCooldown <= 0f) {
-                boolean hitBoxX = Math.abs(playerX - bossX) <= 45f;
-                boolean hitBoxY = Math.abs(playerY - bossY) <= 45f;
-                float radialDist = (float) Math.hypot(playerX - bossX, playerY - bossY);
-                if (hitBoxX && hitBoxY || radialDist <= 55f) {
-                    bossHp -= 50f;
-                    bossHitCountPostPhase3++;
-                    bossHitCooldown = 0.4f;
-
-                    // If it's an incoming wave, hitting boss 3 times ends sub-phase early and triggers 1s stun
-                    if (bossHitCountPostPhase3 >= 3) {
-                        boolean hasIncoming = false;
-                        for (SpiralVoid sv : activeSpiralVoids) {
-                            if (!sv.fromBoss) {
-                                hasIncoming = true;
-                                break;
-                            }
-                        }
-                        if (hasIncoming) {
-                            activeSpiralVoids.clear();
-                            postPhaseThreeLoopTimer = 10.0f; // Force sub-phase completion
-                            isBossStunned = true;
-                            bossStunTimer = 1.0f; // 1 second stun animation
-                        }
-                        bossHitCountPostPhase3 = 0;
-                    }
-                }
-            }
-
-            // Check if player melee hits any individual void2 (requires 2 hits to disappear)
             if (attackTriggeredThisFrame) {
-                float distToVoid = (float) Math.hypot(playerX - bossX, playerY - bossY);
                 for (int i = activeSpiralVoids.size() - 1; i >= 0; i--) {
                     SpiralVoid sv = activeSpiralVoids.get(i);
-                    float dVoid = (float) Math.hypot(playerX - sv.x, playerY - sv.y);
-                    if (dVoid <= 65f) {
+                    float distToVoid = (float) Math.hypot(playerX - sv.x, playerY - sv.y);
+                    if (distToVoid <= 65f) {
                         sv.hitsTaken++;
                         if (sv.hitsTaken >= 2) {
                             activeSpiralVoids.remove(i);
@@ -1093,24 +1315,24 @@ public class BossScreen implements Screen {
                 }
             }
 
-            // Check if all projectiles for void2 are destroyed; if so, stop sub-phase early and move to next
             if (waveSpawnedThisPart && activeSpiralVoids.isEmpty()) {
-                postPhaseThreeLoopTimer = 10.0f; // Force completion
+                postPhaseThreeLoopTimer = 10.0f;
             }
 
-            // Spawn exactly 6 voids once at the start of this 10s sub-phase
             if (!waveSpawnedThisPart) {
                 waveSpawnedThisPart = true;
+                // New sub-phase: stun hit counts start over
+                postPhaseMeleeHits = 0;
+                postPhaseBombHits = 0;
                 currentWaveFromBoss = MathUtils.randomBoolean();
-                for (int s = 0; s < 6; s++) {
+                for (int s = 0; s < 9; s++) {
                     SpiralVoid sv = new SpiralVoid();
-                    sv.initialAngle = (s * (MathUtils.PI2 / 6f)) + (postPhaseThreeLoopCount * 0.5f);
+                    sv.initialAngle = (s * (MathUtils.PI2 / 9f)) + (postPhaseThreeLoopCount * 0.5f);
                     sv.fromBoss = currentWaveFromBoss;
                     activeSpiralVoids.add(sv);
                 }
             }
 
-            // Each part runs for 10 seconds, then clears remaining wave and triggers the 2s delay
             if (postPhaseThreeLoopTimer >= 10.0f) {
                 postPhaseThreeLoopTimer = 0f;
                 activeSpiralVoids.clear();
@@ -1120,37 +1342,37 @@ public class BossScreen implements Screen {
             return;
         }
 
-        // Check for Boss HP Phase 2 Trigger & Damage (radial + directional melee support)
         if (bossSpecialState == BossSpecialState.NORMAL) {
-            if (attackTriggeredThisFrame && bossHitCooldown <= 0f) {
-                boolean hitBoxX = Math.abs(playerX - bossX) <= 45f;
-                boolean hitBoxY = Math.abs(playerY - bossY) <= 45f;
-                float radialDist = (float) Math.hypot(playerX - bossX, playerY - bossY);
-                if (hitBoxX && hitBoxY || radialDist <= 55f) {
-                    bossHp -= 50f;
-                    bossHitCooldown = 0.4f;
-
-                    // Trigger Phase 2 intro sequence only once when HP drops to 500 or below
-                    if (bossHp <= 500f && !phaseTwoTriggeredOnce) {
-                        phaseTwoTriggeredOnce = true;
-                        // Instantly teleport boss to spawn point for intro sequence
-                        bossX = bossSpawnX;
-                        bossY = bossSpawnY;
-                        phaseTwoIntroState = PhaseTwoIntroState.FLICKER_FIRST_FRAME;
-                        phaseTwoIntroTimer = 0f;
-                        isFiringLaser = false;
-                        bossBehaviorState = BossBehaviorState.CHASING;
-                        targetZoom = 1.0f; // Zoom out wider for boss entry cinematic
-                    }
-                }
+            if (bossHp <= 1000f && !phaseTwoTriggeredOnce) {
+                phaseTwoTriggeredOnce = true;
+                bossX = bossSpawnX;
+                bossY = bossSpawnY;
+                phaseTwoIntroState = PhaseTwoIntroState.FLICKER_FIRST_FRAME;
+                phaseTwoIntroTimer = 0f;
+                isFiringLaser = false;
+                bossBehaviorState = BossBehaviorState.CHASING;
+                targetZoom = 1.0f;
+                return;
             }
 
-            // Behavior State Machine: CHASING -> AURA_CHARGING (0.2s charge) -> FIRING_LASER (0.8s)
+            if (phaseThreeTriggeredOnce && bossHp <= 0f && !finalFormTriggeredOnce) {
+                finalFormTriggeredOnce = true;
+                bossSpecialState = BossSpecialState.FINAL_FORM;
+                finalFormAnimTimer = 0f;
+                bossX = WIDTH / 2f;
+                bossY = HEIGHT * 0.575f;
+                targetZoom = 1.0f;
+                pushWaveCount = 0;
+                pushWaveActive = false;
+                return;
+            }
+
+            // Pure random 1s to 7s unconstrained laser attack interval (fires from player's back, unlimited)
             if (bossBehaviorState == BossBehaviorState.CHASING) {
                 bossAttackTimer -= delta;
                 if (bossAttackTimer <= 0f) {
                     bossBehaviorState = BossBehaviorState.AURA_CHARGING;
-                    auraChargeTimer = 0f; // Load boss_aura for 0.2s before teleporting
+                    auraChargeTimer = 0f;
                 }
             } else if (bossBehaviorState == BossBehaviorState.AURA_CHARGING) {
                 auraChargeTimer += delta;
@@ -1187,17 +1409,17 @@ public class BossScreen implements Screen {
                 if (laserDurationTimer <= 0f) {
                     isFiringLaser = false;
                     bossBehaviorState = BossBehaviorState.CHASING;
-                    bossAttackTimer = MathUtils.random(1f, 7f);
+                    bossAttackTimer = MathUtils.random(1f, 7f); // Pure random float 1f to 7f seconds
                 }
             }
 
-            // Normal tracking behavior (if chasing)
             if (bossBehaviorState == BossBehaviorState.CHASING) {
                 float dx = playerX - bossX, dy = playerY - bossY, dist = (float) Math.sqrt(dx * dx + dy * dy);
-                if (dist <= 42f) {
-                    damagePlayer(10f);
-                }
-                if (dist > 2f) {
+
+                if (dist <= 45f && bossAttackTexture != null) {
+                    isBossAttackingClose = true;
+                    bossAttackAnimTimer = 0f;
+                } else if (dist > 2f) {
                     bossX += (dx / dist) * bossSpeed * delta;
                     bossY += (dy / dist) * bossSpeed * delta;
                     bossFacing = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 2 : 1) : (dy > 0 ? 3 : 0);
@@ -1207,11 +1429,9 @@ public class BossScreen implements Screen {
                 }
             }
         } else if (bossSpecialState == BossSpecialState.AURA_RETURN) {
-            // Ensure boss stays locked at spawn point during Phase 2 with a tiny floating up-and-down motion
             bossX = bossSpawnX;
             bossY = bossSpawnY + MathUtils.sin(bossPulseTimer * 4f) * 6f;
 
-            // Manage Invulnerability and Void spawns over 15s (1 every 0.5s interval)
             bossInvulnerableTimer -= delta;
             voidSpawnTimer += delta;
 
@@ -1226,7 +1446,7 @@ public class BossScreen implements Screen {
             if (bossInvulnerableTimer <= 0f) {
                 bossSpecialState = BossSpecialState.NORMAL;
                 phaseTwoIntroState = PhaseTwoIntroState.NONE;
-                targetZoom = 0.75f; // Zoom back in to normal gameplay view after 15s Phase 2 ends
+                targetZoom = 0.75f;
             }
         }
     }
@@ -1302,20 +1522,61 @@ public class BossScreen implements Screen {
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
 
-        // Apply same flying up-and-down motion during Phase 3 and Post-Loop center spawn
         float currentY = bossY;
-        if (bossSpecialState == BossSpecialState.PHASE_THREE || bossSpecialState == BossSpecialState.POST_PHASE_THREE_LOOP) {
-            currentY = bossSpawnY + MathUtils.sin(bossPulseTimer * 4f) * 6f;
+        if (bossSpecialState == BossSpecialState.PHASE_THREE || bossSpecialState == BossSpecialState.POST_PHASE_THREE_LOOP || bossSpecialState == BossSpecialState.FINAL_FORM || bossSpecialState == BossSpecialState.DEFEAT) {
+            float shakeOffset = (isBossStunned) ? MathUtils.random(-1.5f, 1.5f) : 0f;
+            currentY = bossSpawnY + MathUtils.sin(bossPulseTimer * 4f) * 6f + shakeOffset;
             bossY = currentY;
         }
 
-        // Render Stun Animation with shaking effect if boss is stunned
         if (isBossStunned && bossStunRegion != null) {
             float stunW = bossStunTexture.getWidth() * (BOSS_SCALE * 0.3f);
             float stunH = bossStunTexture.getHeight() * (BOSS_SCALE * 0.3f);
-            float shakeX = MathUtils.random(-4f, 4f);
-            float shakeY = MathUtils.random(-4f, 4f);
+            float shakeX = MathUtils.random(-2f, 2f);
+            float shakeY = MathUtils.random(-2f, 2f);
             batch.draw(bossStunRegion, (bossX + shakeX) - stunW / 2f, (currentY + shakeY) - stunH / 2f, stunW, stunH);
+        } else if (bossSpecialState == BossSpecialState.FINAL_FORM && bossFinalFormFrames != null) {
+            int frameIdx = (int) (finalFormAnimTimer / 0.2f) % 2;
+            TextureRegion formReg = bossFinalFormFrames[0][frameIdx];
+            float fW = bossFinalFormWidth * (BOSS_SCALE * 0.4f);
+            float fH = bossFinalFormHeight * (BOSS_SCALE * 0.4f);
+            batch.draw(formReg, bossX - fW / 2f, currentY - fH / 2f, fW, fH);
+
+            if (waveFrames != null) {
+                int waveFrameIdx = (int) (pushWaveAnimTime / 0.25f) % 2;
+                float waveSize = 96f;
+
+                for (ActivePushWave wave : activePushWaves) {
+                    int row = wave.direction % 4;
+                    TextureRegion waveReg = waveFrames[row][waveFrameIdx];
+                    batch.draw(waveReg, wave.posX - waveSize / 2f, wave.posY - waveSize / 2f, waveSize, waveSize);
+                }
+            }
+        } else if (bossSpecialState == BossSpecialState.DEFEAT && bossDefeatFrames != null) {
+            int frameIdx = (int) (bossDefeatAnimTimer / 0.2f) % 2;
+            TextureRegion defeatReg = bossDefeatFrames[0][frameIdx];
+            float dW = bossDefeatWidth * (BOSS_SCALE * 0.4f);
+            float dH = bossDefeatHeight * (BOSS_SCALE * 0.4f);
+            batch.draw(defeatReg, bossX - dW / 2f, currentY - dH / 2f, dW, dH);
+
+            if (popFrames != null) {
+                int popFrameIdx = (int) (bossDefeatAnimTimer / 0.1f) % 2;
+                TextureRegion popReg = popFrames[0][popFrameIdx];
+                float pW = popWidth * 0.15f;
+                float pH = popHeight * 0.15f;
+                batch.draw(popReg, bossX - pW / 2f + MathUtils.random(-15f, 15f), currentY - pH / 2f + MathUtils.random(-15f, 15f), pW, pH);
+            }
+        } else if (isBossAttackingClose && bossAttackFrames != null) {
+            int row = bossFacing % 4;
+            float frameIdx = Math.min(1, (int) (bossAttackAnimTimer / 0.25f));
+            TextureRegion attackFrame = bossAttackFrames[row][(int)frameIdx];
+            float aW = bossAttackWidth * (BOSS_SCALE * 0.65f * 1.1f);
+            float aH = bossAttackHeight * (BOSS_SCALE * 0.65f * 1.1f);
+            batch.draw(attackFrame, bossX - aW / 2f, currentY - aH / 2f, aW, aH);
+        } else if (isBossRetreatingWalking && bossFrames != null) {
+            TextureRegion walkFrame = bossFrames[bossFacing % 4][((int) (bossAnimTime / 0.15f)) % 8];
+            float drawWidth = bossFrameWidth * BOSS_SCALE, drawHeight = bossFrameHeight * BOSS_SCALE;
+            batch.draw(walkFrame, bossX - drawWidth / 2f, currentY - drawHeight / 2f, drawWidth, drawHeight);
         } else if (bossSpecialState == BossSpecialState.AURA_RETURN && bossAuraTexture != null) {
             float flameScaleAnim = SHIELD_SCALE + (float)Math.sin(bossPulseTimer * 8f) * 0.04f;
             float flameW = bossAuraTexture.getWidth() * flameScaleAnim;
@@ -1328,7 +1589,6 @@ public class BossScreen implements Screen {
             float auraH = bossAuraTexture.getHeight() * AURA_SCALE;
             batch.draw(bossAuraTexture, bossX - auraW / 2f, currentY - auraH / 2f, auraW, auraH);
         } else if (bossSpecialState == BossSpecialState.PHASE_THREE) {
-            // Phase 3: Alternating boss_final and boss_aura_final
             if (isBossFinalActivePhase3) {
                 if (bossFinalTexture != null) {
                     float fW = bossFinalTexture.getWidth() * BOSS_FINAL_SCALE;
@@ -1343,13 +1603,11 @@ public class BossScreen implements Screen {
                 }
             }
         } else if (bossSpecialState == BossSpecialState.POST_PHASE_THREE_LOOP && bossIdleAnimation != null) {
-            // Post Phase 3 Loop: Continuously load boss_idle in the middle (halved scale)
             TextureRegion idleFrame = bossIdleAnimation.getKeyFrame(postPhaseThreeLoopTimer, true);
             float idleW = bossIdleWidth * (BOSS_SCALE * 0.5f);
             float idleH = bossIdleHeight * (BOSS_SCALE * 0.5f);
             batch.draw(idleFrame, bossX - idleW / 2f, currentY - idleH / 2f, idleW, idleH);
         } else if (phaseThreeTriggeredOnce && bossSpecialState == BossSpecialState.NORMAL && bossP3Texture != null) {
-            // After Phase 3 finishes, load boss_p3 permanently with BOSS_FINAL_SCALE
             float p3W = bossP3Texture.getWidth() * BOSS_FINAL_SCALE;
             float p3H = bossP3Texture.getHeight() * BOSS_FINAL_SCALE;
             batch.draw(bossP3Texture, bossX - p3W / 2f, currentY - p3H / 2f, p3W, p3H);
@@ -1382,13 +1640,120 @@ public class BossScreen implements Screen {
         batch.end();
     }
 
+    /** Stuns the boss in the projectile phase and ends the current sub-phase. */
+    private void triggerPostPhaseStun() {
+        isBossStunned = true;
+        bossStunTimer = 1.0f;
+        postPhaseMeleeHits = 0;
+        postPhaseBombHits = 0;
+        postPhaseThreeLoopTimer = 10.0f;
+    }
+
+    private int arenaCellX(float worldX) {
+        return (int) Math.floor(worldX / WIDTH * arenaTileMap.getCollisionWidth());
+    }
+
+    private int arenaCellY(float worldY) {
+        return (int) Math.floor(worldY / HEIGHT * arenaTileMap.getCollisionHeight());
+    }
+
+    private boolean isArenaCellReachable(int cx, int cy) {
+        int cw = arenaTileMap.getCollisionWidth(), ch = arenaTileMap.getCollisionHeight();
+        return cx >= 0 && cx < cw && cy >= 0 && cy < ch && reachableArenaCells[cy * cw + cx];
+    }
+
+    /** Flood-fills the walkable cells connected to the player's position (or the nearest walkable cell to it). */
+    private void computeReachableArenaCells() {
+        reachableArenaCells = null;
+        if (arenaTileMap == null) return;
+        int cw = arenaTileMap.getCollisionWidth(), ch = arenaTileMap.getCollisionHeight();
+
+        int seedX = MathUtils.clamp(arenaCellX(playerX), 0, cw - 1);
+        int seedY = MathUtils.clamp(arenaCellY(playerY), 0, ch - 1);
+        if (!arenaTileMap.isCellWalkable(seedX, seedY)) {
+            int bestDist = Integer.MAX_VALUE;
+            for (int y = 0; y < ch; y++) {
+                for (int x = 0; x < cw; x++) {
+                    int d = (x - seedX) * (x - seedX) + (y - seedY) * (y - seedY);
+                    if (arenaTileMap.isCellWalkable(x, y) && d < bestDist) {
+                        bestDist = d;
+                        seedX = x;
+                        seedY = y;
+                    }
+                }
+            }
+            if (bestDist == Integer.MAX_VALUE) return;
+        }
+
+        boolean[] reachable = new boolean[cw * ch];
+        int[] queue = new int[cw * ch];
+        int head = 0, tail = 0;
+        reachable[seedY * cw + seedX] = true;
+        queue[tail++] = seedY * cw + seedX;
+        int[] dxs = {1, -1, 0, 0}, dys = {0, 0, 1, -1};
+        while (head < tail) {
+            int idx = queue[head++];
+            int x = idx % cw, y = idx / cw;
+            for (int k = 0; k < 4; k++) {
+                int nx = x + dxs[k], ny = y + dys[k];
+                if (nx < 0 || nx >= cw || ny < 0 || ny >= ch) continue;
+                int nIdx = ny * cw + nx;
+                if (!reachable[nIdx] && arenaTileMap.isCellWalkable(nx, ny)) {
+                    reachable[nIdx] = true;
+                    queue[tail++] = nIdx;
+                }
+            }
+        }
+        reachableArenaCells = reachable;
+    }
+
+    /** True if a heal orb at (x, y) sits fully on reachable walkable tiles inside the player's movement bounds. */
+    private boolean isReachableArenaSpot(float x, float y) {
+        if (x < 90f || x > WIDTH - 90f || y < 90f || y > HEIGHT - 120f) return false;
+        if (arenaTileMap == null || reachableArenaCells == null) return true;
+        float m = 14f; // small footprint margin so the orb doesn't hang over a wall edge
+        return isArenaCellReachable(arenaCellX(x), arenaCellY(y))
+                && isArenaCellReachable(arenaCellX(x - m), arenaCellY(y))
+                && isArenaCellReachable(arenaCellX(x + m), arenaCellY(y))
+                && isArenaCellReachable(arenaCellX(x), arenaCellY(y - m))
+                && isArenaCellReachable(arenaCellX(x), arenaCellY(y + m));
+    }
+
+    /**
+     * Nearest reachable spot to (targetX, targetY) that is left of, right of or below the boss
+     * (outside the given clearance box around it, never above it).
+     */
+    private float[] findNearestReachableArenaSpot(float targetX, float targetY, float clearHalfW, float clearHalfH) {
+        float fallbackX = MathUtils.clamp(targetX, 90f, WIDTH - 90f);
+        float fallbackY = MathUtils.clamp(targetY, 90f, HEIGHT - 120f);
+        if (arenaTileMap == null || reachableArenaCells == null) return new float[]{fallbackX, fallbackY};
+
+        int cw = arenaTileMap.getCollisionWidth(), ch = arenaTileMap.getCollisionHeight();
+        float cellW = WIDTH / cw, cellH = HEIGHT / ch;
+        float bestDist = Float.MAX_VALUE, bestX = fallbackX, bestY = fallbackY;
+        for (int y = 0; y < ch; y++) {
+            for (int x = 0; x < cw; x++) {
+                float wx = (x + 0.5f) * cellW, wy = (y + 0.5f) * cellH;
+                boolean overlapsBoss = Math.abs(wx - bossX) < clearHalfW && Math.abs(wy - bossY) < clearHalfH;
+                boolean aboveBoss = wy > bossY && Math.abs(wx - bossX) < clearHalfW;
+                if (overlapsBoss || aboveBoss || !isReachableArenaSpot(wx, wy)) continue;
+                float d = (wx - targetX) * (wx - targetX) + (wy - targetY) * (wy - targetY);
+                if (d < bestDist) {
+                    bestDist = d;
+                    bestX = wx;
+                    bestY = wy;
+                }
+            }
+        }
+        return new float[]{bestX, bestY};
+    }
+
     private void drawHealOrbs(float delta) {
         if (bossHealRegion == null) return;
         for (ActiveHealOrb orb : activeHealOrbs) {
             float hW = bossHealTexture.getWidth() * HEAL_SCALE;
             float hH = bossHealTexture.getHeight() * HEAL_SCALE;
 
-            // Apply shake translation offset if hit
             float offsetX = (orb.shakeTimer > 0f) ? MathUtils.random(-3f, 3f) : 0f;
             float offsetY = (orb.shakeTimer > 0f) ? MathUtils.random(-3f, 3f) : 0f;
 
@@ -1411,22 +1776,6 @@ public class BossScreen implements Screen {
             float laserW = mapCrossingWidth;
             float laserH = laserHeight * LASER_SCALE;
             batch.draw(currentFrame, startX, startY - laserH / 2f, 0f, laserH / 2f, laserW, laserH, 1f, 1f, laserTargetAngle);
-
-            // Check laser beam collision against player
-            if (!paused && !isInventoryOpen && !isGameOver && !isVictory && elapsed >= 0.1f) {
-                float rad = laserTargetAngle * MathUtils.degreesToRadians;
-                float dirX = MathUtils.cos(rad);
-                float dirY = MathUtils.sin(rad);
-                float toPlayerX = playerX - startX;
-                float toPlayerY = playerY - startY;
-                float proj = toPlayerX * dirX + toPlayerY * dirY;
-                if (proj > 10f && proj < laserW) {
-                    float perpDist = Math.abs(-toPlayerX * dirY + toPlayerY * dirX);
-                    if (perpDist <= (laserH * 0.5f) + 16f) {
-                        damagePlayer(25f);
-                    }
-                }
-            }
         }
     }
 
@@ -1438,12 +1787,6 @@ public class BossScreen implements Screen {
             if (v.timeElapsed >= 0.5f) {
                 activeVoids.remove(i);
                 continue;
-            }
-
-            if (!paused && !isInventoryOpen && !isGameOver && !isVictory && v.timeElapsed >= 0.15f && v.timeElapsed <= 0.45f) {
-                if (Math.hypot(playerX - v.x, playerY - v.y) <= 40f) {
-                    damagePlayer(20f);
-                }
             }
 
             if (voidAnimation != null) {
@@ -1465,7 +1808,6 @@ public class BossScreen implements Screen {
                 continue;
             }
 
-            // Check if player melee hits this specific void2 (requires 2 hits to disappear)
             if (attackTriggeredThisFrame) {
                 float distToVoid = (float) Math.hypot(playerX - sv.x, playerY - sv.y);
                 if (distToVoid <= 65f) {
@@ -1478,17 +1820,15 @@ public class BossScreen implements Screen {
             }
 
             float currentRadius;
-            float currentAngle = sv.initialAngle + (sv.timeElapsed * 2.0f); // Spin speed
+            float currentAngle = sv.initialAngle + (sv.timeElapsed * 2.0f);
 
             if (sv.fromBoss) {
-                // Travels from boss outward up to 200f radius max over 10s duration
                 currentRadius = Math.min(200f, (sv.timeElapsed / sv.totalDuration) * 200f);
                 if (currentRadius >= 200f) {
                     activeSpiralVoids.remove(i);
                     continue;
                 }
             } else {
-                // Travels from outside (350f) in toward boss over 10s duration
                 float startRadius = 350f;
                 currentRadius = startRadius - (sv.timeElapsed * (startRadius / sv.totalDuration));
                 if (currentRadius <= 0f) {
@@ -1499,16 +1839,6 @@ public class BossScreen implements Screen {
 
             sv.x = bossX + MathUtils.cos(currentAngle) * currentRadius;
             sv.y = bossY + MathUtils.sin(currentAngle) * currentRadius;
-
-            // Damage player on contact
-            if (!paused && !isInventoryOpen && !isGameOver && !isVictory) {
-                float distToPlayer = (float) Math.hypot(playerX - sv.x, playerY - sv.y);
-                if (distToPlayer <= 28f) {
-                    damagePlayer(15f);
-                    activeSpiralVoids.remove(i);
-                    continue;
-                }
-            }
 
             if (void2Animation != null) {
                 TextureRegion frame = void2Animation.getKeyFrame(sv.timeElapsed, true);
@@ -1528,37 +1858,37 @@ public class BossScreen implements Screen {
             float currX = b.startX + (b.targetX - b.startX) * t;
             float currY = b.startY + (b.targetY - b.startY) * t;
 
-            // Check collision with boss from any direction (width halved -> 32.5f, length decreased -> 45f)
             boolean bombHit = false;
-            if (bossSpecialState == BossSpecialState.PHASE_THREE || bossSpecialState == BossSpecialState.POST_PHASE_THREE_LOOP || bossSpecialState == BossSpecialState.NORMAL) {
-                boolean hitBoxX = Math.abs(currX - bossX) <= 32.5f;
-                boolean hitBoxY = Math.abs(currY - bossY) <= 45f;
-                if (hitBoxX && hitBoxY) {
+            boolean isInvulnerable = (bossSpecialState == BossSpecialState.AURA_RETURN ||
+                    bossSpecialState == BossSpecialState.DEFEAT);
+
+            if (!isInvulnerable) {
+                float distToBoss = (float) Math.hypot(currX - bossX, currY - bossY);
+                boolean hitBossDirectly = (distToBoss <= 45f);
+
+                boolean hitProjectileDirectly = false;
+                for (SpiralVoid sv : activeSpiralVoids) {
+                    if (Math.hypot(currX - sv.x, currY - sv.y) <= 35f) {
+                        hitProjectileDirectly = true;
+                        sv.hitsTaken += 2;
+                        if (sv.hitsTaken >= 2) activeSpiralVoids.remove(sv);
+                        break;
+                    }
+                }
+
+                if (hitBossDirectly || hitProjectileDirectly) {
                     bombHit = true;
-                    bossHp -= 50f; // Bomb damages boss on direct collision
-                    if (bossSpecialState == BossSpecialState.POST_PHASE_THREE_LOOP) {
-                        bossHitCountPostPhase3++;
-                        if (bossHitCountPostPhase3 >= 3) {
-                            boolean hasIncoming = false;
-                            for (SpiralVoid sv : activeSpiralVoids) {
-                                if (!sv.fromBoss) {
-                                    hasIncoming = true;
-                                    break;
-                                }
-                            }
-                            if (hasIncoming) {
-                                activeSpiralVoids.clear();
-                                postPhaseThreeLoopTimer = 10.0f;
-                                isBossStunned = true;
-                                bossStunTimer = 1.0f;
-                            }
-                            bossHitCountPostPhase3 = 0;
+                    if (bossSpecialState == BossSpecialState.NORMAL || bossSpecialState == BossSpecialState.FINAL_FORM) {
+                        bossHp = Math.max(0f, bossHp - 50f);
+                    } else if (bossSpecialState == BossSpecialState.POST_PHASE_THREE_LOOP && hitBossDirectly) {
+                        postPhaseBombHits++;
+                        if (postPhaseBombHits >= POST_PHASE_BOMB_HITS_TO_STUN) {
+                            triggerPostPhaseStun();
                         }
                     }
                 }
             }
 
-            // Check collision with spiral voids or heal orbs
             if (!bombHit) {
                 for (SpiralVoid sv : activeSpiralVoids) {
                     if (Math.hypot(currX - sv.x, currY - sv.y) < 35f) {
@@ -1575,7 +1905,7 @@ public class BossScreen implements Screen {
                 for (ActiveHealOrb orb : activeHealOrbs) {
                     if (Math.hypot(currX - orb.x, currY - orb.y) < 35f) {
                         bombHit = true;
-                        orb.shakeTimer = 0.3f; // Damage heal orb with bomb
+                        orb.shakeTimer = 0.3f;
                         break;
                     }
                 }
@@ -1629,10 +1959,9 @@ public class BossScreen implements Screen {
                     int col = Math.min((int) (playerAttackTime / 0.25f), 1);
                     frame = elricBombThrowFrames[playerFacing % elricBombThrowFrames.length][col];
                     if (frame != null) {
-                        baseW = frame.getRegionWidth() * 0.6f;
-                        baseH = frame.getRegionHeight() * 0.6f;
+                        baseW = frame.getRegionWidth() * (0.6f * 0.75f * 0.81f);
+                        baseH = frame.getRegionHeight() * (0.6f * 0.75f * 0.81f);
                     }
-                    specificScale = 1.1f;
                 } else if (elricMeleeHitFrames != null) {
                     int col = Math.min((int) (playerAttackTime / 0.25f), 1);
                     frame = elricMeleeHitFrames[playerFacing % elricMeleeHitFrames.length][col];
@@ -1661,7 +1990,7 @@ public class BossScreen implements Screen {
                         frame = elricBombFrames[playerFacing % elricBombFrames.length][((int) (playerAnimTime / 0.10f)) % 8];
                     } else if (isMacheteEquipped && elricMeleeFrames != null) {
                         frame = elricMeleeFrames[playerFacing % elricMeleeFrames.length][((int) (playerAnimTime / 0.10f)) % 8];
-                    } else if (elricWalkFrames != null) {
+                    } else {
                         frame = elricWalkFrames[playerFacing % elricWalkFrames.length][((int) (playerAnimTime / 0.10f)) % 8];
                     }
                     specificScale = 1.1f;
@@ -1672,11 +2001,8 @@ public class BossScreen implements Screen {
                     } else if (isMacheteEquipped && elricIdleMeleeFrames != null) {
                         frame = elricIdleMeleeFrames[playerFacing % elricIdleMeleeFrames.length][((int) (playerAnimTime / 0.14f)) % 8];
                         specificScale = 1.0f;
-                    } else if (elricIdleFrames != null) {
+                    } else {
                         frame = elricIdleFrames[playerFacing % elricIdleFrames.length][((int) (playerAnimTime / 0.14f)) % 8];
-                        specificScale = 1.1f;
-                    } else if (elricWalkFrames != null) {
-                        frame = elricWalkFrames[playerFacing % elricWalkFrames.length][0];
                         specificScale = 1.1f;
                     }
                 }
@@ -1686,10 +2012,14 @@ public class BossScreen implements Screen {
                 }
             }
 
-            drawW = baseW * (ELRIC_SCALE * specificScale);
-            drawH = baseH * (ELRIC_SCALE * specificScale);
+            if (isBombEquipped && playerAttacking) {
+                drawW = baseW;
+                drawH = baseH;
+            } else {
+                drawW = baseW * (ELRIC_SCALE * specificScale);
+                drawH = baseH * (ELRIC_SCALE * specificScale);
+            }
         } else {
-            // JANE
             float specificScale = 1.0f;
 
             if (playerAttacking) {
@@ -1697,10 +2027,10 @@ public class BossScreen implements Screen {
                     int col = Math.min((int) (playerAttackTime / 0.25f), 1);
                     frame = janeBombThrowFrames[playerFacing % janeBombThrowFrames.length][col];
                     if (frame != null) {
-                        baseW = frame.getRegionWidth() * 0.6f;
-                        baseH = frame.getRegionHeight() * 0.6f;
+                        baseW = frame.getRegionWidth();
+                        baseH = frame.getRegionHeight();
                     }
-                    specificScale = 1.1f;
+                    specificScale = 0.9f;
                 } else if (janeMeleeHitFrames != null) {
                     int col = Math.min((int) (playerAttackTime / 0.22f), 1);
                     frame = janeMeleeHitFrames[playerFacing % janeMeleeHitFrames.length][col];
@@ -1729,7 +2059,7 @@ public class BossScreen implements Screen {
                         frame = janeBombFrames[playerFacing % janeBombFrames.length][((int) (playerAnimTime / 0.10f)) % 8];
                     } else if (isMacheteEquipped && janeMeleeFrames != null) {
                         frame = janeMeleeFrames[playerFacing % janeMeleeFrames.length][((int) (playerAnimTime / 0.10f)) % 8];
-                    } else if (janeWalkFrames != null) {
+                    } else {
                         frame = janeWalkFrames[playerFacing % janeWalkFrames.length][((int) (playerAnimTime / 0.10f)) % 8];
                     }
                     specificScale = 1.0f;
@@ -1740,11 +2070,8 @@ public class BossScreen implements Screen {
                     } else if (isMacheteEquipped && janeIdleMeleeFrames != null) {
                         frame = janeIdleMeleeFrames[playerFacing % janeIdleMeleeFrames.length][((int) (playerAnimTime / 0.14f)) % 8];
                         specificScale = 1.0f;
-                    } else if (janeIdleFrames != null) {
-                        frame = janeIdleFrames[playerFacing % janeIdleFrames.length][((int) (playerAnimTime / 0.14f)) % 8];
-                        specificScale = 1.0f;
-                    } else if (janeWalkFrames != null) {
-                        frame = janeWalkFrames[playerFacing % janeWalkFrames.length][0];
+                    } else {
+                        frame = janeIdleFrames[playerFacing % 4][((int) (playerAnimTime / 0.14f)) % 8];
                         specificScale = 1.0f;
                     }
                 }
@@ -1758,56 +2085,19 @@ public class BossScreen implements Screen {
             drawH = baseH * (JANE_SCALE * specificScale);
         }
 
-        if (frame != null) batch.draw(frame, playerX - drawW / 2f, playerY - drawH / 2f, drawW, drawH);
-    }
-
-    private boolean isWalkable(float x, float y, float radius) {
-        if (tileMap == null) {
-            return x >= 90f && x <= WIDTH - 90f && y >= 90f && y <= HEIGHT - 120f;
-        }
-        float cellW = WIDTH / (float) tileMap.getCollisionWidth();
-        float cellH = HEIGHT / (float) tileMap.getCollisionHeight();
-
-        int minCellX = (int) Math.floor((x - radius) / cellW);
-        int maxCellX = (int) Math.floor((x + radius) / cellW);
-        int minCellY = (int) Math.floor((y - radius) / cellH);
-        int maxCellY = (int) Math.floor((y + radius) / cellH);
-
-        for (int cy = minCellY; cy <= maxCellY; cy++) {
-            for (int cx = minCellX; cx <= maxCellX; cx++) {
-                if (!tileMap.isCellWalkable(cx, cy)) {
-                    return false;
-                }
+        if (frame != null) {
+            // Hit by boss_attack: tint the player slightly red and shake them a little
+            if (playerHitFlashTimer > 0f) {
+                if (!paused && !isInventoryOpen) playerHitFlashTimer -= Gdx.graphics.getDeltaTime();
+                float hitShakeX = MathUtils.random(-2.5f, 2.5f);
+                float hitShakeY = MathUtils.random(-2.5f, 2.5f);
+                batch.setColor(1f, 0.55f, 0.55f, 1f);
+                batch.draw(frame, playerX + hitShakeX - drawW / 2f, playerY + hitShakeY - drawH / 2f, drawW, drawH);
+                batch.setColor(Color.WHITE);
+            } else {
+                batch.draw(frame, playerX - drawW / 2f, playerY - drawH / 2f, drawW, drawH);
             }
         }
-        return true;
-    }
-
-    private void drawCollisionOverlay() {
-        if (tileMap == null) return;
-        float cellW = WIDTH / (float) tileMap.getCollisionWidth();
-        float cellH = HEIGHT / (float) tileMap.getCollisionHeight();
-
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-        shapes.setProjectionMatrix(camera.combined);
-        shapes.begin(ShapeRenderer.ShapeType.Filled);
-
-        shapes.setColor(1f, 0f, 0f, 0.35f);
-        for (int cellY = 0; cellY < tileMap.getCollisionHeight(); cellY++) {
-            for (int cellX = 0; cellX < tileMap.getCollisionWidth(); cellX++) {
-                if (!tileMap.isCellWalkable(cellX, cellY)) {
-                    shapes.rect(cellX * cellW, cellY * cellH, cellW, cellH);
-                }
-            }
-        }
-
-        // Draw player collider bounds
-        shapes.setColor(0.1f, 1f, 0.3f, 0.5f);
-        shapes.circle(playerX, playerY, 12f, 16);
-
-        shapes.end();
-        Gdx.gl.glDisable(GL20.GL_BLEND);
     }
 
     private void drawInventoryOverlay() {
@@ -1925,171 +2215,36 @@ public class BossScreen implements Screen {
     private void drawInterface() {
         Matrix4 uiMatrix = new Matrix4().setToOrtho2D(0f, 0f, WIDTH, HEIGHT);
 
-        // 1. Damage Flash Overlay
-        if (playerDamageFlashTimer > 0f) {
-            Gdx.gl.glEnable(GL20.GL_BLEND);
-            shapes.setProjectionMatrix(uiMatrix);
-            shapes.begin(ShapeRenderer.ShapeType.Filled);
-            shapes.setColor(0.85f, 0.05f, 0.05f, Math.min(0.40f, playerDamageFlashTimer * 1.5f));
-            shapes.rect(0f, 0f, WIDTH, HEIGHT);
-            shapes.end();
-            Gdx.gl.glDisable(GL20.GL_BLEND);
-        }
-
         shapes.setProjectionMatrix(uiMatrix);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(0.2f, 0.2f, 0.2f, 0.8f);
+        shapes.rect(WIDTH / 2f - 200f, HEIGHT - 50f, 400f, 16f);
+        shapes.setColor(0.9f, 0.2f, 0.2f, 1f);
+        shapes.rect(WIDTH / 2f - 200f, HEIGHT - 50f, 400f * MathUtils.clamp(bossHp / 1500f, 0f, 1f), 16f);
 
-        // 2. Boss / Scientist Health Bar (Top Center)
-        float barW = 560f, barH = 18f;
-        float barX = (WIDTH - barW) / 2f;
-        float barY = HEIGHT - 46f;
-
-        if (isScientistAlive) {
-            shapes.setColor(0.08f, 0.10f, 0.14f, 0.85f);
-            shapes.rect(barX - 2f, barY - 2f, barW + 4f, barH + 4f);
-            shapes.setColor(0.95f, 0.55f, 0.15f, 1f);
-            shapes.rect(barX, barY, barW * Math.max(0f, scientistHp / 500f), barH);
-        } else if (isBossLoaded) {
-            shapes.setColor(0.08f, 0.10f, 0.14f, 0.85f);
-            shapes.rect(barX - 2f, barY - 2f, barW + 4f, barH + 4f);
-            shapes.setColor(0.85f, 0.15f, 0.18f, 1f);
-            shapes.rect(barX, barY, barW * Math.max(0f, Math.min(1f, bossHp / 1000f)), barH);
-        }
-
-        // 3. Player Health & Stamina Bars (Bottom Left)
-        shapes.setColor(0.08f, 0.10f, 0.14f, 0.85f);
-        shapes.rect(28f, 48f, 184f, 14f);
-        float hpRatio = Math.max(0f, playerHp / MAX_PLAYER_HP);
-        if (hpRatio > 0.5f) {
-            shapes.setColor(0.2f, 0.85f, 0.35f, 1f);
-        } else if (hpRatio > 0.25f) {
-            shapes.setColor(0.95f, 0.75f, 0.2f, 1f);
-        } else {
-            shapes.setColor(0.9f, 0.2f, 0.2f, 1f);
-        }
-        shapes.rect(30f, 50f, 180f * hpRatio, 10f);
-
-        shapes.setColor(0.08f, 0.10f, 0.14f, 0.85f);
-        shapes.rect(28f, 28f, 184f, 14f);
+        shapes.setColor(0.12f, 0.15f, 0.2f, 0.8f);
+        shapes.rect(30f, 30f, 180f, 12f);
         shapes.setColor(0.2f, 0.75f, 0.95f, 1f);
-        shapes.rect(30f, 30f, 180f * (playerStamina / 100f), 10f);
+        shapes.rect(30f, 30f, 180f * (playerStamina / 100f), 12f);
         shapes.end();
 
         batch.setProjectionMatrix(uiMatrix);
         batch.begin();
-
-        if (isScientistAlive) {
-            font.setColor(0.95f, 0.85f, 0.35f, 1f);
-            font.draw(batch, "TARGET: DR. SEBASTIAN (ROGUE RESEARCHER)  [" + (int)Math.max(0, scientistHp) + " / 500 HP]", barX, barY + 34f);
-            font.setColor(0.75f, 0.8f, 0.85f, 1f);
-            font.draw(batch, "Objective: Subdue the rogue scientist to breach the inner quarantine", barX + 50f, barY - 8f);
-        } else if (isBossLoaded) {
-            font.setColor(0.95f, 0.25f, 0.25f, 1f);
-            font.draw(batch, "PATIENT ZERO: THE INFECTED OVERMIND  [" + (int)Math.max(0, bossHp) + " / 1000 HP]", barX, barY + 34f);
-
-            if (isBossStunned) {
-                font.setColor(1.0f, 0.9f, 0.2f, 1f);
-                font.draw(batch, "STATUS: [STUNNED - WEAK SPOT EXPOSED! ATTACK NOW!]", barX + 80f, barY - 8f);
-            } else if (bossSpecialState == BossSpecialState.AURA_RETURN) {
-                font.setColor(0.7f, 0.5f, 1.0f, 1f);
-                font.draw(batch, "STATUS: [SHIELD ACTIVE - DODGE VOID BURSTS! (" + (int)Math.ceil(bossInvulnerableTimer) + "s)]", barX + 70f, barY - 8f);
-            } else if (bossSpecialState == BossSpecialState.PHASE_THREE) {
-                font.setColor(0.3f, 1.0f, 0.5f, 1f);
-                font.draw(batch, "STATUS: [REGENERATION ACTIVE - DESTROY SPAWNING HEAL ORBS!]", barX + 60f, barY - 8f);
-            } else if (bossSpecialState == BossSpecialState.POST_PHASE_THREE_LOOP) {
-                font.setColor(1.0f, 0.6f, 0.2f, 1f);
-                font.draw(batch, "STATUS: [SPIRAL VOID WAVE " + Math.min(5, postPhaseThreeLoopCount + 1) + "/5 - HIT BOSS 3x TO INTERRUPT!]", barX + 40f, barY - 8f);
-            } else if (isFiringLaser) {
-                font.setColor(1.0f, 0.25f, 0.25f, 1f);
-                font.draw(batch, "STATUS: [FIRING HIGH-OUTPUT LASER! TAKE COVER!]", barX + 90f, barY - 8f);
-            } else {
-                font.setColor(0.75f, 0.8f, 0.85f, 1f);
-                font.draw(batch, "STATUS: [COMBAT ENGAGED - ATTACK WITH MACHETE & GRENADES]", barX + 60f, barY - 8f);
-            }
-        }
-
         font.setColor(0.95f, 0.85f, 0.35f, 1f);
-        font.draw(batch, "OPERATIVE: " + playerCharacter.name() + "  [TAB to swap]", 30f, 82f);
+        font.draw(batch, "OPERATIVE: " + playerCharacter.name() + "   (STAMINA)", 30f, 58f);
+
         font.setColor(Color.WHITE);
-        font.draw(batch, "HP: " + (int)playerHp, 220f, 60f);
-        font.draw(batch, "STM: " + (int)playerStamina + "%", 220f, 40f);
+        font.draw(batch, "BOSS HP: " + (int)bossHp + " / 1500", WIDTH / 2f - 60f, HEIGHT - 30f);
+
+        float timeLeft = Math.max(0f, BOSS_TIME_LIMIT - bossFightElapsedTime);
+        int minutes = (int) (timeLeft / 60f);
+        int seconds = (int) (timeLeft % 60f);
+        font.setColor(0.9f, 0.3f, 0.3f, 1f);
+        font.draw(batch, String.format("TIME: %02d:%02d", minutes, seconds), WIDTH / 2f - 40f, HEIGHT - 65f);
 
         font.setColor(Color.LIGHT_GRAY);
-        font.draw(batch, "[I] Inventory | [1] Machete | [2] Grenade | [F3] Collision Grid: " + (showCollisionOverlay ? "ON" : "OFF"), 320f, 40f);
+        font.draw(batch, "Press [I] to open Inventory | [1] Machete | [2] Grenade", 230f, 40f);
         batch.end();
-
-        if (isGameOver) {
-            drawDefeatOverlay();
-        }
-
-        if (isVictory) {
-            drawVictoryOverlay();
-        }
-    }
-
-    private void drawDefeatOverlay() {
-        Matrix4 uiMatrix = new Matrix4().setToOrtho2D(0f, 0f, WIDTH, HEIGHT);
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        shapes.setProjectionMatrix(uiMatrix);
-        shapes.begin(ShapeRenderer.ShapeType.Filled);
-        shapes.setColor(0.10f, 0.02f, 0.02f, 0.85f);
-        shapes.rect(0f, 0f, WIDTH, HEIGHT);
-        shapes.setColor(0.25f, 0.06f, 0.06f, 0.95f);
-        shapes.rect(WIDTH / 2f - 260f, HEIGHT / 2f - 110f, 520f, 220f);
-        shapes.end();
-        Gdx.gl.glDisable(GL20.GL_BLEND);
-
-        batch.setProjectionMatrix(uiMatrix);
-        batch.begin();
-        font.setColor(0.95f, 0.25f, 0.25f, 1f);
-        font.draw(batch, "OPERATIVE COMPROMISED", WIDTH / 2f - 100f, HEIGHT / 2f + 60f);
-        font.setColor(0.85f, 0.85f, 0.85f, 1f);
-        font.draw(batch, "Vital signs lost. The outbreak continues unabated.", WIDTH / 2f - 170f, HEIGHT / 2f + 15f);
-        font.setColor(0.95f, 0.85f, 0.35f, 1f);
-        font.draw(batch, "Press [SPACE] or Click to Return to Main Menu", WIDTH / 2f - 165f, HEIGHT / 2f - 40f);
-        batch.end();
-
-        defeatTimer += Gdx.graphics.getDeltaTime();
-        if (!returningToLauncher && defeatTimer > 0.8f && (Gdx.input.isKeyJustPressed(Input.Keys.ANY_KEY) || Gdx.input.isButtonJustPressed(Input.Buttons.LEFT))) {
-            returningToLauncher = true;
-            bridge.notifyMatchEnded(new GameBridge.MatchOutcome("DEFEAT", 6));
-            if (bridge.hasLauncher()) {
-                bridge.requestReturnToLauncher(() -> Gdx.app.postRunnable(Gdx.app::exit));
-            } else {
-                game.setScreen(new MainMenuScreen(game, client, bridge));
-            }
-        }
-    }
-
-    private void drawVictoryOverlay() {
-        Matrix4 uiMatrix = new Matrix4().setToOrtho2D(0f, 0f, WIDTH, HEIGHT);
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        shapes.setProjectionMatrix(uiMatrix);
-        shapes.begin(ShapeRenderer.ShapeType.Filled);
-        shapes.setColor(0.02f, 0.08f, 0.04f, 0.85f);
-        shapes.rect(0f, 0f, WIDTH, HEIGHT);
-        shapes.setColor(0.05f, 0.22f, 0.12f, 0.95f);
-        shapes.rect(WIDTH / 2f - 280f, HEIGHT / 2f - 120f, 560f, 240f);
-        shapes.end();
-        Gdx.gl.glDisable(GL20.GL_BLEND);
-
-        batch.setProjectionMatrix(uiMatrix);
-        batch.begin();
-        font.setColor(0.3f, 1.0f, 0.5f, 1f);
-        font.draw(batch, "PATIENT ZERO NEUTRALIZED", WIDTH / 2f - 110f, HEIGHT / 2f + 70f);
-        font.setColor(Color.WHITE);
-        font.draw(batch, "The primary pathogen host has been eliminated. Outbreak contained.", WIDTH / 2f - 230f, HEIGHT / 2f + 25f);
-        font.setColor(0.95f, 0.85f, 0.35f, 1f);
-        font.draw(batch, "CAMPAIGN VICTORY", WIDTH / 2f - 75f, HEIGHT / 2f - 15f);
-        font.setColor(Color.LIGHT_GRAY);
-        font.draw(batch, "Press [SPACE] or Click to View Mission Debrief", WIDTH / 2f - 165f, HEIGHT / 2f - 55f);
-        batch.end();
-
-        victoryTimer += Gdx.graphics.getDeltaTime();
-        if (!returningToLauncher && victoryTimer > 1.2f && (Gdx.input.isKeyJustPressed(Input.Keys.ANY_KEY) || Gdx.input.isButtonJustPressed(Input.Buttons.LEFT))) {
-            returningToLauncher = true;
-            game.setScreen(new StoryPanelScreen(game, client, bridge, StoryPanelScreen.Sequence.ENDING, 6));
-        }
     }
 
     private void drawPauseOverlay() {
@@ -2115,7 +2270,32 @@ public class BossScreen implements Screen {
         batch.end();
     }
 
+    private void drawGameOverOverlay() {
+        Matrix4 uiMatrix = new Matrix4().setToOrtho2D(0f, 0f, WIDTH, HEIGHT);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        shapes.setProjectionMatrix(uiMatrix);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(0.05f, 0f, 0f, 0.85f);
+        shapes.rect(0f, 0f, WIDTH, HEIGHT);
+        shapes.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+
+        batch.setProjectionMatrix(uiMatrix);
+        batch.begin();
+        font.getData().setScale(2.5f);
+        font.setColor(1f, 0.2f, 0.2f, 1f);
+        font.draw(batch, "GAME OVER", WIDTH / 2f - 110f, HEIGHT / 2f + 40f);
+        font.getData().setScale(1.0f);
+        font.setColor(Color.WHITE);
+        font.draw(batch, "Returning to Main Menu...", WIDTH / 2f - 90f, HEIGHT / 2f - 10f);
+        batch.end();
+    }
+
     private void returnToLauncher() {
+        if (bossMusic != null) {
+            bossMusic.stop();
+            bossMusic.dispose();
+        }
         if (bridge != null) bridge.requestReturnToLauncher(() -> Gdx.app.postRunnable(Gdx.app::exit));
         else Gdx.app.exit();
     }
@@ -2131,6 +2311,7 @@ public class BossScreen implements Screen {
 
     @Override
     public void dispose() {
+        if (bossMusic != null) bossMusic.dispose();
         if (batch != null) batch.dispose();
         if (shapes != null) shapes.dispose();
         if (font != null) font.dispose();
@@ -2170,5 +2351,11 @@ public class BossScreen implements Screen {
         if (bossIdleTexture != null) bossIdleTexture.dispose();
         if (void2Texture != null) void2Texture.dispose();
         if (bossStunTexture != null) bossStunTexture.dispose();
+        if (bossAttackTexture != null) bossAttackTexture.dispose();
+        if (bossFinalFormTexture != null) bossFinalFormTexture.dispose();
+        if (bossDefeatTexture != null) bossDefeatTexture.dispose();
+        if (popTexture != null) popTexture.dispose();
+        if (ringTexture != null) ringTexture.dispose();
+        if (waveTexture != null) waveTexture.dispose();
     }
 }
