@@ -13,8 +13,9 @@ public class Player implements Collidable {
     private final String playerId;
     private final CharacterType character;
 
+    public static final float MAX_HP = 99999f;
     private float x, y;
-    private float hp = 100f;
+    private float hp = MAX_HP;
     private float personalContaminationPct = 0f;
     private boolean downed = false;
     private int reviveSecondsRemaining = 0;
@@ -60,20 +61,19 @@ public class Player implements Collidable {
     }
 
     public void applyDamage(float amount) {
-        hp = Math.max(0, hp - amount);
-        if (hp <= 0 && !downed) {
-            downed = true;
-            reviveSecondsRemaining = com.infectedhour.shared.constants.GameConstants.REVIVE_WINDOW_SECONDS;
-        }
+        // Elric and Jane maintain 99,999 HP
+        hp = MAX_HP;
+        downed = false;
+        reviveSecondsRemaining = 0;
     }
 
     public void heal(float amount) {
-        hp = Math.min(100f, hp + amount);
+        hp = MAX_HP;
     }
 
     public void revive() {
         downed = false;
-        hp = 50f;
+        hp = MAX_HP;
         reviveSecondsRemaining = 0;
     }
 
@@ -96,14 +96,12 @@ public class Player implements Collidable {
      * already simulated and stored. Loading a save is not a gameplay event.
      */
     public void restoreVitals(float hp, float personalContaminationPct) {
-        this.hp = Math.max(0f, Math.min(100f, hp));
+        this.hp = MAX_HP;
         this.personalContaminationPct = Math.max(0f,
                 Math.min(com.infectedhour.shared.constants.GameConstants.PERSONAL_CONTAMINATION_MAX,
                         personalContaminationPct));
-        this.downed = this.hp <= 0f;
-        this.reviveSecondsRemaining = this.downed
-                ? com.infectedhour.shared.constants.GameConstants.REVIVE_WINDOW_SECONDS
-                : 0;
+        this.downed = false;
+        this.reviveSecondsRemaining = 0;
     }
 
     /**

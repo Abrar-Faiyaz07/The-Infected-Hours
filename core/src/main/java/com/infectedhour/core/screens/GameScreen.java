@@ -2253,7 +2253,7 @@ public class GameScreen implements Screen {
                         shapes.rect(px - 1f, py - 1f, barW + 2f, barH + 2f);
 
                         shapes.setColor(Color.GREEN);
-                        shapes.rect(px, py, barW * (player.hp / 100f), barH);
+                        shapes.rect(px, py, barW * Math.min(1f, player.hp / com.infectedhour.core.entities.Player.MAX_HP), barH);
                     }
                 }
             }
@@ -4381,7 +4381,7 @@ public class GameScreen implements Screen {
         if (snapshot != null) {
             WorldSnapshot.PlayerState me = client.findLocalPlayer(snapshot);
             if (me != null) {
-                float hpPercent = Math.max(0f, Math.min(me.hp, 100f)) / 100f;
+                float hpPercent = Math.max(0f, Math.min(me.hp, com.infectedhour.core.entities.Player.MAX_HP)) / com.infectedhour.core.entities.Player.MAX_HP;
 
                 float barX = timerX + scaledTW + (scaledTW > 0 ? 15f : 0f);
                 float barWidth = 150f, barHeight = 14f;
@@ -4405,7 +4405,7 @@ public class GameScreen implements Screen {
             }
 
             if (p2State != null) {
-                float p2HpPercent = Math.max(0f, Math.min(p2State.hp, 100f)) / 100f;
+                float p2HpPercent = Math.max(0f, Math.min(p2State.hp, com.infectedhour.core.entities.Player.MAX_HP)) / com.infectedhour.core.entities.Player.MAX_HP;
                 float barWidth = 150f, barHeight = 14f;
 
                 shapes.setColor(0.2f, 0.2f, 0.2f, 0.8f);

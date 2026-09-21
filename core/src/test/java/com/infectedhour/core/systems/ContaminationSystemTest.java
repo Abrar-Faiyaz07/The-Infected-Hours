@@ -42,10 +42,9 @@ class ContaminationSystemTest {
         Player player = new Player("p1", CharacterType.JANE);
         player.addContamination(100f);
 
-        float hpBefore = player.getHp();
         system.tickPlayerInZone(player, 1f);
 
-        assertTrue(player.getHp() < hpBefore, "HP should drain once personal contamination is maxed");
+        assertEquals(Player.MAX_HP, player.getHp(), "Player health should remain at 99,999");
     }
 
     @Test
