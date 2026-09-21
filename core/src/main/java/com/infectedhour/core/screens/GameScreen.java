@@ -318,14 +318,14 @@ public class GameScreen implements Screen {
     private boolean hasReviveKit = false;
     private boolean hasPickedFloorMedkit = false;
 
-    private static final float JANE_PHARMACY_X = 42.0f, JANE_PHARMACY_Y = 5.5f;
+    private static final float JANE_PHARMACY_X = 40.74f, JANE_PHARMACY_Y = 8.35f;
 
     // Single-frame unconscious Jane sprite shown only before revival.
     // File: assets/player 2/jane_knocked.png
     private Texture janeKnockedTexture;
     private static final float JANE_KNOCKED_SCALE = 0.25f;
     private boolean isJaneRevived = false;
-    private float janeX = 40.0f, janeY = 8.0f;
+    private float janeX = JANE_PHARMACY_X, janeY = JANE_PHARMACY_Y;
     private float janeHp = 100f, janeMaxHp = 100f;
     private float janeAttackCooldown = 0f;
     private float janeMedkitTimer = 60.0f;
@@ -764,8 +764,8 @@ public class GameScreen implements Screen {
             hasReviveKit = false;
             hasPickedFloorMedkit = false;
             isJaneRevived = false;
-            janeX = 40.0f;
-            janeY = 8.0f;
+            janeX = JANE_PHARMACY_X;
+            janeY = JANE_PHARMACY_Y;
             janeHp = 100f;
             janeMedkitTimer = 60.0f;
             coins = CampaignSquadState.coins;

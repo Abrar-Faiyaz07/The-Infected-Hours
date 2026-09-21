@@ -67,7 +67,7 @@ class CheckpointPlacementTest {
         // move at all, which reads as "the controls are broken".
         assertTrue(isClear(map, 9.5f, 8.5f), "Elric's spawn is inside a wall");
         assertTrue(isClear(map, 10.5f, 8.5f), "Jane's spawn is inside a wall");
-        assertTrue(isClear(map, 40.0f, 8.0f), "Jane's spawn is inside a wall");
+        assertTrue(isClear(map, 40.74f, 8.35f), "Jane's pharmacy location is inside a wall");
         assertTrue(isClear(map, 12.0f, 8.5f), "Bomb spawn is inside a wall");
     }
 
