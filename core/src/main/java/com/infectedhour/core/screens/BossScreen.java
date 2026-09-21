@@ -70,9 +70,14 @@ public class BossScreen implements Screen {
     // One-shot boss SFX
     private Sound unknownLandingSound;
     private Sound laserSound;
+    private Sound stunSound;
+    private Sound defeatSound;
     private static final float UNKNOWN_LANDING_VOLUME = 1.0f;
     private static final float LASER_SOUND_VOLUME = 1.0f;
+    private static final float STUN_SOUND_VOLUME = 0.85f; // intentionally prominent over 0.3 boss music
+    private static final float DEFEAT_SOUND_VOLUME = 1.0f;
     private boolean unknownLandingPlayed = false;
+    private boolean defeatSoundPlayed = false;
 
     // Scientist State & Textures (4x4 Spritesheet)
     private Texture scientistTexture;
@@ -355,6 +360,19 @@ public class BossScreen implements Screen {
         }
     }
 
+    private void playStunSound() {
+        if (stunSound != null) {
+            stunSound.play(STUN_SOUND_VOLUME);
+        }
+    }
+
+    private void playDefeatSoundOnce() {
+        if (!defeatSoundPlayed && defeatSound != null) {
+            defeatSoundPlayed = true;
+            defeatSound.play(DEFEAT_SOUND_VOLUME);
+        }
+    }
+
     private Texture loadTextureSafely(String internalPath) {
         if (Gdx.files.internal(internalPath).exists()) {
             try { return new Texture(Gdx.files.internal(internalPath)); }
@@ -438,6 +456,30 @@ public class BossScreen implements Screen {
             Gdx.app.error(
                     "BossScreen",
                     "Missing laser.mp3. Checked assets/voice, assets/music, and assets root."
+            );
+        }
+
+        stunSound = loadSoundSafely(
+                "voice/stun.mp3",
+                "music/stun.mp3",
+                "stun.mp3"
+        );
+        if (stunSound == null) {
+            Gdx.app.error(
+                    "BossScreen",
+                    "Missing stun.mp3. Checked assets/voice, assets/music, and assets root."
+            );
+        }
+
+        defeatSound = loadSoundSafely(
+                "voice/defeat.mp3",
+                "music/defeat.mp3",
+                "defeat.mp3"
+        );
+        if (defeatSound == null) {
+            Gdx.app.error(
+                    "BossScreen",
+                    "Missing defeat.mp3. Checked assets/voice, assets/music, and assets root."
             );
         }
 
@@ -1107,6 +1149,7 @@ public class BossScreen implements Screen {
                         finalPhaseStunCounter = 0f;
                         isBossStunned = true;
                         bossStunTimer = 1.0f;
+                        playStunSound();
                         pushWavePauseTimer = 2.0f;
                         activePushWaves.clear();
 
@@ -1118,6 +1161,7 @@ public class BossScreen implements Screen {
             if (bossHp <= 0f && bossSpecialState != BossSpecialState.DEFEAT) {
                 bossSpecialState = BossSpecialState.DEFEAT;
                 bossDefeatAnimTimer = 0f;
+                playDefeatSoundOnce();
                 activePushWaves.clear();
             }
             return;
@@ -1704,6 +1748,7 @@ public class BossScreen implements Screen {
     private void triggerPostPhaseStun() {
         isBossStunned = true;
         bossStunTimer = 1.0f;
+        playStunSound();
         postPhaseMeleeHits = 0;
         postPhaseBombHits = 0;
         postPhaseThreeLoopTimer = 10.0f;
@@ -2363,6 +2408,8 @@ public class BossScreen implements Screen {
         if (bossMusic != null) bossMusic.dispose();
         if (unknownLandingSound != null) unknownLandingSound.dispose();
         if (laserSound != null) laserSound.dispose();
+        if (stunSound != null) stunSound.dispose();
+        if (defeatSound != null) defeatSound.dispose();
         if (batch != null) batch.dispose();
         if (shapes != null) shapes.dispose();
         if (font != null) font.dispose();
