@@ -2323,35 +2323,194 @@ public class BossScreen implements Screen {
     private void drawInterface() {
         Matrix4 uiMatrix = new Matrix4().setToOrtho2D(0f, 0f, WIDTH, HEIGHT);
 
+        // Before the scientist dies, the HUD belongs to the scientist.
+        // The moment the scientist dies and boss deployment starts, the
+        // same HUD slot changes over to SCP Unknown.
+        boolean showScientistBar = isScientistAlive;
+
+        float currentHealth = showScientistBar ? scientistHp : bossHp;
+        float maxHealth = showScientistBar ? 500f : 1500f;
+        float healthRatio = MathUtils.clamp(currentHealth / maxHealth, 0f, 1f);
+
+        String healthBarName = showScientistBar ? "Scientist" : "SCP Unknown";
+
+        // Shared top-center health bar layout.
+        float healthBarWidth = 460f;
+        float healthBarHeight = 20f;
+        float healthBarX = WIDTH / 2f - healthBarWidth / 2f;
+        float healthBarY = HEIGHT - 58f;
+
         shapes.setProjectionMatrix(uiMatrix);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
-        shapes.setColor(0.2f, 0.2f, 0.2f, 0.8f);
-        shapes.rect(WIDTH / 2f - 200f, HEIGHT - 50f, 400f, 16f);
-        shapes.setColor(0.9f, 0.2f, 0.2f, 1f);
-        shapes.rect(WIDTH / 2f - 200f, HEIGHT - 50f, 400f * MathUtils.clamp(bossHp / 1500f, 0f, 1f), 16f);
 
-        shapes.setColor(0.12f, 0.15f, 0.2f, 0.8f);
+        // --- Shared polished health bar ---
+
+        // Soft shadow.
+        shapes.setColor(0.01f, 0.01f, 0.015f, 0.72f);
+        shapes.rect(
+                healthBarX - 6f,
+                healthBarY - 6f,
+                healthBarWidth + 12f,
+                healthBarHeight + 12f
+        );
+
+        // Metallic outer frame.
+        shapes.setColor(0.32f, 0.34f, 0.38f, 0.98f);
+        shapes.rect(
+                healthBarX - 3f,
+                healthBarY - 3f,
+                healthBarWidth + 6f,
+                healthBarHeight + 6f
+        );
+
+        // Dark inner track.
+        shapes.setColor(0.055f, 0.06f, 0.075f, 1f);
+        shapes.rect(
+                healthBarX,
+                healthBarY,
+                healthBarWidth,
+                healthBarHeight
+        );
+
+        // Different bar identity before/after deployment.
+        if (showScientistBar) {
+            // Scientist: darker teal depleted region.
+            shapes.setColor(0.035f, 0.13f, 0.14f, 1f);
+        } else {
+            // SCP Unknown: dark red depleted region.
+            shapes.setColor(0.22f, 0.035f, 0.045f, 1f);
+        }
+
+        shapes.rect(
+                healthBarX + 2f,
+                healthBarY + 2f,
+                healthBarWidth - 4f,
+                healthBarHeight - 4f
+        );
+
+        float healthFillWidth = (healthBarWidth - 4f) * healthRatio;
+
+        if (healthFillWidth > 0f) {
+            if (showScientistBar) {
+                // Scientist main fill.
+                shapes.setColor(0.12f, 0.62f, 0.66f, 1f);
+            } else {
+                // SCP Unknown main fill.
+                shapes.setColor(0.72f, 0.055f, 0.075f, 1f);
+            }
+
+            shapes.rect(
+                    healthBarX + 2f,
+                    healthBarY + 2f,
+                    healthFillWidth,
+                    healthBarHeight - 4f
+            );
+
+            // Thin highlight strip.
+            if (showScientistBar) {
+                shapes.setColor(0.40f, 0.95f, 0.96f, 0.90f);
+            } else {
+                shapes.setColor(1.0f, 0.22f, 0.24f, 0.90f);
+            }
+
+            shapes.rect(
+                    healthBarX + 3f,
+                    healthBarY + healthBarHeight - 6f,
+                    Math.max(0f, healthFillWidth - 2f),
+                    3f
+            );
+        }
+
+        // Boss gets phase markers once deployment has started.
+        if (!showScientistBar) {
+            shapes.setColor(0.78f, 0.80f, 0.84f, 0.65f);
+            shapes.rect(
+                    healthBarX + healthBarWidth / 3f,
+                    healthBarY - 1f,
+                    2f,
+                    healthBarHeight + 2f
+            );
+            shapes.rect(
+                    healthBarX + healthBarWidth * 2f / 3f,
+                    healthBarY - 1f,
+                    2f,
+                    healthBarHeight + 2f
+            );
+        }
+
+        // --- Stamina bar ---
+        shapes.setColor(0.06f, 0.075f, 0.10f, 0.92f);
+        shapes.rect(27f, 27f, 186f, 18f);
+
+        shapes.setColor(0.12f, 0.15f, 0.20f, 1f);
         shapes.rect(30f, 30f, 180f, 12f);
-        shapes.setColor(0.2f, 0.75f, 0.95f, 1f);
-        shapes.rect(30f, 30f, 180f * (playerStamina / 100f), 12f);
+
+        shapes.setColor(0.20f, 0.75f, 0.95f, 1f);
+        shapes.rect(
+                30f,
+                30f,
+                180f * (playerStamina / 100f),
+                12f
+        );
+
         shapes.end();
 
         batch.setProjectionMatrix(uiMatrix);
         batch.begin();
+
+        // Health bar name only — no numeric HP.
+        if (showScientistBar) {
+            font.setColor(0.70f, 0.95f, 0.96f, 1f);
+        } else {
+            font.setColor(0.92f, 0.94f, 0.98f, 1f);
+        }
+
+        font.draw(
+                batch,
+                healthBarName,
+                healthBarX,
+                HEIGHT - 18f,
+                healthBarWidth,
+                com.badlogic.gdx.utils.Align.center,
+                false
+        );
+
+        // Player stamina label.
         font.setColor(0.95f, 0.85f, 0.35f, 1f);
-        font.draw(batch, "OPERATIVE: " + playerCharacter.name() + "   (STAMINA)", 30f, 58f);
+        font.draw(
+                batch,
+                "OPERATIVE: " + playerCharacter.name() + "   (STAMINA)",
+                30f,
+                58f
+        );
 
-        font.setColor(Color.WHITE);
-        font.draw(batch, "BOSS HP: " + (int)bossHp + " / 1500", WIDTH / 2f - 60f, HEIGHT - 30f);
-
+        // Plain timer at the top-right.
         float timeLeft = Math.max(0f, BOSS_TIME_LIMIT - bossFightElapsedTime);
         int minutes = (int) (timeLeft / 60f);
         int seconds = (int) (timeLeft % 60f);
-        font.setColor(0.9f, 0.3f, 0.3f, 1f);
-        font.draw(batch, String.format("TIME: %02d:%02d", minutes, seconds), WIDTH / 2f - 40f, HEIGHT - 65f);
+
+        // Below 2 minutes -> red. Otherwise -> light gray.
+        if (timeLeft < 120f) {
+            font.setColor(1.0f, 0.20f, 0.20f, 1f);
+        } else {
+            font.setColor(0.92f, 0.94f, 0.98f, 1f);
+        }
+
+        font.draw(
+                batch,
+                String.format("%d.%02d", minutes, seconds),
+                WIDTH - 100f,
+                HEIGHT - 24f
+        );
 
         font.setColor(Color.LIGHT_GRAY);
-        font.draw(batch, "Press [I] to open Inventory | [1] Machete | [2] Grenade", 230f, 40f);
+        font.draw(
+                batch,
+                "Press [I] to open Inventory | [1] Machete | [2] Grenade",
+                230f,
+                40f
+        );
+
         batch.end();
     }
 
