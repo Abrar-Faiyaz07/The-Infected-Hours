@@ -155,8 +155,8 @@ infected-hour/
 ### Sadnan Kibria
 - **Player Movement & Combat:** Implemented the main character movement and combat mechanics, including attacks and related gameplay interactions.
 - **Boss System:** Developed the multi-phase final boss fight, including boss AI, attack patterns, laser beams, shockwaves, bio-aura, and stun mechanics.
-- **Sprites & Assets:** Created and integrated Aseprite sprite sheets, animations, and related game assets.
-- **Inventory:** Implemented the inventory system and inventory database integration.
+- **Sprites, Assets & Inventory:** Created and integrated Aseprite sprite sheets, animations, related game assets, and implemented the inventory system with its database integration.
+- **Audio & Sound Effects:** Integrated game sound effects, including machete, laser, bomb, and stage soundtrack assets.
 
 ### AKM Azimul Ashique Khan
 - **Collision Grid Authoring:** Generated and refined walkability grids for Levels 1–5 from painted map masks using the custom grid tool.
