@@ -3714,7 +3714,7 @@ public class GameScreen implements Screen {
         // Dr. Ramirez (v1) uses v1 sprites, Nurse Claire (v2) uses v2 sprites.
         for (LevelVillager v : levelVillagers) {
             if (v.isDead) continue;
-            if (!v.isRescued && levelNumber != 1) continue;
+            // Stranded (not yet rescued) villagers are visible from the start of every level, not only level 1
 
             boolean isV2 = "v2".equals(v.id);
 
