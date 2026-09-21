@@ -361,6 +361,24 @@ public class GameServer {
             return;
         }
 
+        // Co-op: host's zombie positions / shared stairs key go to the other player's screen
+        if ("ZOMBIE_STATE".equals(event.type) || "STAIRS_KEY_TAKEN".equals(event.type)) {
+            for (ConnectedPlayer cp : playersByConnectionId.values()) {
+                if (cp.connectionId != connection.getID()) {
+                    server.sendToTCP(cp.connectionId, new EventMessage(event.type, event.payload));
+                }
+            }
+            return;
+        }
+
+        // Co-op: a zombie killed on one player's screen dies on everyone's screen
+        if ("ZOMBIE_KILLED".equals(event.type)) {
+            if (event.payload != null && !event.payload.isEmpty()) {
+                broadcastEvent("ZOMBIE_KILLED", event.payload);
+            }
+            return;
+        }
+
         // Handle zombie bite damage only if the player is still alive & not downed
         if ("ZOMBIE_BITE_DAMAGE".equals(event.type)) {
             ConnectedPlayer target = sender;
@@ -812,7 +830,7 @@ public class GameServer {
                 .findFirst()
                 .orElse(null);
 
-        float hp = player == null ? 100f : player.getHp();
+        float hp = player == null ? GameConstants.PLAYER_MAX_HP : player.getHp();
         float personalContamination = player == null ? 0f : player.getPersonalContaminationPct();
         String character = player == null ? null : player.getCharacter().name();
 

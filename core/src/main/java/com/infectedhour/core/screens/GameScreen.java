@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.audio.Music;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
@@ -82,6 +83,14 @@ public class GameScreen implements Screen {
     // Level Music
     private Music levelMusic;
     private static final float LEVEL_MUSIC_VOLUME = 0.55f;
+
+    // One-shot combat sound effects
+    private Sound macheteSound; // successful melee hit
+    private Sound swingSound;   // melee miss / no damage
+    private Sound bombSound;    // bomb impact / explosion
+    private static final float MACHETE_SOUND_VOLUME = 1.0f;
+    private static final float SWING_SOUND_VOLUME = 1.0f;
+    private static final float BOMB_SOUND_VOLUME = 1.0f;
 
     private OrthographicCamera camera;
     private Viewport viewport;
@@ -417,6 +426,23 @@ public class GameScreen implements Screen {
     }
     private final List<AmbushZombie> ambushZombies = new ArrayList<>();
 
+    // Co-op zombie kill sync: a kill on either screen is relayed so the zombie dies on both.
+    // IDs are stable across clients: "middle" for the patrol zombie, "ambush:<index>" for horde zombies
+    // (horde lists are always built in the same fixed order).
+    private static final String EVENT_ZOMBIE_KILLED = "ZOMBIE_KILLED";
+    private static final String MIDDLE_ZOMBIE_ID = "middle";
+    private final Set<String> killedZombieIds = new HashSet<>();
+
+    // Co-op zombie position sync: only the host runs zombie AI (movement + bites) and sends the state;
+    // the other player's screen mirrors it so zombies are in the same place on both screens.
+    private static final String EVENT_ZOMBIE_STATE = "ZOMBIE_STATE";
+    private static final String EVENT_STAIRS_KEY_TAKEN = "STAIRS_KEY_TAKEN";
+    private static final float ZOMBIE_SYNC_INTERVAL = 1f / 15f;
+    private float zombieSyncTimer = 0f;
+    private int middleZombieAnimState = 0; // 0 idle, 1 walk, 2 bite
+    private boolean hasMiddleZombieNetState = false;
+    private float middleZombieNetX, middleZombieNetY;
+
     // Minimap Radar
     private boolean isMinimapOpen = true;
     private float minimapStateTime = 0f;
@@ -662,6 +688,102 @@ public class GameScreen implements Screen {
         return texture;
     }
 
+    private void loadMacheteSound() {
+        if (macheteSound != null) return;
+
+        String[] candidates = {
+                "music/machete.mp3",
+                "machete.mp3"
+        };
+
+        for (String path : candidates) {
+            try {
+                if (Gdx.files.internal(path).exists()) {
+                    macheteSound = Gdx.audio.newSound(Gdx.files.internal(path));
+                    Gdx.app.log("GameScreen", "Loaded melee SFX: " + path);
+                    return;
+                }
+            } catch (Exception e) {
+                Gdx.app.error("GameScreen", "Failed loading melee SFX: " + path, e);
+            }
+        }
+
+        Gdx.app.error(
+                "GameScreen",
+                "machete.mp3 not found. Expected assets/music/machete.mp3"
+        );
+    }
+
+    private void playMacheteSound() {
+        if (macheteSound != null) {
+            macheteSound.play(MACHETE_SOUND_VOLUME);
+        }
+    }
+
+    private void loadSwingSound() {
+        if (swingSound != null) return;
+
+        String[] candidates = {
+                "music/swing.mp3",
+                "swing.mp3"
+        };
+
+        for (String path : candidates) {
+            try {
+                if (Gdx.files.internal(path).exists()) {
+                    swingSound = Gdx.audio.newSound(Gdx.files.internal(path));
+                    Gdx.app.log("GameScreen", "Loaded swing SFX: " + path);
+                    return;
+                }
+            } catch (Exception e) {
+                Gdx.app.error("GameScreen", "Failed loading swing SFX: " + path, e);
+            }
+        }
+
+        Gdx.app.error(
+                "GameScreen",
+                "swing.mp3 not found. Expected assets/music/swing.mp3"
+        );
+    }
+
+    private void playSwingSound() {
+        if (swingSound != null) {
+            swingSound.play(SWING_SOUND_VOLUME);
+        }
+    }
+
+    private void loadBombSound() {
+        if (bombSound != null) return;
+
+        String[] candidates = {
+                "music/bomb.mp3",
+                "bomb.mp3"
+        };
+
+        for (String path : candidates) {
+            try {
+                if (Gdx.files.internal(path).exists()) {
+                    bombSound = Gdx.audio.newSound(Gdx.files.internal(path));
+                    Gdx.app.log("GameScreen", "Loaded bomb SFX: " + path);
+                    return;
+                }
+            } catch (Exception e) {
+                Gdx.app.error("GameScreen", "Failed loading bomb SFX: " + path, e);
+            }
+        }
+
+        Gdx.app.error(
+                "GameScreen",
+                "bomb.mp3 not found. Expected assets/music/bomb.mp3"
+        );
+    }
+
+    private void playBombSound() {
+        if (bombSound != null) {
+            bombSound.play(BOMB_SOUND_VOLUME);
+        }
+    }
+
     private void startLevelMusic() {
         stopLevelMusic();
 
@@ -793,7 +915,7 @@ public class GameScreen implements Screen {
             isJaneRevived = true;
             janeX = 3.5f;
             janeY = 37.22f;
-            janeHp = CampaignSquadState.janeHp > 0f ? CampaignSquadState.janeHp : 100f;
+            janeHp = CampaignSquadState.janeHp > 0f ? CampaignSquadState.janeHp : GameConstants.PLAYER_MAX_HP;
 
             // Rescued hospital villagers carry over as active followers
             levelVillagers.clear();
@@ -841,7 +963,7 @@ public class GameScreen implements Screen {
             boolean squadStartsAtCheckpoint = levelNumber >= 3 && levelNumber <= 6;
             janeX = squadStartsAtCheckpoint ? levelStart.spawnTileX() + 1.0f : 28.0f;
             janeY = squadStartsAtCheckpoint ? levelStart.spawnTileY() : 10.0f;
-            janeHp = CampaignSquadState.janeHp > 0f ? CampaignSquadState.janeHp : 100f;
+            janeHp = CampaignSquadState.janeHp > 0f ? CampaignSquadState.janeHp : GameConstants.PLAYER_MAX_HP;
 
             levelVillagers.clear();
             if (levelNumber == 3) {
@@ -1367,6 +1489,11 @@ public class GameScreen implements Screen {
                     CampaignSquadState.isJaneRevived = true;
                     showBanner("JANE REVIVED! Player 2 controls unlocked! Fight together!");
                 });
+                case EVENT_ZOMBIE_KILLED -> Gdx.app.postRunnable(() -> applyRemoteZombieKill(event.payload));
+                case EVENT_ZOMBIE_STATE -> {
+                    if (!isZombieAuthority()) Gdx.app.postRunnable(() -> applyZombieState(event.payload));
+                }
+                case EVENT_STAIRS_KEY_TAKEN -> Gdx.app.postRunnable(this::onStairsKeyTaken);
                 default -> { }
             }
         });
@@ -1590,14 +1717,14 @@ public class GameScreen implements Screen {
                     showBanner("First Aid on cooldown (" + String.format("%.1f", healCooldown) + "s)");
                 }
             } else if (healCooldown <= 0f) {
-                if (me.hp < 100f) {
+                if (me.hp < GameConstants.PLAYER_MAX_HP) {
                     healCooldown = MAX_HEAL_COOLDOWN;
                     healEffectTimer = 1.5f;
                     healFloatingTextTimer = 1.5f;
                     client.sendEvent("PLAYER_HEAL", String.valueOf(healAmt));
                     showBanner("Used First Aid! (+" + (int) healAmt + " HP)");
                 } else {
-                    showBanner("Health is already full (100 HP)!");
+                    showBanner("Health is already full (" + (int) GameConstants.PLAYER_MAX_HP + " HP)!");
                 }
             } else {
                 showBanner("First Aid on cooldown (" + String.format("%.1f", healCooldown) + "s)");
@@ -1897,16 +2024,9 @@ public class GameScreen implements Screen {
             float distY = me.y - keyY;
             if (Math.hypot(distX, distY) <= 1.5f) {
                 if (Gdx.input.isKeyJustPressed(Input.Keys.E)) {
-                    hasStairsKey = true;
-                    isAmbushActive = true;
-                    ambushZombies.clear();
-                    // Boss zombie guarding the door corridor (clear walkway at 42.0, 28.0):
-                    ambushZombies.add(new AmbushZombie(42.0f, 28.0f, true));
-                    // 3 regular zombies swarming (verified walkable positions):
-                    ambushZombies.add(new AmbushZombie(36.0f, 26.5f, false));
-                    ambushZombies.add(new AmbushZombie(42.0f, 25.0f, false));
-                    ambushZombies.add(new AmbushZombie(36.5f, 28.5f, false));
-                    showBanner("DOOR BREACHED! MUTATED BOSS & ZOMBIE HORDE EMERGE!");
+                    onStairsKeyTaken();
+                    // Co-op: the key is shared and the horde spawns on the partner's screen too
+                    if (client != null) client.sendEvent(EVENT_STAIRS_KEY_TAKEN, "");
                 }
             }
         }
@@ -2152,8 +2272,13 @@ public class GameScreen implements Screen {
             TextureRegion zombieFrame;
             if (!paused) {
                 isBeingBitten = false;
-                zombieFrame = updateMiddleZombie(snapshot, me, delta);
-                updateAmbushZombies(snapshot, me, delta);
+                if (isZombieAuthority()) {
+                    zombieFrame = updateMiddleZombie(snapshot, me, delta);
+                    updateAmbushZombies(snapshot, me, delta);
+                    sendZombieStateIfDue(snapshot, delta);
+                } else {
+                    zombieFrame = updateMirroredZombies(me, delta);
+                }
                 updateAlliesAndVillagers(delta, me, snapshot);
                 updatePlayerAnimations(snapshot, delta, me);
             } else {
@@ -2542,6 +2667,7 @@ public class GameScreen implements Screen {
                                     coins += 1;
                                     bloodPools.add(new Vector2(middleZombieX, middleZombieY));
                                     checkZombiePatrolObjective();
+                                    broadcastZombieKill(MIDDLE_ZOMBIE_ID);
                                 }
                             };
                         }
@@ -2571,6 +2697,7 @@ public class GameScreen implements Screen {
                                         grantLabPasskeyIfBoss(targetAz);
                                         coins += 1;
                                         bloodPools.add(new Vector2(targetAz.x, targetAz.y));
+                                        broadcastAmbushZombieKill(targetAz);
                                         checkAmbushCompletion();
                                     }
                                 };
@@ -2587,6 +2714,9 @@ public class GameScreen implements Screen {
                         }
                         aiJaneAnim.isAttacking = true;
                         aiJaneAnim.attackTime = 0f;
+
+                        // attackAction only exists when Jane has a valid living target
+                        // inside her melee range, so the hit sound plays after damage.
                         attackAction.run();
                         game.getAudioDirector().playEffect(SoundtrackCatalog.Effect.MELEE_HIT);
                     }
@@ -2744,6 +2874,7 @@ public class GameScreen implements Screen {
         if (target == null) {
             middleZombieBiting = false;
             middleZombieChasing = false;
+            middleZombieAnimState = 0;
             zombieAnim.stateTime += delta;
             if (zombieAnim.stateTime > ZOMBIE_IDLE_FRAME_S) {
                 zombieAnim.currentColumn = (zombieAnim.currentColumn + 1) % 8;
@@ -2803,6 +2934,7 @@ public class GameScreen implements Screen {
         }
 
         boolean zombieMoving = middleZombieChasing && midDistance > 0.5f;
+        middleZombieAnimState = middleZombieBiting ? 2 : (zombieMoving ? 1 : 0);
 
         if (middleZombieBiting) {
             if (Math.abs(midDistX) > Math.abs(midDistY)) zombieAnim.currentRow = midDistX > 0 ? 2 : 1;
@@ -3217,6 +3349,8 @@ public class GameScreen implements Screen {
             int dirRow;
             if (Math.abs(distXP) > Math.abs(distYP)) dirRow = distXP > 0 ? 2 : 1;
             else dirRow = distYP > 0 ? 3 : 0;
+            az.dirRow = dirRow;
+            az.animState = az.biting ? 2 : ((distP > 0.5f && distP <= 14.0f) ? 1 : 0);
 
             ZombieSkin skin = ambushZombieSkin(az);
             if (az.biting) {
@@ -3472,6 +3606,7 @@ public class GameScreen implements Screen {
                             isBeingBitten = false;
                             bloodPools.add(new Vector2(middleZombieX, middleZombieY));
                             checkZombiePatrolObjective();
+                            broadcastZombieKill(MIDDLE_ZOMBIE_ID);
                         }
                     }
                 }
@@ -3491,6 +3626,7 @@ public class GameScreen implements Screen {
                                 az.dead = true;
                                 grantLabPasskeyIfBoss(az);
                                 bloodPools.add(new Vector2(az.x, az.y));
+                                broadcastAmbushZombieKill(az);
                             }
                         }
                     }
@@ -3609,7 +3745,7 @@ public class GameScreen implements Screen {
         // Dr. Ramirez (v1) uses v1 sprites, Nurse Claire (v2) uses v2 sprites.
         for (LevelVillager v : levelVillagers) {
             if (v.isDead) continue;
-            if (!v.isRescued && levelNumber != 1) continue;
+            // Stranded (not yet rescued) villagers are visible from the start of every level, not only level 1
 
             boolean isV2 = "v2".equals(v.id);
 
@@ -3851,6 +3987,7 @@ public class GameScreen implements Screen {
                         coins += 1;
                         bloodPools.add(new Vector2(middleZombieX, middleZombieY));
                         checkZombiePatrolObjective();
+                        broadcastZombieKill(MIDDLE_ZOMBIE_ID);
                     }
                 }
             }
@@ -3888,6 +4025,7 @@ public class GameScreen implements Screen {
                             grantLabPasskeyIfBoss(az);
                             coins += 1;
                             bloodPools.add(new Vector2(az.x, az.y));
+                            broadcastAmbushZombieKill(az);
                         }
                     }
                 }
@@ -4330,9 +4468,9 @@ public class GameScreen implements Screen {
         if (snapshot != null) {
             WorldSnapshot.PlayerState me = client.findLocalPlayer(snapshot);
             if (me != null && !me.downed && me.hp > 0f) {
-                if (me.hp <= 35f && damagedScreen2Texture != null) {
+                if (me.hp <= GameConstants.PLAYER_MAX_HP * 0.35f && damagedScreen2Texture != null) {
                     batch.draw(damagedScreen2Texture, 0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
-                } else if (me.hp <= 70f && damagedScreen1Texture != null) {
+                } else if (me.hp <= GameConstants.PLAYER_MAX_HP * 0.70f && damagedScreen1Texture != null) {
                     batch.draw(damagedScreen1Texture, 0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
                 }
             }

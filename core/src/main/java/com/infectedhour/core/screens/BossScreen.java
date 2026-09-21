@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.audio.Music;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -65,6 +66,18 @@ public class BossScreen implements Screen {
     // Boss Fight Music
     private static final float BOSS_MUSIC_VOLUME = 0.3f; // 0 = silent, 1 = full volume (was 0.8)
     private Music bossMusic;
+
+    // One-shot boss SFX
+    private Sound unknownLandingSound;
+    private Sound laserSound;
+    private Sound stunSound;
+    private Sound defeatSound;
+    private static final float UNKNOWN_LANDING_VOLUME = 1.0f;
+    private static final float LASER_SOUND_VOLUME = 1.0f;
+    private static final float STUN_SOUND_VOLUME = 0.85f; // intentionally prominent over 0.3 boss music
+    private static final float DEFEAT_SOUND_VOLUME = 1.0f;
+    private boolean unknownLandingPlayed = false;
+    private boolean defeatSoundPlayed = false;
 
     // Scientist State & Textures (4x4 Spritesheet)
     private Texture scientistTexture;
@@ -319,6 +332,47 @@ public class BossScreen implements Screen {
         this(game, client, bridge, CharacterType.ELRIC);
     }
 
+    private Sound loadSoundSafely(String... candidates) {
+        for (String path : candidates) {
+            try {
+                if (Gdx.files.internal(path).exists()) {
+                    Sound sound = Gdx.audio.newSound(Gdx.files.internal(path));
+                    Gdx.app.log("BossScreen", "Loaded SFX: " + path);
+                    return sound;
+                }
+            } catch (Exception e) {
+                Gdx.app.error("BossScreen", "Failed loading SFX: " + path, e);
+            }
+        }
+        return null;
+    }
+
+    private void playUnknownLandingSoundOnce() {
+        if (!unknownLandingPlayed && unknownLandingSound != null) {
+            unknownLandingPlayed = true;
+            unknownLandingSound.play(UNKNOWN_LANDING_VOLUME);
+        }
+    }
+
+    private void playLaserSound() {
+        if (laserSound != null) {
+            laserSound.play(LASER_SOUND_VOLUME);
+        }
+    }
+
+    private void playStunSound() {
+        if (stunSound != null) {
+            stunSound.play(STUN_SOUND_VOLUME);
+        }
+    }
+
+    private void playDefeatSoundOnce() {
+        if (!defeatSoundPlayed && defeatSound != null) {
+            defeatSoundPlayed = true;
+            defeatSound.play(DEFEAT_SOUND_VOLUME);
+        }
+    }
+
     private Texture loadTextureSafely(String internalPath) {
         if (Gdx.files.internal(internalPath).exists()) {
             try { return new Texture(Gdx.files.internal(internalPath)); }
@@ -385,6 +439,49 @@ public class BossScreen implements Screen {
             float masterMusic = bridge != null ? bridge.getMusicVolume() : 1.0f;
             bossMusic.setVolume(BOSS_MUSIC_VOLUME * masterMusic);
             bossMusic.play();
+        }
+
+        // Boss landing voice: exact requested asset location.
+        unknownLandingSound = loadSoundSafely("voice/unknown.mp3");
+        if (unknownLandingSound == null) {
+            Gdx.app.error("BossScreen", "Missing SFX: assets/voice/unknown.mp3");
+        }
+
+        // Laser SFX: prefer voice/, with convenient fallbacks.
+        laserSound = loadSoundSafely(
+                "voice/laser.mp3",
+                "music/laser.mp3",
+                "laser.mp3"
+        );
+        if (laserSound == null) {
+            Gdx.app.error(
+                    "BossScreen",
+                    "Missing laser.mp3. Checked assets/voice, assets/music, and assets root."
+            );
+        }
+
+        stunSound = loadSoundSafely(
+                "voice/stun.mp3",
+                "music/stun.mp3",
+                "stun.mp3"
+        );
+        if (stunSound == null) {
+            Gdx.app.error(
+                    "BossScreen",
+                    "Missing stun.mp3. Checked assets/voice, assets/music, and assets root."
+            );
+        }
+
+        defeatSound = loadSoundSafely(
+                "voice/defeat.mp3",
+                "music/defeat.mp3",
+                "defeat.mp3"
+        );
+        if (defeatSound == null) {
+            Gdx.app.error(
+                    "BossScreen",
+                    "Missing defeat.mp3. Checked assets/voice, assets/music, and assets root."
+            );
         }
 
         String[] mapCandidates = {"map_final.png", "map_final.jpg", "map3.png"};
@@ -787,6 +884,11 @@ public class BossScreen implements Screen {
 
                 if (scientistHp <= 0f) {
                     isScientistAlive = false;
+
+                    // Play the boss voice immediately when the scientist dies.
+                    // The helper guarantees this can happen only once.
+                    playUnknownLandingSoundOnce();
+
                     bossSpawnX = WIDTH / 2f;
                     bossSpawnY = HEIGHT * 0.575f;
                     bossX = WIDTH / 2f;
@@ -1050,6 +1152,7 @@ public class BossScreen implements Screen {
                         finalPhaseStunCounter = 0f;
                         isBossStunned = true;
                         bossStunTimer = 1.0f;
+                        playStunSound();
                         pushWavePauseTimer = 2.0f;
                         activePushWaves.clear();
 
@@ -1061,6 +1164,7 @@ public class BossScreen implements Screen {
             if (bossHp <= 0f && bossSpecialState != BossSpecialState.DEFEAT) {
                 bossSpecialState = BossSpecialState.DEFEAT;
                 bossDefeatAnimTimer = 0f;
+                playDefeatSoundOnce();
                 activePushWaves.clear();
             }
             return;
@@ -1381,6 +1485,9 @@ public class BossScreen implements Screen {
                     isFiringLaser = true;
                     laserDurationTimer = 0.8f; // Fire laser for 0.8s total (4 frames * 0.2s)
 
+                    // One sound per actual laser firing cycle.
+                    playLaserSound();
+
                     // Teleport relative to player and assign correct boss_pose facing row:
                     // 0 = Down, 1 = Left, 2 = Right, 3 = Up
                     float backDist = 60f;
@@ -1644,6 +1751,7 @@ public class BossScreen implements Screen {
     private void triggerPostPhaseStun() {
         isBossStunned = true;
         bossStunTimer = 1.0f;
+        playStunSound();
         postPhaseMeleeHits = 0;
         postPhaseBombHits = 0;
         postPhaseThreeLoopTimer = 10.0f;
@@ -2312,6 +2420,10 @@ public class BossScreen implements Screen {
     @Override
     public void dispose() {
         if (bossMusic != null) bossMusic.dispose();
+        if (unknownLandingSound != null) unknownLandingSound.dispose();
+        if (laserSound != null) laserSound.dispose();
+        if (stunSound != null) stunSound.dispose();
+        if (defeatSound != null) defeatSound.dispose();
         if (batch != null) batch.dispose();
         if (shapes != null) shapes.dispose();
         if (font != null) font.dispose();

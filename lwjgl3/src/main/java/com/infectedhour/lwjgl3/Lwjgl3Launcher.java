@@ -67,7 +67,7 @@ public class Lwjgl3Launcher {
         Checkpoint start = CheckpointRegistry.firstOf(levelNumber);
         SaveSlotDto slot = new SaveSlotDto(1, true, levelNumber, "Dev Level " + levelNumber,
                 start.id(), start.name(), 0, 0L, "ELRIC",
-                100f, 0f, 0f, null, null, null);
+                com.infectedhour.shared.constants.GameConstants.PLAYER_MAX_HP, 0f, 0f, null, null, null);
         return SessionConfig.hostingFromSave("dev-host", "Dev Host", null, slot);
     }
 
@@ -75,7 +75,7 @@ public class Lwjgl3Launcher {
         Checkpoint start = CheckpointRegistry.firstOf(levelNumber);
         SaveSlotDto slot = new SaveSlotDto(1, true, levelNumber, "Dev Level " + levelNumber,
                 start.id(), start.name(), 0, 0L, "ELRIC",
-                100f, 0f, 0f, null, null, null);
+                com.infectedhour.shared.constants.GameConstants.PLAYER_MAX_HP, 0f, 0f, null, null, null);
         return new SessionConfig(true, "localhost", "dev-host", "Dev Host", null, slot,
                 com.infectedhour.shared.network.CharacterType.ELRIC, true, false);
     }
