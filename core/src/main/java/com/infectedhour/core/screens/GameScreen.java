@@ -318,7 +318,7 @@ public class GameScreen implements Screen {
     private boolean showObjectivesOverlay = false;
 
     // Level 1 Herb Parts & Mixed Herb Revive Kit
-    private static final float HERB_1_X = 3.5f, HERB_1_Y = 6.5f;
+    private static final float HERB_1_X = 3.5f, HERB_1_Y = 5.5f;
     private static final float HERB_2_X = 41.0f, HERB_2_Y = 14.0f;
     private static final float MEDKIT_X = 4.5f, MEDKIT_Y = 6.5f;
     private boolean herb1Collected = false;
