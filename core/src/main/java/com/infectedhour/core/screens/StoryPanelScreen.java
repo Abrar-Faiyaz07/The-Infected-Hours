@@ -111,9 +111,9 @@ public class StoryPanelScreen implements Screen {
     public void show() {
         batch = new SpriteBatch();
         subtitleFont = new BitmapFont();
-        subtitleFont.getData().setScale(1.18f);
+        subtitleFont.getData().setScale(1.55f);
         speakerFont = new BitmapFont();
-        speakerFont.getData().setScale(1.05f);
+        speakerFont.getData().setScale(1.12f);
         titleFont = new BitmapFont();
         titleFont.getData().setScale(1.55f);
         panels = DialogueCatalog.lines(sequence.dialogueScene());
@@ -213,16 +213,18 @@ public class StoryPanelScreen implements Screen {
 
         float margin = Math.max(48f, width * 0.075f);
         float textWidth = width - margin * 2f;
+        int dialogueAlignment = bridge.isCinematicSubtitleCentered() ? Align.center : Align.left;
 
         titleFont.setColor(0.94f, 0.97f, 1f, fade);
         titleFont.draw(batch, line.title(), margin, height - 38f, textWidth, Align.left, false);
 
         speakerFont.setColor(0.96f, 0.72f, 0.22f, fade);
-        speakerFont.draw(batch, line.speaker(), margin, subtitleHeight - 28f);
+        speakerFont.draw(batch, line.speaker(), margin, subtitleHeight - 28f,
+                textWidth, dialogueAlignment, false);
 
         subtitleFont.setColor(0.95f, 0.96f, 0.98f, fade);
         subtitleFont.draw(batch, visibleSubtitle, margin, subtitleHeight - 58f,
-                textWidth, Align.left, true);
+                textWidth, dialogueAlignment, true);
 
         speakerFont.setColor(0.70f, 0.78f, 0.86f, fade);
         String prompt = !fullyRevealed
@@ -301,9 +303,9 @@ public class StoryPanelScreen implements Screen {
                 game.setScreen(new MainMenuScreen(game, client, bridge));
             }
         } else if (sequence == Sequence.INTRO) {
-            game.setScreen(new GameScreen(game, client, bridge, levelContext));
+            CampaignScreenRouter.openLevel(game, client, bridge, levelContext);
         } else {
-            game.setScreen(new LevelBriefingScreen(game, client, bridge, levelContext + 1));
+            CampaignScreenRouter.openLevel(game, client, bridge, levelContext + 1);
         }
     }
 

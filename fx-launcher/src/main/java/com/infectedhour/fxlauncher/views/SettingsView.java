@@ -35,7 +35,7 @@ public class SettingsView {
         VBox page = new VBox(24);
         page.setAlignment(Pos.TOP_CENTER);
         page.setMaxWidth(1120);
-        page.getChildren().addAll(buildHero(), buildSettingsGrid(), buildFooter());
+        page.getChildren().addAll(buildHero(), buildSettingsGrid(), buildControlsCard(), buildFooter());
 
         ScrollPane scroll = new ScrollPane(page);
         scroll.getStyleClass().add("settings-scroll");
@@ -88,15 +88,25 @@ public class SettingsView {
     }
 
     private Node buildSettingsGrid() {
-        Slider musicVolume = createSlider();
-        Slider sfxVolume = createSlider();
+        Slider musicVolume = createSlider(SessionState.get().getMusicVolumePercent());
+        Slider sfxVolume = createSlider(SessionState.get().getSfxVolumePercent());
+        Slider subtitleVoiceVolume = createSlider(SessionState.get().getSubtitleVoiceVolumePercent());
+
+        musicVolume.valueProperty().addListener((observable, oldValue, newValue) ->
+                SessionState.get().setMusicVolumePercent(newValue.doubleValue()));
+        sfxVolume.valueProperty().addListener((observable, oldValue, newValue) ->
+                SessionState.get().setSfxVolumePercent(newValue.doubleValue()));
+        subtitleVoiceVolume.valueProperty().addListener((observable, oldValue, newValue) ->
+                SessionState.get().setSubtitleVoiceVolumePercent(newValue.doubleValue()));
 
         VBox audioCard = createCard("AUDIO", "FIELD MIXER",
-                "Balance the soundtrack and combat feedback for your current operation.");
+                "Balance the soundtrack, cinematic dialogue, and combat feedback for your current operation.");
         audioCard.getStyleClass().add("settings-card-featured");
         audioCard.getChildren().addAll(
                 buildSliderControl("♫", "MUSIC VOLUME", "Atmosphere and cinematic score", musicVolume),
-                buildSliderControl("◉", "SFX VOLUME", "Weapons, infected and interface", sfxVolume));
+                buildSliderControl("◉", "SFX VOLUME", "Weapons, infected and interface", sfxVolume),
+                buildSliderControl("▣", "SUBTITLE VOICE VOLUME",
+                        "Spoken dialogue played with cinematic subtitles", subtitleVoiceVolume));
 
         CheckBox fullscreen = new CheckBox("FULLSCREEN MODE");
         fullscreen.getStyleClass().add("settings-toggle");
@@ -117,7 +127,44 @@ public class SettingsView {
                 styledLabel("Switch between windowed and fullscreen play", "settings-control-copy"));
         HBox.setHgrow(displayText, Priority.ALWAYS);
         displayControl.getChildren().addAll(displayText, fullscreen);
-        displayCard.getChildren().add(displayControl);
+
+        ToggleButton centeredSubtitles = new ToggleButton("CENTER");
+        ToggleButton leftSubtitles = new ToggleButton("LEFT");
+        centeredSubtitles.getStyleClass().add("settings-choice-button");
+        leftSubtitles.getStyleClass().add("settings-choice-button");
+
+        ToggleGroup subtitleAlignment = new ToggleGroup();
+        centeredSubtitles.setToggleGroup(subtitleAlignment);
+        leftSubtitles.setToggleGroup(subtitleAlignment);
+        centeredSubtitles.setUserData(SessionState.SubtitleAlignment.CENTER);
+        leftSubtitles.setUserData(SessionState.SubtitleAlignment.LEFT);
+
+        if (SessionState.get().getSubtitleAlignment() == SessionState.SubtitleAlignment.LEFT) {
+            leftSubtitles.setSelected(true);
+        } else {
+            centeredSubtitles.setSelected(true);
+        }
+
+        subtitleAlignment.selectedToggleProperty().addListener((observable, previous, selected) -> {
+            if (selected == null) {
+                if (previous != null) previous.setSelected(true);
+                return;
+            }
+            SessionState.get().setSubtitleAlignment((SessionState.SubtitleAlignment) selected.getUserData());
+        });
+
+        VBox subtitleText = new VBox(3,
+                styledLabel("CINEMATIC DIALOGUE ALIGNMENT", "settings-control-label"),
+                styledLabel("Choose centered or left-aligned cinematic subtitles", "settings-control-copy"));
+        HBox.setHgrow(subtitleText, Priority.ALWAYS);
+        HBox subtitleButtons = new HBox(8, centeredSubtitles, leftSubtitles);
+        subtitleButtons.setAlignment(Pos.CENTER_RIGHT);
+
+        HBox subtitleControl = new HBox(16, subtitleText, subtitleButtons);
+        subtitleControl.setAlignment(Pos.CENTER_LEFT);
+        subtitleControl.getStyleClass().add("settings-option-row");
+
+        displayCard.getChildren().addAll(displayControl, subtitleControl);
 
         TextField backendUrl = new TextField(SessionState.get().getBackendUrl());
         backendUrl.getStyleClass().add("settings-input");
@@ -173,8 +220,69 @@ public class SettingsView {
         return card;
     }
 
-    private Slider createSlider() {
-        Slider slider = new Slider(0, 100, 80);
+    private Node buildControlsCard() {
+        VBox card = createCard("CONTROLS", "KEY REFERENCE",
+                "Current keyboard and mouse controls. Key rebinding will be added later.");
+        card.setMaxWidth(Double.MAX_VALUE);
+
+        GridPane controls = new GridPane();
+        controls.getStyleClass().add("settings-controls-grid");
+        controls.setHgap(18);
+        controls.setVgap(9);
+
+        String[][] entries = {
+                {"W / A / S / D", "Move"},
+                {"SHIFT", "Sprint / evade"},
+                {"SPACE / LEFT CLICK", "Melee attack"},
+                {"E", "Interact / loot"},
+                {"H", "Heal"},
+                {"X", "Order survivor to stay / follow"},
+                {"M", "Show / hide minimap"},
+                {"O", "Show / hide objectives"},
+                {"I", "Open / close inventory"},
+                {"ESC", "Pause / back"},
+                {"K", "Open controls from pause menu"},
+                {"CTRL + S", "Open checkpoint save slots"},
+                {"F11", "Toggle fullscreen"},
+                {"F12", "Take screenshot"},
+                {"J", "Show coordinate diagnostics"},
+                {"C / F1", "Show collision overlay"},
+                {"F3", "Toggle split-screen debug view"},
+                {"Q", "Exit to main menu while paused"},
+                {"ARROWS / NUMPAD", "Player 2 movement in debug co-op"},
+                {"NUMPAD 0", "Player 2 attack in debug co-op"},
+                {"NUMPAD 3", "Player 2 interact in debug co-op"},
+                {"NUMPAD 7", "Player 2 stay / follow command"},
+                {"NUMPAD 9", "Player 2 heal"}
+        };
+
+        int rowsPerColumn = (entries.length + 1) / 2;
+        for (int i = 0; i < entries.length; i++) {
+            int group = i / rowsPerColumn;
+            int row = i % rowsPerColumn;
+            int column = group * 2;
+            Label key = styledLabel(entries[i][0], "settings-key-chip");
+            Label action = styledLabel(entries[i][1], "settings-control-copy");
+            controls.add(key, column, row);
+            controls.add(action, column + 1, row);
+        }
+
+        ColumnConstraints keyColumn = new ColumnConstraints();
+        keyColumn.setMinWidth(145);
+        ColumnConstraints actionColumn = new ColumnConstraints();
+        actionColumn.setHgrow(Priority.ALWAYS);
+        ColumnConstraints keyColumnTwo = new ColumnConstraints();
+        keyColumnTwo.setMinWidth(145);
+        ColumnConstraints actionColumnTwo = new ColumnConstraints();
+        actionColumnTwo.setHgrow(Priority.ALWAYS);
+        controls.getColumnConstraints().addAll(keyColumn, actionColumn, keyColumnTwo, actionColumnTwo);
+
+        card.getChildren().add(controls);
+        return card;
+    }
+
+    private Slider createSlider(double initialValue) {
+        Slider slider = new Slider(0, 100, initialValue);
         slider.getStyleClass().add("settings-slider");
         slider.setMaxWidth(Double.MAX_VALUE);
         return slider;

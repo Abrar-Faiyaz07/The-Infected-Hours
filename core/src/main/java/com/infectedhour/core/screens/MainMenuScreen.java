@@ -650,7 +650,7 @@ public class MainMenuScreen implements Screen {
                     game.getServer().setHostCharacter(c);
                     game.getServer().restoreFrom(slot);
                 }
-                game.setScreen(new LevelBriefingScreen(game, client, bridge, slot.levelNumber()));
+                CampaignScreenRouter.openLevel(game, client, bridge, slot.levelNumber());
                 return;
             }
         }
@@ -705,9 +705,10 @@ public class MainMenuScreen implements Screen {
         font.draw(batch, "•  SPACEBAR              — Primary Attack (Machete Slash or Bomb Throw)", textX, textY - lineGap * 3);
         font.draw(batch, "•  E                     — Interact with Doors, Terminals, Keys & Evacuation", textX, textY - lineGap * 4);
         font.draw(batch, "•  H  or  [3]            — Healing Surge (+35 HP & 15s immunity, 12s cooldown)", textX, textY - lineGap * 5);
-        font.draw(batch, "•  ESC                   — Pause Game & Open Save Slots Overlay", textX, textY - lineGap * 6);
-        font.draw(batch, "•  1 / 2 (Keys)          — Switch between Machete & Bomb in gameplay", textX, textY - lineGap * 7);
-        font.draw(batch, "•  F11                   — Toggle Display Mode (Windows Fit / Full Screen)", textX, textY - lineGap * 8);
+        font.draw(batch, "•  O                     — Show / Hide Current Objectives", textX, textY - lineGap * 6);
+        font.draw(batch, "•  ESC                   — Pause Game & Open Save Slots Overlay", textX, textY - lineGap * 7);
+        font.draw(batch, "•  1 / 2 (Keys)          — Switch between Machete & Bomb in gameplay", textX, textY - lineGap * 8);
+        font.draw(batch, "•  F11                   — Toggle Display Mode (Windows Fit / Full Screen)", textX, textY - lineGap * 9);
         batch.end();
 
         // Back Button
@@ -748,7 +749,8 @@ public class MainMenuScreen implements Screen {
         if (game.getServer() != null) {
             game.getServer().setHostCharacter(character);
         }
-        game.setScreen(new LevelBriefingScreen(game, client, bridge, 1));
+        game.setScreen(new StoryPanelScreen(game, client, bridge,
+                StoryPanelScreen.Sequence.INTRO, 1));
     }
 
     private Texture loadTextureSafely(String path) {

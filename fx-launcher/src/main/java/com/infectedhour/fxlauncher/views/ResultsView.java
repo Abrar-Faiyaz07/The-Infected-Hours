@@ -22,13 +22,15 @@ public class ResultsView {
     private final BackendClient backendClient;
     private final StackPane root = new StackPane();
 
-    public ResultsView(Stage stage, BackendClient backendClient, String result, int finalLevelReached) {
+    public ResultsView(Stage stage, BackendClient backendClient, String result, int finalLevelReached,
+                       long totalGameTimeSeconds, int coinsCollected, int npcsSaved, int npcsFailed) {
         this.stage = stage;
         this.backendClient = backendClient;
-        build(result, finalLevelReached);
+        build(result, finalLevelReached, totalGameTimeSeconds, coinsCollected, npcsSaved, npcsFailed);
     }
 
-    private void build(String result, int finalLevelReached) {
+    private void build(String result, int finalLevelReached,
+                       long totalGameTimeSeconds, int coinsCollected, int npcsSaved, int npcsFailed) {
         boolean victory = "VICTORY".equalsIgnoreCase(result);
         root.setMinSize(900, 560);
         root.getStyleClass().setAll("results-root", victory ? "results-victory" : "results-defeat");
@@ -52,9 +54,18 @@ public class ResultsView {
         VBox levelStat = resultStat("DISTRICT REACHED", String.format("LEVEL %02d", finalLevelReached));
         VBox outcomeStat = resultStat("OPERATION STATUS", victory ? "COMPLETE" : "OVERRUN");
         outcomeStat.getStyleClass().add(victory ? "result-stat-success" : "result-stat-danger");
+        VBox timeStat = resultStat("TOTAL GAME TIME", formatGameTime(totalGameTimeSeconds));
+        VBox coinsStat = resultStat("COINS COLLECTED", String.valueOf(Math.max(0, coinsCollected)));
+        VBox savedStat = resultStat("NPCs SAVED", String.valueOf(Math.max(0, npcsSaved)));
+        savedStat.getStyleClass().add("result-stat-success");
+        VBox failedStat = resultStat("NPCs FAILED", String.valueOf(Math.max(0, npcsFailed)));
+        failedStat.getStyleClass().add("result-stat-danger");
 
-        HBox stats = new HBox(42, levelStat, outcomeStat);
-        stats.setAlignment(Pos.CENTER_LEFT);
+        HBox primaryStats = new HBox(34, levelStat, outcomeStat, timeStat);
+        primaryStats.setAlignment(Pos.CENTER_LEFT);
+        HBox survivorStats = new HBox(48, coinsStat, savedStat, failedStat);
+        survivorStats.setAlignment(Pos.CENTER_LEFT);
+        VBox stats = new VBox(14, primaryStats, survivorStats);
         stats.getStyleClass().add("results-stats-card");
 
         Button playAgainBtn = new Button(victory ? "PLAY AGAIN" : "RETRY MISSION");
@@ -69,7 +80,7 @@ public class ResultsView {
         actions.setAlignment(Pos.CENTER_LEFT);
 
         VBox report = new VBox(12, section, banner, narrative, stats, actions);
-        report.setMaxWidth(560);
+        report.setMaxWidth(680);
 
         AnchorPane content = new AnchorPane(report);
         AnchorPane.setLeftAnchor(report, 64.0);
@@ -90,6 +101,16 @@ public class ResultsView {
         Label value = new Label(valueText);
         value.getStyleClass().add("result-stat-value");
         return new VBox(3, label, value);
+    }
+
+    private String formatGameTime(long totalSeconds) {
+        long safeSeconds = Math.max(0L, totalSeconds);
+        long hours = safeSeconds / 3600L;
+        long minutes = (safeSeconds % 3600L) / 60L;
+        long seconds = safeSeconds % 60L;
+        return hours > 0L
+                ? String.format("%dh %02dm %02ds", hours, minutes, seconds)
+                : String.format("%02dm %02ds", minutes, seconds);
     }
 
     private void returnToMenu() {

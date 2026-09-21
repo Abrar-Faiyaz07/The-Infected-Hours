@@ -91,6 +91,8 @@ public class Lwjgl3Launcher {
     public static void boot(SessionConfig session, GameBridge bridge, boolean fullscreen) {
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
         config.setTitle("The Infected Hour");
+        // The circular tactical minimap uses an 8-bit stencil mask.
+        config.setBackBufferConfig(8, 8, 8, 8, 16, 8, 0);
         if (fullscreen) {
             com.badlogic.gdx.Graphics.DisplayMode displayMode = Lwjgl3ApplicationConfiguration.getDisplayMode();
             config.setWindowedMode(displayMode.width, displayMode.height);

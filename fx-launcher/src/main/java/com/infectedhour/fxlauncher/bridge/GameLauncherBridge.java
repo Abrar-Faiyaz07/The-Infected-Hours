@@ -115,6 +115,11 @@ public class GameLauncherBridge {
     public void startMatch(SessionConfig session, Runnable onReturnToLauncher) {
         GameBridge bridge = new GameBridge();
         bridge.setHasLauncher(true);
+        bridge.setCinematicSubtitleCentered(
+                SessionState.get().getSubtitleAlignment() == SessionState.SubtitleAlignment.CENTER);
+        bridge.setMusicVolume((float) (SessionState.get().getMusicVolumePercent() / 100.0));
+        bridge.setSfxVolume((float) (SessionState.get().getSfxVolumePercent() / 100.0));
+        bridge.setSubtitleVoiceVolume((float) (SessionState.get().getSubtitleVoiceVolumePercent() / 100.0));
 
         final boolean[] matchEnded = new boolean[]{false};
         AtomicBoolean launcherRestored = new AtomicBoolean(false);
@@ -177,7 +182,8 @@ public class GameLauncherBridge {
                 primaryStage.setFullScreen(true);
             }
             ResultsView view = new ResultsView(primaryStage, backendClient,
-                    outcome.result(), outcome.finalLevelReached());
+                    outcome.result(), outcome.finalLevelReached(), outcome.totalGameTimeSeconds(),
+                    outcome.coinsCollected(), outcome.npcsSaved(), outcome.npcsFailed());
             primaryStage.getScene().setRoot(view.getRoot());
         }));
 

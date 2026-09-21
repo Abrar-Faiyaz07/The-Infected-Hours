@@ -55,9 +55,10 @@
 .menu-overlay {
     -fx-background-color: linear-gradient(
             to right,
-            rgba(3, 7, 12, 0.32) 0%,
-            rgba(3, 7, 12, 0.10) 48%,
-            rgba(3, 7, 12, 0.34) 100%
+            rgba(2, 4, 7, 0.90) 0%,
+            rgba(2, 4, 7, 0.72) 21%,
+            rgba(2, 4, 7, 0.16) 52%,
+            rgba(2, 4, 7, 0.24) 100%
     );
 }
 
@@ -74,6 +75,87 @@
 
 .menu-content {
     -fx-background-color: transparent;
+}
+
+/* Minimal survival-horror navigation: typography is the interface. */
+.menu-brand-subtitle {
+    -fx-text-fill: rgba(242, 240, 233, 0.42);
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+}
+
+.horror-menu-heading {
+    -fx-text-fill: rgba(232, 176, 42, 0.72);
+    -fx-font-family: "Bahnschrift Condensed", "Arial Narrow", "Segoe UI Semibold";
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 0 0 0 18;
+}
+
+.horror-menu-section {
+    -fx-text-fill: rgba(242, 240, 233, 0.30);
+    -fx-font-family: "Bahnschrift Condensed", "Arial Narrow", "Segoe UI Semibold";
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-padding: 0 0 2 18;
+}
+
+.horror-menu-item {
+    -fx-background-color: transparent;
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0 0 0 3;
+    -fx-border-radius: 0;
+    -fx-text-fill: rgba(242, 240, 233, 0.58);
+    -fx-font-family: "Bahnschrift Condensed", "Arial Narrow", "Segoe UI Semibold";
+    -fx-font-size: 19px;
+    -fx-font-weight: bold;
+    -fx-alignment: CENTER_LEFT;
+    -fx-text-alignment: left;
+    -fx-padding: 7 18 7 18;
+    -fx-cursor: hand;
+    -fx-effect: null;
+}
+
+.horror-menu-item:hover,
+.horror-menu-item:focused {
+    -fx-background-color: linear-gradient(to right, rgba(242, 240, 233, 0.09), rgba(242, 240, 233, 0.0));
+    -fx-border-color: transparent transparent transparent #E8B02A;
+    -fx-border-width: 0 0 0 3;
+    -fx-text-fill: #F8F7F2;
+    -fx-padding: 7 18 7 25;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.85), 7, 0.25, 1, 2);
+}
+
+.horror-menu-item-primary {
+    -fx-text-fill: rgba(242, 240, 233, 0.82);
+}
+
+.horror-menu-item-developer {
+    -fx-font-size: 13px;
+    -fx-text-fill: rgba(242, 240, 233, 0.38);
+}
+
+.horror-menu-item-danger {
+    -fx-text-fill: rgba(232, 90, 79, 0.64);
+}
+
+.horror-menu-item-danger:hover,
+.horror-menu-item-danger:focused {
+    -fx-border-color: transparent transparent transparent #E85A4F;
+    -fx-text-fill: #FF8178;
+}
+
+.horror-menu-description {
+    -fx-text-fill: rgba(242, 240, 233, 0.72);
+    -fx-font-size: 13px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.9), 6, 0.25, 0, 2);
+}
+
+.horror-menu-hint {
+    -fx-text-fill: rgba(242, 240, 233, 0.38);
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
 }
 
 /* ── Console-style top bar ───────────────────────────────────────── */
@@ -471,7 +553,7 @@
     -fx-border-radius: 8;
     -fx-border-width: 1;
     -fx-padding: 14 18 14 18;
-    -fx-max-width: 420;
+    -fx-max-width: 620;
 }
 
 .result-stat-label {
@@ -710,6 +792,25 @@
     -fx-font-size: 10px;
 }
 
+.settings-controls-grid {
+    -fx-background-color: rgba(3, 8, 15, 0.42);
+    -fx-background-radius: 5;
+    -fx-border-color: rgba(242, 240, 233, 0.08);
+    -fx-border-radius: 5;
+    -fx-padding: 16;
+}
+
+.settings-key-chip {
+    -fx-background-color: rgba(232, 176, 42, 0.12);
+    -fx-background-radius: 3;
+    -fx-border-color: rgba(232, 176, 42, 0.34);
+    -fx-border-radius: 3;
+    -fx-text-fill: #F0C75A;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 4 7 4 7;
+}
+
 .settings-value-chip {
     -fx-background-color: rgba(232, 176, 42, 0.12);
     -fx-background-radius: 3;
@@ -762,6 +863,29 @@
 
 .settings-toggle:selected > .box > .mark {
     -fx-background-color: #0A111C;
+}
+
+.settings-choice-button {
+    -fx-background-color: rgba(3, 8, 15, 0.72);
+    -fx-background-radius: 4;
+    -fx-border-color: rgba(242, 240, 233, 0.22);
+    -fx-border-radius: 4;
+    -fx-text-fill: rgba(242, 240, 233, 0.68);
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 8 13 8 13;
+    -fx-cursor: hand;
+}
+
+.settings-choice-button:hover {
+    -fx-border-color: rgba(232, 176, 42, 0.65);
+    -fx-text-fill: #F2F0E9;
+}
+
+.settings-choice-button:selected {
+    -fx-background-color: rgba(232, 176, 42, 0.22);
+    -fx-border-color: #E8B02A;
+    -fx-text-fill: #FFD66B;
 }
 
 .settings-input {
