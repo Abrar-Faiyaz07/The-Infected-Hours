@@ -991,8 +991,14 @@ public class BossScreen implements Screen {
         playerMoving = (moveX != 0 || moveY != 0);
         if (playerMoving) {
             float len = (float) Math.sqrt(moveX * moveX + moveY * moveY);
-            playerX = MathUtils.clamp(playerX + (moveX / len) * speed * delta, 90f, WIDTH - 90f);
-            playerY = MathUtils.clamp(playerY + (moveY / len) * speed * delta, 90f, HEIGHT - 120f);
+            float nextX = MathUtils.clamp(playerX + (moveX / len) * speed * delta, 90f, WIDTH - 90f);
+            float nextY = MathUtils.clamp(playerY + (moveY / len) * speed * delta, 90f, HEIGHT - 120f);
+            // Block movement into arena walls (checked at the feet); per-axis so the player slides along walls.
+            // If already inside a blocked cell (e.g. spawn), allow movement so the player can escape.
+            float footOffset = 22f;
+            boolean stuck = !isArenaWalkable(playerX, playerY - footOffset);
+            if (stuck || isArenaWalkable(nextX, playerY - footOffset)) playerX = nextX;
+            if (stuck || isArenaWalkable(playerX, nextY - footOffset)) playerY = nextY;
             playerAnimTime += delta;
             playerFacing = Math.abs(moveX) > Math.abs(moveY) ? (moveX > 0 ? 2 : 1) : (moveY > 0 ? 3 : 0);
         } else {
@@ -1755,6 +1761,15 @@ public class BossScreen implements Screen {
         postPhaseMeleeHits = 0;
         postPhaseBombHits = 0;
         postPhaseThreeLoopTimer = 10.0f;
+    }
+
+    /** True if the boss arena lets the player's feet stand at (px, py). No collision map => open arena. */
+    private boolean isArenaWalkable(float px, float py) {
+        if (arenaTileMap == null) return true;
+        int cw = arenaTileMap.getCollisionWidth(), ch = arenaTileMap.getCollisionHeight();
+        int cx = arenaCellX(px), cy = arenaCellY(py);
+        if (cx < 0 || cx >= cw || cy < 0 || cy >= ch) return true; // outside the grid: the screen clamp handles it
+        return arenaTileMap.isCellWalkable(cx, cy);
     }
 
     private int arenaCellX(float worldX) {
