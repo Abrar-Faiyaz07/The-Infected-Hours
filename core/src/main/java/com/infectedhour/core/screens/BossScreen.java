@@ -189,6 +189,12 @@ public class BossScreen implements Screen {
     private float playerHitFlashTimer = 0f;
     private float bossRetreatTimer = 0f;
 
+    // Player health in the boss fight (10000 HP). Attacks: boss_attack 50, laser 100, void 100, void2 100.
+    private static final float BOSS_PLAYER_MAX_HP = 10000f;
+    private static final float PLAYER_INVULN_AFTER_HIT = 0.5f; // brief i-frames so one beam/void doesn't drain HP each frame
+    private float playerHp = BOSS_PLAYER_MAX_HP;
+    private float playerInvulnTimer = 0f;
+
     // Phase 3 Mechanics Variables
     private float phaseThreeTimer = 0f;
     private float auraPhaseTimer = 0f;
@@ -982,8 +988,22 @@ public class BossScreen implements Screen {
         }
     }
 
+    /** Applies damage to the player's HP with brief i-frames; triggers game over at 0 HP. */
+    private void damagePlayer(float amount) {
+        if (playerInvulnTimer > 0f || isGameOverActive) return;
+        playerHp = Math.max(0f, playerHp - amount);
+        playerInvulnTimer = PLAYER_INVULN_AFTER_HIT;
+        playerHitFlashTimer = PLAYER_HIT_FLASH_DURATION;
+        cameraShakeTimer = CAMERA_SHAKE_DURATION;
+        if (playerHp <= 0f) {
+            isGameOverActive = true;
+            gameOverTimer = 0f;
+        }
+    }
+
     private void updatePlayer(float delta) {
         if (bombCooldown > 0f) bombCooldown -= delta;
+        if (playerInvulnTimer > 0f) playerInvulnTimer -= delta;
 
         float moveX = 0f, moveY = 0f;
         if (Gdx.input.isKeyPressed(Input.Keys.W) || Gdx.input.isKeyPressed(Input.Keys.UP)) moveY += 1f;
@@ -1211,7 +1231,7 @@ public class BossScreen implements Screen {
                 // Hit resolves only now: if the player escaped the hitbox during the wind-up, no damage
                 float distAtHit = (float) Math.hypot(playerX - bossX, playerY - bossY);
                 if (distAtHit <= BOSS_ATTACK_HIT_RANGE) {
-                    playerHitFlashTimer = PLAYER_HIT_FLASH_DURATION;
+                    damagePlayer(50f);
                 }
 
                 isBossAttackingClose = false;
@@ -1936,6 +1956,18 @@ public class BossScreen implements Screen {
             float laserW = mapCrossingWidth;
             float laserH = laserHeight * LASER_SCALE;
             batch.draw(currentFrame, startX, startY - laserH / 2f, 0f, laserH / 2f, laserW, laserH, 1f, 1f, laserTargetAngle);
+
+            // laser.png hit: perpendicular distance from the player to the beam line, within the beam length
+            if (!paused && !isInventoryOpen && !isGameOverActive) {
+                float rad = laserTargetAngle * MathUtils.degreesToRadians;
+                float dirX = MathUtils.cos(rad), dirY = MathUtils.sin(rad);
+                float relX = playerX - startX, relY = playerY - startY;
+                float along = relX * dirX + relY * dirY;          // distance along the beam
+                float perp = Math.abs(relX * -dirY + relY * dirX); // distance across the beam
+                if (along >= 0f && along <= laserW && perp <= laserH / 2f + 20f) {
+                    damagePlayer(100f);
+                }
+            }
         }
     }
 
@@ -1954,6 +1986,11 @@ public class BossScreen implements Screen {
                 float vW = voidWidth * VOID_SCALE;
                 float vH = voidHeight * VOID_SCALE;
                 batch.draw(frame, v.x - vW / 2f, v.y - vH / 2f, vW, vH);
+                // void.png hit
+                if (!paused && !isInventoryOpen && !isGameOverActive
+                        && Math.hypot(playerX - v.x, playerY - v.y) <= Math.max(vW, vH) * 0.4f) {
+                    damagePlayer(100f);
+                }
             }
         }
     }
@@ -2005,6 +2042,11 @@ public class BossScreen implements Screen {
                 float v2W = void2Width * VOID2_SCALE;
                 float v2H = void2Height * VOID2_SCALE;
                 batch.draw(frame, sv.x - v2W / 2f, sv.y - v2H / 2f, v2W, v2H);
+                // void2.png projectile hit
+                if (!paused && !isInventoryOpen && !isGameOverActive
+                        && Math.hypot(playerX - sv.x, playerY - sv.y) <= Math.max(v2W, v2H) * 0.45f) {
+                    damagePlayer(100f);
+                }
             }
         }
     }
@@ -2258,6 +2300,16 @@ public class BossScreen implements Screen {
                 batch.draw(frame, playerX - drawW / 2f, playerY - drawH / 2f, drawW, drawH);
             }
         }
+
+        // Wave phase: red countdown above the player's head — hits remaining before the waves kill you (5..1)
+        if (bossSpecialState == BossSpecialState.FINAL_FORM && waveHitCount < WAVE_HITS_TO_DIE) {
+            int remaining = WAVE_HITS_TO_DIE - waveHitCount;
+            font.getData().setScale(1.6f);
+            font.setColor(1f, 0.15f, 0.15f, 1f);
+            font.draw(batch, String.valueOf(remaining), playerX - 6f, playerY + drawH / 2f + 34f);
+            font.setColor(Color.WHITE);
+            font.getData().setScale(1f);
+        }
     }
 
     private void drawInventoryOverlay() {
@@ -2400,6 +2452,13 @@ public class BossScreen implements Screen {
         shapes.setColor(0.2f, 0.75f, 0.95f, 1f);
         shapes.rect(30f, 30f, 180f * (playerStamina / 100f), 12f);
 
+        // Player HP bar (10000 HP)
+        shapes.setColor(0.12f, 0.15f, 0.2f, 0.85f);
+        shapes.rect(30f, 74f, 260f, 16f);
+        float hpFrac = MathUtils.clamp(playerHp / BOSS_PLAYER_MAX_HP, 0f, 1f);
+        shapes.setColor(hpFrac > 0.3f ? new Color(0.2f, 0.85f, 0.35f, 1f) : new Color(0.9f, 0.25f, 0.2f, 1f));
+        shapes.rect(30f, 74f, 260f * hpFrac, 16f);
+
         Gdx.gl.glEnable(GL20.GL_BLEND);
         if (showCollisionOverlay) {
             shapes.setColor(isCollHovered ? new Color(0.2f, 0.7f, 0.3f, 0.95f) : new Color(0.12f, 0.45f, 0.18f, 0.85f));
@@ -2423,6 +2482,8 @@ public class BossScreen implements Screen {
 
         font.setColor(0.95f, 0.85f, 0.35f, 1f);
         font.draw(batch, "OPERATIVE: " + playerCharacter.name() + "   (STAMINA)", 30f, 58f);
+        font.setColor(Color.WHITE);
+        font.draw(batch, "HP: " + (int) playerHp + " / " + (int) BOSS_PLAYER_MAX_HP, 30f, 106f);
 
         font.setColor(Color.WHITE);
         font.draw(batch, "BOSS HP: " + (int)bossHp + " / 1500", WIDTH / 2f - 60f, HEIGHT - 30f);
