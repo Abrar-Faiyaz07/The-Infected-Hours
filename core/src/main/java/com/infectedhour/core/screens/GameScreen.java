@@ -207,7 +207,6 @@ public class GameScreen implements Screen {
     // Immunity Timer Tracking (Set to Infinite Time as requested)
     private Texture timerTexture;
     private TextureRegion[] timerFrames;
-    private TextureRegion janeHudPortraitRegion;
     private int timerFrameWidth;
     private float maxImmunityTime = 999999f;
     private float currentImmunityTime = 999999f;
@@ -1158,21 +1157,6 @@ public class GameScreen implements Screen {
             femaleFrameWidth = femalePlayerTexture.getWidth() / 8;
             femaleFrameHeight = femalePlayerTexture.getHeight() / 4;
             femaleFrames = TextureRegion.split(femalePlayerTexture, femaleFrameWidth, femaleFrameHeight);
-
-            // Reuse Jane's transparent idle art for her HUD portrait. Crop to her head and shoulders
-            // so it fills the same circular HUD slot as Elric's dedicated portrait sheet.
-            TextureRegion janeIdleFrame = femaleFrames[0][0];
-            int portraitX = Math.round(femaleFrameWidth * 0.12f);
-            int portraitY = 0;
-            int portraitW = Math.max(1, Math.round(femaleFrameWidth * 0.76f));
-            int portraitH = Math.max(1, Math.round(femaleFrameHeight * 0.58f));
-            janeHudPortraitRegion = new TextureRegion(
-                    janeIdleFrame,
-                    portraitX,
-                    portraitY,
-                    Math.min(portraitW, femaleFrameWidth - portraitX),
-                    Math.min(portraitH, femaleFrameHeight - portraitY)
-            );
         }
 
         playerSprintTexture = loadTextureSafely("sprint.png");
@@ -4263,13 +4247,6 @@ public class GameScreen implements Screen {
         batch.end();
     }
 
-    private TextureRegion hudPortraitFor(CharacterType character) {
-        if (character == CharacterType.JANE && janeHudPortraitRegion != null) {
-            return janeHudPortraitRegion;
-        }
-        return timerFrames != null && timerFrames.length > 0 ? timerFrames[0] : null;
-    }
-
     private void drawHud(WorldSnapshot snapshot, float delta) {
         if (partnerBannerSecondsLeft > 0f) partnerBannerSecondsLeft -= delta;
         Matrix4 hudMatrix = new Matrix4().setToOrtho2D(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
@@ -4416,16 +4393,9 @@ public class GameScreen implements Screen {
         batch.begin();
 
         if (timerTexture != null && timerFrames != null) {
-            WorldSnapshot.PlayerState localPlayer = snapshot != null ? client.findLocalPlayer(snapshot) : null;
-            TextureRegion p1Portrait = hudPortraitFor(localPlayer != null ? localPlayer.character : CharacterType.ELRIC);
-            if (p1Portrait != null) {
-                batch.draw(p1Portrait, timerX, timerY, scaledTW, scaledTH);
-            }
+            batch.draw(timerFrames[0], timerX, timerY, scaledTW, scaledTH);
             if (p2State != null) {
-                TextureRegion p2Portrait = hudPortraitFor(p2State.character);
-                if (p2Portrait != null) {
-                    batch.draw(p2Portrait, p2TimerX, timerY, scaledTW, scaledTH);
-                }
+                batch.draw(timerFrames[0], p2TimerX, timerY, scaledTW, scaledTH);
             }
         }
 
