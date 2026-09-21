@@ -152,19 +152,19 @@ infected-hour/
 
 ## 5. Team Contributions
 
-### Abrar Faiyaz
+### Abrar Faiyaz — 230041143
 - **Campaign & Gameplay:** Built the 6-level campaign progression, level transitions, story/cinematic sequences, and rescue/escort gameplay.
 - **UI & Gameplay Systems:** Developed the main menu, HUD, minimap, objective system, pause menus, healing, crafting, and coin economy.
 - **Networking & Integration:** Configured LAN co-op and Radmin VPN integration, dynamic backend routing, and master branch merges.
 - **Database Implementation:** Implemented the complete database system, including its architecture, entities, repositories, and persistence.
 
-### Sadnan Kibria
+### Sadnan Kibria — 230041119
 - **Player Movement & Combat:** Implemented the main character movement and combat mechanics, including attacks and related gameplay interactions.
 - **Boss System:** Developed the multi-phase final boss fight, including boss AI, attack patterns, laser beams, shockwaves, bio-aura, and stun mechanics.
 - **Sprites, Assets & Inventory:** Created and integrated Aseprite sprite sheets, animations, related game assets, and implemented the inventory system with its database integration.
 - **Audio & Sound Effects:** Integrated game sound effects, including machete, laser, bomb, and stage soundtrack assets.
 
-### AKM Azimul Ashique Khan
+### AKM Azimul Ashique Khan — 230041153
 - **Collision Grid Authoring:** Generated and refined walkability grids for Levels 1–5 from painted map masks using the custom grid tool.
 - **Map & Collision Fixes:** Resolved doorway alignment, pass-through wall bugs, stair transitions, and map reachability.
 - **Checkpoints & Persistence:** Implemented local save slots, checkpoint mechanisms, and database architecture documentation.
