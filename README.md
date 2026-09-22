@@ -163,6 +163,7 @@ infected-hour/
 - **Boss System:** Developed the multi-phase final boss fight, including boss AI, attack patterns, laser beams, shockwaves, bio-aura, and stun mechanics.
 - **Sprites, Assets & Inventory:** Created and integrated Aseprite sprite sheets, animations, related game assets, and implemented the inventory system with its database integration.
 - **Audio & Sound Effects:** Integrated game sound effects, including machete, laser, bomb, and stage soundtrack assets.
+ All sprite sheets used in this project were created by Sadnan Kibria using AI-assisted image generation and Aseprite. AI was used to help generate the initial visual concepts/assets, while Aseprite was used for editing, refining, arranging frames, and creating the final sprite sheets and animations.
 
 ### AKM Azimul Ashique Khan — 230041153
 - **Collision Grid Authoring:** Generated and refined walkability grids for Levels 1–5 from painted map masks using the custom grid tool.
